@@ -39,6 +39,13 @@ export const gameActionSchema = z.discriminatedUnion("type", [
     cardId: z.string().trim().min(1).max(48),
     targetSeat: z.number().int().min(0).max(15).optional(),
   }),
+  // 文本：辩论陈词、猜词提问、自由发言。
+  // 上限 600 字——长文会拖慢裁判判定，且牌桌上没人读长文
+  z.object({
+    type: z.literal("speak"),
+    text: z.string().trim().min(1).max(600),
+    targetSeat: z.number().int().min(0).max(15).optional(),
+  }),
 ]);
 
 /** v3 别名（agent.gatewayAct 沿用） */

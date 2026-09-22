@@ -152,7 +152,16 @@ export type GuessAction =
   | { type: "start" }
   | { type: "submit"; value: number }
   | { type: "choose"; choice: number }
-  | { type: "play"; cardId: string; targetSeat?: number };
+  | { type: "play"; cardId: string; targetSeat?: number }
+  /**
+   * 提交一段文本（辩论、猜词提问、发言）。
+   *
+   * 【为何需要】前四种动作的载荷都是数字或 id，装不下自然语言。
+   * 而「模糊议题由 Agent 裁判裁决」这一机制的输入恰恰是文本——
+   * 没有它，AI 裁判就只能判确定性规则，而确定性规则用算法即可，
+   * 根本不需要 Agent。文本动作是去中心化裁判成立的前提。
+   */
+  | { type: "speak"; text: string; targetSeat?: number };
 
 /** 门户别名：v4 起所有 SDK 模板共用此动作类型 */
 export type GameAction = GuessAction;
