@@ -34,6 +34,11 @@ import {
 import { awardGameResult } from "../../queries/profiles";
 import { incrementGameDefPlays } from "../../queries/gameDefs";
 import { persistRoomState } from "../../queries/rooms";
+import { insertMatchLog } from "../../queries/matchLogs";
+import { grantCard } from "../../queries/playerCards";
+import { detectEggs } from "../../world/eggs";
+import { ruleBookForTemplate } from "@contracts/rulebooks.data";
+import { EventRecorder, newMatchSeed } from "./eventRecorder";
 import type { RoundEntry, TemplateModule } from "./templates";
 
 export const REVEAL_MS = 5_000;
@@ -81,6 +86,13 @@ export interface SdkRoomState {
   submitDeadlineAt: number | null;
   startedAt: number | null;
   settled: boolean;
+  /**
+   * 对局种子（开局时生成）。回放与裁判团组建都依赖它——
+   * 此前质询只能用「房间码 + 开局时刻」凑，现在有真种子了。
+   */
+  seed?: string;
+  /** 已落库的 match_logs.id（终局后写入，观战页据此取事件流） */
+  matchLogId?: number | null;
 }
 
 function newSeatToken(): string {
@@ -106,6 +118,14 @@ export class SdkRoom {
   private botTimers: Set<ReturnType<typeof setTimeout>> = new Set();
   /** bot 座位号 → level-k 层级（1.6–3.6 随机人设，pollDuel 忽略） */
   private botLevels: Map<number, number> = new Map();
+  /**
+   * 事件记录器。开局时创建，终局时落库。
+   *
+   * 为何不持久化：事件流在内存中累积，进程重启则本局记录丢失。
+   * 这是刻意的取舍——完整方案要每个事件都写库（一局数十次写），
+   * 而重启中断的对局本身已无法继续，其部分事件流也无回放价值。
+   */
+  private recorder: EventRecorder | null = null;
 
   constructor(opts: {
     def: GameDefinition;
@@ -335,6 +355,23 @@ export class SdkRoom {
     );
     this.state.status = "playing";
     this.state.startedAt = Date.now();
+
+    // 开局：生成种子并起记录器。种子写入事件流，故回放仍可复现
+    const seed = newMatchSeed(this.code);
+    this.state.seed = seed;
+    this.state.matchLogId = null;
+    const book = ruleBookForTemplate(this.def.template);
+    this.recorder = new EventRecorder({
+      seed,
+      rulebookId: book?.id ?? `rb-${this.def.template}`,
+      startedAt: this.state.startedAt,
+    });
+    this.recorder.matchStart(
+      this.state.seats
+        .filter((s): s is SeatState => s !== null)
+        .map(s => ({ index: s.index, name: s.name, kind: s.kind })),
+    );
+
     this.beginRound(1);
     this.touch();
     return { ok: true };
@@ -363,6 +400,10 @@ export class SdkRoom {
     return { ok: true };
   }
 
+  /**
+   * 所有提交的唯一入口——真人、echo-bot、超时兜底都经此，
+   * 故事件记录埋在这里最可靠，不会漏掉任何一条动作。
+   */
   private commit(seatIndex: number, value: number) {
     if (this.state.submissions.some((e) => e.seat === seatIndex)) return;
     this.state.submissions.push({
@@ -370,6 +411,7 @@ export class SdkRoom {
       value,
       order: this.state.submissions.length,
     });
+    this.recorder?.action(seatIndex, this.module.gameKind, value);
   }
 
   /* ---------------------------------------------------------------- */
@@ -410,6 +452,7 @@ export class SdkRoom {
     this.state.phase = "submit";
     this.state.submissions = [];
     this.state.submitDeadlineAt = Date.now() + this.windowMs;
+    this.recorder?.roundBegin(round);
 
     this.submitTimer = setTimeout(() => {
       this.submitTimer = null;
@@ -460,6 +503,7 @@ export class SdkRoom {
     this.state.history.push(reveal);
     this.state.phase = "reveal";
     this.state.submitDeadlineAt = null;
+    this.recorder?.reveal(reveal, this.module.roundWinners(reveal));
     this.touch();
 
     if (this.state.round >= this.totalRounds) {
@@ -484,9 +528,93 @@ export class SdkRoom {
     this.state.winner = this.state.rankings[0] ?? null;
     this.touch();
     await this.settleRewards();
+    // 事件流落库 + 彩蛋判定，须在发奖后——彩蛋读的 fragmentsDelta 由发奖决定
+    await this.persistMatchLog();
     if (!this.def.isOfficial) {
       await incrementGameDefPlays(this.def.id).catch((err) =>
         console.error(`[sdkRoom] plays++ ${this.def.id} failed`, err),
+      );
+    }
+  }
+
+  /**
+   * 终局落库：写 match_logs → 判彩蛋 → 发卡。
+   *
+   * 【失败不影响对局】胜负与碎片在 settleRewards 已经结算完毕，
+   * 落库只是留痕。故全程 catch 兜住——数据库抖动不该让玩家的一局白打。
+   */
+  private async persistMatchLog(): Promise<void> {
+    const rec = this.recorder;
+    if (!rec) return;
+
+    // 碎片净收益：仅 human 席有账（bot 与外部 Agent 不入 traveler_profiles）
+    const fragmentsDelta: Record<number, number> = {};
+    const fee = this.def.entryFee.amount;
+    for (const seat of this.state.seats) {
+      if (!seat) continue;
+      const rank = (this.state.rankings ?? []).indexOf(seat.index);
+      const gross =
+        rank === 0
+          ? this.def.rewards.winner
+          : rank === 1
+            ? this.def.rewards.runnerUp
+            : this.def.rewards.participation;
+      fragmentsDelta[seat.index] = gross - fee;
+    }
+
+    rec.matchEnd({
+      rankings: this.state.rankings ?? [],
+      winnerSeat: this.state.winner,
+      fragmentsDelta,
+    });
+
+    try {
+      const logId = await insertMatchLog({
+        roomCode: this.code,
+        rulebookId: rec.rulebookId,
+        seed: rec.seed,
+        events: [...rec.all],
+        startedAt: rec.startedAt,
+        endedAt: Date.now(),
+        winnerSeat: this.state.winner,
+      });
+      this.state.matchLogId = logId;
+      this.touch();
+    } catch (err) {
+      console.error(`[sdkRoom] ${this.code} 事件流落库失败`, err);
+      return; // 落库失败则不发卡：卡牌应可溯源到具体一局
+    }
+
+    await this.grantEggCards(rec);
+  }
+
+  /**
+   * 彩蛋判定与发卡。
+   *
+   * 判定在全知事件流上做（服务端时机，可读密态事件）。
+   * 只给 human 席发卡——bot 无账户，外部 Agent 的奖励走其所属 userId，
+   * 但卡牌是给「人」的收藏，故此处只认真人席。
+   */
+  private async grantEggCards(rec: EventRecorder): Promise<void> {
+    let hits;
+    try {
+      hits = detectEggs([...rec.all]);
+    } catch (err) {
+      console.error(`[sdkRoom] ${this.code} 彩蛋判定失败`, err);
+      return;
+    }
+    if (hits.length === 0) return;
+
+    for (const hit of hits) {
+      const seat = this.state.seats[hit.seat];
+      if (seat?.kind !== "human" || !seat.userId) continue;
+      await grantCard({
+        userId: seat.userId,
+        cardId: hit.cardId,
+        kind: "relic",
+        source: "egg",
+      }).catch(err =>
+        console.error(`[sdkRoom] 发卡失败 ${hit.cardId}`, err),
       );
     }
   }

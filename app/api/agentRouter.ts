@@ -273,9 +273,9 @@ export const agentRouter = createRouter({
           assertion: input.assertion,
           appellantSeat: seat.index,
           matchSeats,
-          // SdkRoom 尚未生成对局种子（事件流生产端待补），
-          // 暂以「房间码 + 开局时刻」派生：同一局内稳定，可复现裁判团。
-          seed: `${room.code}:${state.startedAt ?? 0}`,
+          // 用对局真实种子，使裁判团与回放严格一致。
+          // 兜底仅为防御未开局的房间（此时 seed 尚未生成）。
+          seed: state.seed ?? `${room.code}:${state.startedAt ?? 0}`,
           quorumSize: input.quorumSize,
         });
       } catch (e) {
