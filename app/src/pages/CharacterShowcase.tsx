@@ -3,8 +3,10 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import CharacterCard from '@/components/CharacterCard'
+import TripoModelViewer from '@/components/TripoModelViewer'
 import { ECHOES, SUIT_META, type Echo } from '@/data/echoes'
 import { getShanHaiAnchor } from '@/data/shanhaijing'
+import { SCENE_ASSETS } from '@/data/sceneAssets'
 
 const SHOWCASE_IDS = ['baize', 'eshou', 'xuanji', 'zhuyin']
 
@@ -15,7 +17,7 @@ const ABILITIES: Record<string, { label: string; detail: string; tendency: numbe
   zhuyin: { label: '借时', detail: '保存一次资源或行动窗口，在关键回合换取额外选择。', tendency: 74 },
 }
 
-type ViewMode = 'cards' | 'anchors'
+type ViewMode = 'cards' | 'anchors' | 'assets'
 
 export default function CharacterShowcase() {
   const showcase = useMemo(
@@ -53,6 +55,13 @@ export default function CharacterShowcase() {
             >
               山海锚点
             </button>
+            <button
+              type="button"
+              onClick={() => setView('assets')}
+              className={`rounded-full px-4 py-2 text-[11px] tracking-[.18em] transition-colors ${view === 'assets' ? 'bg-gold-300/15 text-gold-100' : 'text-faint hover:text-gold-300'}`}
+            >
+              三维资产
+            </button>
             <Link to="/lobby" className="rounded-full px-4 py-2 text-[11px] tracking-[.18em] text-faint transition-colors hover:text-gold-300">
               进入大厅
             </Link>
@@ -84,6 +93,7 @@ export default function CharacterShowcase() {
           <div className="mb-4 flex items-center gap-2 sm:hidden">
             <button type="button" onClick={() => setView('cards')} className={`rounded-full border px-3 py-1.5 text-[11px] ${view === 'cards' ? 'border-gold-300/60 text-gold-100' : 'border-white/10 text-faint'}`}>角色卡</button>
             <button type="button" onClick={() => setView('anchors')} className={`rounded-full border px-3 py-1.5 text-[11px] ${view === 'anchors' ? 'border-gold-300/60 text-gold-100' : 'border-white/10 text-faint'}`}>山海锚点</button>
+            <button type="button" onClick={() => setView('assets')} className={`rounded-full border px-3 py-1.5 text-[11px] ${view === 'assets' ? 'border-gold-300/60 text-gold-100' : 'border-white/10 text-faint'}`}>三维资产</button>
             <Link to="/lobby" className="ml-auto rounded-full border border-white/10 px-3 py-1.5 text-[11px] text-faint">进入大厅</Link>
           </div>
 
@@ -151,7 +161,7 @@ export default function CharacterShowcase() {
                 </div>
               </motion.section>
             </div>
-          ) : (
+          ) : view === 'anchors' ? (
             <section aria-label="山海锚点" className="min-h-0 flex-1 overflow-y-auto">
               <div className="grid gap-4 sm:grid-cols-2">
                 {showcase.map((echo) => {
@@ -181,6 +191,42 @@ export default function CharacterShowcase() {
                     </button>
                   )
                 })}
+              </div>
+            </section>
+          ) : (
+            <section aria-label="三维资产" className="min-h-0 flex-1 overflow-hidden">
+              <div className="grid h-full min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_370px]">
+                <div className="panel-bg min-h-0 overflow-hidden rounded-[18px]">
+                  <TripoModelViewer
+                    src={SCENE_ASSETS[selected.id]?.modelUrl}
+                    alt={`${selected.name}三维资产`}
+                    label={SCENE_ASSETS[selected.id]?.label ?? selected.name}
+                    className="h-full"
+                  />
+                </div>
+                <div className="panel-bg min-h-0 overflow-y-auto rounded-[18px] p-5 sm:p-6">
+                  <div className="text-[10px] tracking-[.26em] text-gold-300">SCENE ASSET / TRIPO</div>
+                  <h2 className="mt-3 font-serifsc text-[26px] font-black tracking-[.12em] text-bone">{SCENE_ASSETS[selected.id]?.label ?? selected.name}</h2>
+                  <p className="mt-3 text-[12px] leading-6 text-bone/60">三维资产只负责把牌局中的关键行为演绎出来，胜负、权限和奖励仍由服务端规则执行。</p>
+                  <div className="mt-5 rounded-[12px] border border-[rgba(227,194,124,.12)] bg-black/10 p-4">
+                    <div className="flex items-center justify-between text-[10px] tracking-[.18em] text-faint">
+                      <span>资产状态</span>
+                      <span className="text-gold-300">{SCENE_ASSETS[selected.id]?.status === 'ready' ? 'READY' : 'PLANNED'}</span>
+                    </div>
+                    <p className="mt-3 text-[12px] leading-6 text-bone/60">玩法落点：{SCENE_ASSETS[selected.id]?.gameplayUse}</p>
+                  </div>
+                  <div className="mt-4 rounded-[12px] border border-[rgba(227,194,124,.12)] p-4">
+                    <div className="text-[10px] tracking-[.18em] text-faint">TRIPO PROMPT</div>
+                    <p className="mt-2 text-[11px] leading-5 text-bone/50">{SCENE_ASSETS[selected.id]?.tripoPrompt}</p>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-2">
+                    {showcase.map((echo) => (
+                      <button key={echo.id} type="button" onClick={() => setSelectedId(echo.id)} className={`rounded-[10px] border px-3 py-2 text-left text-[11px] transition-colors ${echo.id === selected.id ? 'border-gold-300/60 bg-gold-300/10 text-gold-100' : 'border-white/10 text-faint hover:text-bone'}`}>
+                        {SCENE_ASSETS[echo.id]?.label ?? echo.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </section>
           )}

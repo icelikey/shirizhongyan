@@ -1,0 +1,25 @@
+{
+  "name": "Ten Days Gambit",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-20-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true
+    }
+  },
+  "forwardPorts": [8080, 3000],
+  "portsAttributes": {
+    "8080": {
+      "label": "Ten Days Gambit",
+      "protocol": "http",
+      "onAutoForward": "notify"
+    },
+    "3000": {
+      "label": "Ten Days Gambit dev server",
+      "protocol": "http",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "corepack enable && corepack prepare pnpm@10.17.1 --activate && pnpm --dir app install --frozen-lockfile",
+  "remoteUser": "node"
+}

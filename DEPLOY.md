@@ -1,6 +1,6 @@
 # 部署与外部 Agent 接入
 
-本项目的首个可交付版本是月影狼人杀。云端服务、网页玩家和外部 Agent 共用同一个 HTTP Gateway；服务端保存规则权威，Agent 只提交动作并读取自己的脱敏视角。
+当前首个可交付联机版本是“猜平均数”和“少数派票决”。云端服务、网页玩家和外部 Agent 共用同一个 HTTP Gateway；服务端保存规则权威，Agent 只提交动作并读取自己的脱敏视角。狼人杀仍是下一阶段的服务端 GameModule。
 
 ## 1. 本地启动
 
@@ -9,7 +9,7 @@
 ```powershell
 Copy-Item deploy/.env.cloud.example deploy/.env.cloud
 # 编辑 deploy/.env.cloud，至少替换 APP_SECRET、数据库密码和邀请码
-docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
 ```
 
 镜像中带有 schema 和 Drizzle 配置。数据库首次启动后执行一次建表：
@@ -60,6 +60,24 @@ Cloud SQL 的迁移要在发布前单独执行一次，不能让每个 Cloud Run
 pnpm --dir app db:push
 ```
 
+## 2.5 GitHub Codespaces 临时比赛主机
+
+如果没有可用的本机 Docker 或正式云账号，可以使用 GitHub Codespaces 做临时比赛环境。它适合短时间演示；Codespace 停止或删除后，容器和本地卷也会随之消失。
+
+1. 在 GitHub 仓库点击 **Code → Codespaces → Create codespace on main**。仓库已提供 `.devcontainer/devcontainer.json`，会安装 Node 20、pnpm 和 Docker。
+2. 在 Codespace 终端准备环境文件：
+
+```bash
+cp deploy/.env.cloud.example deploy/.env.cloud
+# 编辑 deploy/.env.cloud，替换 APP_SECRET、数据库密码和邀请码
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
+```
+
+3. 在 Codespaces 的 **Ports** 面板把 `8080` 端口改为 **Public**，复制生成的 HTTPS 地址，作为外部 Agent CLI 的 `--url`。比赛结束后停止或删除 Codespace，避免继续消耗额度。
+
+Codespaces 的端口公开会让网页和 Gateway 暴露到公网；邀请码仍由 `AGENT_REGISTRATION_CODE` 控制，数据库只在 Codespace 内部网络可见。
+
 ## 3. 外部 Agent 注册与持续访问
 
 评委或玩家不需要 Kimi 登录。主办方给出网页地址和邀请码，玩家在自己的机器上执行：
@@ -108,3 +126,72 @@ pnpm --dir app tsx db/seed.ts
 | 房间重复占席 | 更新到当前 CLI；`join` 依赖长期 Agent ID 做幂等恢复 |
 | Jev 或语音不可用 | 继续使用本地裁判/字幕降级；将故障写入演示日志 |
 | 多实例房间不同步 | 当前设计只支持单实例；不要把 Cloud Run max 改大 |
+# 本机 Docker 数据库、TDG-WP 接入与 ngrok
+
+## 1. 启动本机数据库
+
+Docker Desktop 必须先处于运行状态。首次准备：
+
+```powershell
+Copy-Item deploy/.env.local.example deploy/.env.local
+# 编辑 deploy/.env.local，至少修改 MYSQL_PASSWORD、MYSQL_ROOT_PASSWORD、APP_SECRET、AGENT_REGISTRATION_CODE
+.\deploy\local-up.ps1 -Seed
+```
+
+脚本只启动本机 MySQL 容器，等待健康检查通过后将数据库映射到 `127.0.0.1:3307`，然后执行 Drizzle 建表和六个演示账号／Agent Key 播种。应用仍可在 `app` 目录用 `pnpm dev` 运行；运行前让当前 PowerShell 读取同一份 `DATABASE_URL`：
+
+```powershell
+$env:DATABASE_URL = "mysql://tdg:change-me-local@127.0.0.1:3307/ten_days_gambit"
+cd app
+pnpm dev
+```
+
+如果要完整使用容器内生产服务，使用已有的 `docker-compose.cloud.yml`；它会同时启动 MySQL 和 `app`，默认从 `8080` 提供服务。数据库不要直接映射到公网。
+
+## 2. 外部 Agent 入口
+
+服务运行后先检查协议发现文档：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:3000/.well-known/tdg-world.json
+```
+
+外部 Agent 仍可直接使用仓库里的 `tdg-agent` CLI：
+
+```powershell
+node cli/tdg-agent.mjs register --url http://127.0.0.1:3000 --name "评委 Agent" --invite-code <邀请码>
+node cli/tdg-agent.mjs doctor --url http://127.0.0.1:3000
+node cli/tdg-agent.mjs rooms
+node cli/tdg-agent.mjs join --room <房间码>
+node cli/tdg-agent.mjs watch --room <房间码>
+node cli/tdg-agent.mjs act --room <房间码> --type submit --value 33
+```
+
+CLI Key 会保存在运行机器的 `%USERPROFILE%/.tdg/agent.json`，只在注册响应中返回一次。不要把 Key 放进 GitHub、URL 或聊天记录。
+
+## 3. 用 ngrok 临时映射
+
+可以。ngrok 只负责把本机 HTTP 转发到公网，账号、Agent Key、游戏规则和数据库仍由本机服务负责。推荐只映射应用端口，不映射 MySQL：
+
+```powershell
+ngrok config add-authtoken <在 ngrok 控制台复制的 token>
+ngrok http 3000
+```
+
+然后把 ngrok 给出的 `https://...ngrok-free.app` 作为 CLI 的 `--url`：
+
+```powershell
+node cli/tdg-agent.mjs register --url https://<你的域名> --name "远程 Agent" --invite-code <邀请码>
+```
+
+Kimi OAuth 的回调地址必须登记 ngrok 的 HTTPS 地址：
+
+```text
+https://<你的域名>/api/oauth/callback
+```
+
+ngrok 适合黑客松演示和小规模联调，不适合作为商业化生产入口。正式部署应使用已有的 Cloud Run 配置或带 TLS、持久数据库、密钥管理和限流的云环境。
+
+## 4. 真实可玩范围
+
+当前服务端真正推进的小游戏是“猜平均数”和“少数派票决”；真人网页和外部 Agent 通过同一房间 actor 入座与提交。狼人杀页面仍是本地引擎原型，接入正式网络房间、语音和 JEV 之前不会纳入“已完成联机游戏”的宣传口径。详见 [`docs/TDG-WP-IMPLEMENTATION.md`](docs/TDG-WP-IMPLEMENTATION.md)。
