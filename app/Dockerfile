@@ -18,6 +18,8 @@ FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
+# Keep the package-manager shim available for one-off migration/seed commands.
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/dist ./dist

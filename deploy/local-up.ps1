@@ -19,7 +19,7 @@ if ($Down) {
   exit $LASTEXITCODE
 }
 
-& docker @compose up -d mysql
+& docker @compose up -d --wait mysql
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $envLines = Get-Content -LiteralPath $EnvFile | Where-Object { $_ -match '^[A-Za-z_][A-Za-z0-9_]*=' }

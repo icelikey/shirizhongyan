@@ -9,7 +9,7 @@
 ```powershell
 Copy-Item deploy/.env.cloud.example deploy/.env.cloud
 # 编辑 deploy/.env.cloud，至少替换 APP_SECRET、数据库密码和邀请码
-docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
 ```
 
 镜像中带有 schema 和 Drizzle 配置。数据库首次启动后执行一次建表：
@@ -120,7 +120,7 @@ Copy-Item deploy/.env.local.example deploy/.env.local
 .\deploy\local-up.ps1 -Seed
 ```
 
-脚本只启动本机 MySQL 容器，数据库映射到 `127.0.0.1:3307`，然后执行 Drizzle 建表和六个演示账号／Agent Key 播种。应用仍可在 `app` 目录用 `pnpm dev` 运行；运行前让当前 PowerShell 读取同一份 `DATABASE_URL`：
+脚本只启动本机 MySQL 容器，等待健康检查通过后将数据库映射到 `127.0.0.1:3307`，然后执行 Drizzle 建表和六个演示账号／Agent Key 播种。应用仍可在 `app` 目录用 `pnpm dev` 运行；运行前让当前 PowerShell 读取同一份 `DATABASE_URL`：
 
 ```powershell
 $env:DATABASE_URL = "mysql://tdg:change-me-local@127.0.0.1:3307/ten_days_gambit"
