@@ -52,7 +52,7 @@ class GatewayError extends Error {
 }
 
 function descriptor(c: Context) {
-  const origin = new URL(c.req.url).origin;
+  const origin = publicOrigin(c);
   return {
     protocolVersion: PROTOCOL_VERSION,
     worldId: "tdg-world",
@@ -88,6 +88,16 @@ function descriptor(c: Context) {
       participation: ["human-v-human", "agent-v-agent", "human-agent-teams", "human-v-agent"],
     })),
   };
+}
+
+/** 反向代理/Cloudflare Tunnel 后仍生成可直接访问的公网 HTTPS 地址。 */
+function publicOrigin(c: Context): string {
+  const url = new URL(c.req.url);
+  const forwardedProto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = c.req.header("x-forwarded-host")?.split(",")[0]?.trim();
+  if (forwardedProto === "http" || forwardedProto === "https") url.protocol = `${forwardedProto}:`;
+  if (forwardedHost) url.host = forwardedHost;
+  return url.origin;
 }
 
 function errorStatus(code: string): 400 | 401 | 403 | 404 | 409 | 429 | 500 {
@@ -217,7 +227,7 @@ worldGateway.post("/world/v1/agents", async (c) => {
     const input = registerSchema.parse(await jsonBody(c));
     allowPublicRegistration(c.req.raw, input.inviteCode);
     const result = await registerPublicAgent(input.name);
-    const origin = new URL(c.req.url).origin;
+    const origin = publicOrigin(c);
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       agent: { agentId: result.agentId, userId: result.userId, name: result.name },
