@@ -8,9 +8,12 @@ import { inspectAttr } from 'plugin-inspect-react-code'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
-    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/).*$/] }),
+    // Keep the TDG-WP HTTP gateway reachable in dev mode as well as in the
+    // production server. Only the browser's page assets should bypass Hono.
+    devServer({ entry: "api/boot.ts", exclude: [/^\/(?!api\/|world\/|\.well-known\/).*$/] }),
     inspectAttr(), react()],
   server: {
+    host: "127.0.0.1",
     port: 3000,
   },
   resolve: {
