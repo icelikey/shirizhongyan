@@ -19,6 +19,7 @@ import EchoesSection from '@/pages/home/EchoesSection'
 import FinalCtaSection from '@/pages/home/FinalCtaSection'
 import ContractModal from '@/pages/home/ContractModal'
 import WorldIntroFilm from '@/components/onboarding/WorldIntroFilm'
+import WorldGate from '@/components/onboarding/WorldGate'
 import MaskIcon from '@/components/MaskIcon'
 
 function HomeMenu({
@@ -128,6 +129,7 @@ export default function Home() {
 
   const [contractOpen, setContractOpen] = useState(false)
   const [worldIntroOpen, setWorldIntroOpen] = useState(false)
+  const [worldGateOpen, setWorldGateOpen] = useState(false)
   const [ink, setInk] = useState<{ x: number; y: number } | null>(null)
   const lenisRef = useRef<Lenis | null>(null)
 
@@ -165,7 +167,7 @@ export default function Home() {
     lenisRef.current?.scrollTo(`#${id}`, { duration: 1.1 })
   }, [])
 
-  /** 契约完成：写 store → 欢迎 Toast → 先播放世界卡，再墨染进入大厅 */
+  /** 契约完成：写 store → 欢迎 Toast → 先播放开场 PV，再进入世界悬浮入口 */
   const handleContractComplete = useCallback(
     (nickname: string, echoId: string, customName: string) => {
       login(nickname, echoId)
@@ -182,6 +184,11 @@ export default function Home() {
 
   const completeWorldIntro = useCallback(() => {
     setWorldIntroOpen(false)
+    setWorldGateOpen(true)
+  }, [])
+
+  const completeWorldGate = useCallback(() => {
+    setWorldGateOpen(false)
     setInk({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
   }, [])
 
@@ -198,6 +205,7 @@ export default function Home() {
 
       <ContractModal open={contractOpen} onClose={() => setContractOpen(false)} onComplete={handleContractComplete} />
       <WorldIntroFilm open={worldIntroOpen} onComplete={completeWorldIntro} />
+      <WorldGate open={worldGateOpen} onComplete={completeWorldGate} />
 
       {/* 墨染路由过渡：墨从点击处晕开，覆盖后跳转 */}
       <AnimatePresence>
