@@ -4,7 +4,7 @@
  * 已登录：CTA 变为「返回大厅」，点击墨染过渡至 /lobby。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Lenis from 'lenis'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -18,6 +18,60 @@ import GamesSection from '@/pages/home/GamesSection'
 import EchoesSection from '@/pages/home/EchoesSection'
 import FinalCtaSection from '@/pages/home/FinalCtaSection'
 import ContractModal from '@/pages/home/ContractModal'
+import MaskIcon from '@/components/MaskIcon'
+
+function HomeMenu({
+  loggedIn,
+  onEnter,
+  onNavigate,
+}: {
+  loggedIn: boolean
+  onEnter: (e: React.MouseEvent) => void
+  onNavigate: (id: string) => void
+}) {
+  const items = [
+    { label: '世界', id: 's1' },
+    { label: '四境', id: 's2' },
+    { label: '牌局', id: 's3' },
+  ]
+
+  return (
+    <header className="fixed left-0 right-0 top-0 z-50 px-4 py-3 sm:px-8 sm:py-4">
+      <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 rounded-full border border-[rgba(227,194,124,.2)] bg-[#0C0A13CC] px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,.28)] backdrop-blur-md sm:px-4">
+        <button type="button" onClick={() => onNavigate('s0')} className="flex shrink-0 items-center gap-2.5" aria-label="回到世界序章">
+          <MaskIcon src="/logo-mark.svg" size={27} color="#E3C27C" />
+          <span className="gold-text font-serifsc text-[15px] font-black tracking-wider">十日牌局</span>
+        </button>
+
+        <nav className="hidden items-center gap-1 md:flex" aria-label="世界菜单">
+          {items.map((item) => (
+            <button key={item.id} type="button" onClick={() => onNavigate(item.id)} className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
+              {item.label}
+            </button>
+          ))}
+          <a href="#s4" className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
+            影从
+          </a>
+          <a href="#s5" className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
+            入场
+          </a>
+          <Link to="/codex" className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
+            规则
+          </Link>
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <Link to="/characters" className="hidden rounded-full border border-[rgba(227,194,124,.25)] px-3 py-2 text-[11px] tracking-[.15em] text-gold-100/80 transition-colors hover:border-gold-300 hover:text-gold-100 sm:inline-flex">
+            角色卡
+          </Link>
+          <button type="button" onClick={onEnter} className="rounded-full bg-gold-300/15 px-3.5 py-2 text-[11px] tracking-[.16em] text-gold-100 transition-colors hover:bg-gold-300/25">
+            {loggedIn ? '进入大厅' : '立契入场'}
+          </button>
+        </div>
+      </div>
+    </header>
+  )
+}
 
 /** 右侧竖排日晷进度刻度（10 格 = 十日，随全局滚动填充） */
 function Sundial() {
@@ -102,6 +156,10 @@ export default function Home() {
     lenisRef.current?.scrollTo('#s1', { duration: 1.4 })
   }, [])
 
+  const handleNavigate = useCallback((id: string) => {
+    lenisRef.current?.scrollTo(`#${id}`, { duration: 1.1 })
+  }, [])
+
   /** 契约完成：写 store → 欢迎 Toast → 墨染过渡 /lobby */
   const handleContractComplete = useCallback(
     (nickname: string, echoId: string, customName: string) => {
@@ -119,6 +177,7 @@ export default function Home() {
 
   return (
     <div className="relative">
+      <HomeMenu loggedIn={loggedIn} onEnter={handleEnter} onNavigate={handleNavigate} />
       <Sundial />
       <HeroSection onEnter={handleEnter} onLearnMore={handleLearnMore} />
       <LoreSection />

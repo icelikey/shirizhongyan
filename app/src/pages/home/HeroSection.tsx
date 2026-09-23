@@ -9,9 +9,7 @@ import { useProfile } from '@/store/profile'
 import { getCountdown, formatHMS, COUNTDOWN_TICK_MS } from '@/lib/countdown'
 import CountdownRing from '@/components/CountdownRing'
 import GoldButton from '@/components/GoldButton'
-import MaskIcon from '@/components/MaskIcon'
 import { gsap, useGSAP } from '@/lib/gsap'
-import { Link } from 'react-router-dom'
 
 /** 秒位翻字：值变化时新数下入（CSS keyframes，避免与 GSAP 混库） */
 function FlipClock() {
@@ -134,14 +132,14 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
     <section ref={root} className="relative h-[200dvh]" id="s0">
       <div className="sticky top-0 h-[100dvh] overflow-hidden">
         {/* 星云底 */}
-        <div ref={nebulaRef} className="absolute inset-0 bg-cover bg-center opacity-0" style={{ backgroundImage: "url('/bg-nebula-abyss.png')" }} />
+        <div ref={nebulaRef} className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/bg-nebula-abyss.png')" }} />
         {/* 世界之门中景（门扉位于画面下 2/3） */}
         <img
           ref={gateRef}
           src="/hero-gate.png"
           alt="世界之门"
           draggable={false}
-          className="absolute left-1/2 -translate-x-1/2 bottom-[-8%] w-[120%] max-w-none object-cover opacity-0 transition-[filter] duration-500 z-[2]"
+          className="absolute left-1/2 -translate-x-1/2 bottom-[-8%] w-[120%] max-w-none object-cover transition-[filter] duration-500 z-[2]"
           style={{
             maskImage: 'linear-gradient(180deg, transparent 0%, #000 22%)',
             WebkitMaskImage: 'linear-gradient(180deg, transparent 0%, #000 22%)',
@@ -150,20 +148,9 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
         />
         <FloatingCards />
 
-        {/* 顶部极简条 */}
-        <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-8 py-5">
-          <Link to="/" className="flex items-center gap-2.5">
-            <MaskIcon src="/logo-mark.svg" size={32} color="#E3C27C" />
-            <span className="gold-text font-serifsc font-black text-[17px] tracking-wider">十日牌局</span>
-          </Link>
-          <Link to="/codex" className="text-[13px] text-dim tracking-[.2em] border border-[rgba(227,194,124,.28)] rounded-full px-4 py-1.5 hover:text-gold-300 hover:border-[rgba(246,227,180,.55)] transition-colors">
-            规则图鉴
-          </Link>
-        </div>
-
         {/* 中央内容 */}
         <div className="relative z-20 h-full flex flex-col items-center justify-center gap-3 px-6">
-          <div ref={ringRef} className="opacity-0">
+          <div ref={ringRef}>
             <CountdownRing variant="hero" size={320}>
               <img
                 ref={eclipseRef}
@@ -186,13 +173,13 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
               </span>
             ))}
           </h1>
-          <p className="hero-sub font-cinzel font-semibold text-[14px] tracking-[.5em] text-dim opacity-0">TEN DAYS GAMBIT</p>
+          <p className="hero-sub font-cinzel font-semibold text-[14px] tracking-[.5em] text-dim">TEN DAYS GAMBIT</p>
 
-          <div className="hero-sub opacity-0 mt-1">
+          <div className="hero-sub mt-1">
             <FlipClock />
           </div>
 
-          <div ref={ctaRef} className="opacity-0 mt-5 flex flex-col items-center gap-3">
+          <div ref={ctaRef} className="mt-5 flex flex-col items-center gap-3">
             <GoldButton
               variant="gold"
               size="xl"
@@ -214,10 +201,10 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
         </div>
 
         {/* 左右竖排楹联 */}
-        <span className="hero-sub opacity-0 vertical-rl font-mashan text-[22px] text-faint absolute left-8 top-1/2 -translate-y-1/2 z-20 hidden lg:block">
+        <span className="hero-sub vertical-rl font-mashan text-[22px] text-faint absolute left-8 top-1/2 -translate-y-1/2 z-20 hidden lg:block">
           世界每十日终结一次
         </span>
-        <span className="hero-sub opacity-0 vertical-rl font-mashan text-[22px] text-faint absolute right-8 top-1/2 -translate-y-1/2 z-20 hidden lg:block">
+        <span className="hero-sub vertical-rl font-mashan text-[22px] text-faint absolute right-8 top-1/2 -translate-y-1/2 z-20 hidden lg:block">
           胜者携记忆碎片而行
         </span>
       </div>
