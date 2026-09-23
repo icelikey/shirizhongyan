@@ -230,8 +230,8 @@ export const agentRouter = createRouter({
   register: authedQuery
     .input(z.object({ name: z.string().min(1).max(64) }))
     .mutation(async ({ ctx, input }) => {
-      const { id, key } = await createAgentKey(ctx.user.id, input.name.trim());
-      return { key, agentId: id };
+      const { id, key, reportToken } = await createAgentKey(ctx.user.id, input.name.trim());
+      return { key, reportToken, agentId: id };
     }),
 
   /** 当前用户的 Key 列表（脱敏：仅 prefix） */

@@ -150,9 +150,10 @@ async function readResponse(response) {
   }
 }
 
-async function requestJson(url, { key = "", method = "GET", body } = {}) {
+async function requestJson(url, { key = "", reportToken = "", method = "GET", body } = {}) {
   const headers = { accept: "application/json" };
   if (key) headers["x-api-key"] = key;
+  if (reportToken) headers["x-report-token"] = reportToken;
   const init = { method, headers };
   if (body !== undefined) {
     headers["content-type"] = "application/json";
@@ -250,6 +251,7 @@ function help() {
   tdg-agent act --room ABC123 --type vote --approve true
   tdg-agent speak --room ABC123 --text "我认为四号的陈述存在矛盾"
   tdg-agent appeal --room ABC123 --clause-id c-guess-tie --assertion "具体规则质询"
+  tdg-agent report
 
 诊断与原始读取：
   tdg-agent doctor --json
@@ -321,6 +323,8 @@ async function run(args) {
       agentId: agent.agentId,
       userId: agent.userId,
       name: agent.name,
+      reportToken: credential.reportToken,
+      reportUrl: credential.reportUrl,
       createdAt: new Date().toISOString(),
     });
     printSuccess(args, { ...data, configPath: path, next: "Key 只显示这一次，请让本机 Agent 从配置文件读取。" });
@@ -379,6 +383,16 @@ async function run(args) {
       configPath: configPath(args),
       keyConfigured: true,
     });
+    return;
+  }
+  if (command === "report" || command === "daily") {
+    if (!config?.agentId) throw new Error("当前配置没有 agentId，请重新 register");
+    const reportToken = config.reportToken || "";
+    const data = await requestJson(`${baseUrl}/agents/${config.agentId}/report`, {
+      key: reportToken ? "" : key,
+      reportToken,
+    });
+    printSuccess(args, data);
     return;
   }
   if (command === "rooms") {

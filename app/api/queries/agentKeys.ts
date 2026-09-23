@@ -12,16 +12,26 @@ export function generateAgentKey(): string {
   return `tdg_${randomBytes(24).toString("hex")}`;
 }
 
+export function generateReportToken(): string {
+  return `tdgr_${randomBytes(24).toString("hex")}`;
+}
+
+export function hashReportToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export async function createAgentKey(userId: number, name: string) {
   const key = generateAgentKey();
+  const reportToken = generateReportToken();
   const keyHash = hashAgentKey(key);
+  const reportTokenHash = hashReportToken(reportToken);
   const prefix = key.slice(0, 8); // "tdg_" + 4 hex chars
   const db = getDb();
   const [{ id }] = await db
     .insert(agentKeys)
-    .values({ userId, name, keyHash, prefix })
+    .values({ userId, name, keyHash, prefix, reportTokenHash })
     .$returningId();
-  return { id, key };
+  return { id, key, reportToken };
 }
 
 export async function findActiveAgentKey(key: string) {
@@ -29,6 +39,16 @@ export async function findActiveAgentKey(key: string) {
   return getDb().query.agentKeys.findFirst({
     where: and(
       eq(agentKeys.keyHash, hashAgentKey(key)),
+      eq(agentKeys.active, true),
+    ),
+  });
+}
+
+export async function findActiveAgentKeyByReportToken(token: string) {
+  if (!token.startsWith("tdgr_")) return undefined;
+  return getDb().query.agentKeys.findFirst({
+    where: and(
+      eq(agentKeys.reportTokenHash, hashReportToken(token)),
       eq(agentKeys.active, true),
     ),
   });

@@ -18,6 +18,7 @@ import GamesSection from '@/pages/home/GamesSection'
 import EchoesSection from '@/pages/home/EchoesSection'
 import FinalCtaSection from '@/pages/home/FinalCtaSection'
 import ContractModal from '@/pages/home/ContractModal'
+import WorldIntroFilm from '@/components/onboarding/WorldIntroFilm'
 import MaskIcon from '@/components/MaskIcon'
 
 function HomeMenu({
@@ -126,6 +127,7 @@ export default function Home() {
   const updateCompanion = useProfile((s) => s.updateCompanion)
 
   const [contractOpen, setContractOpen] = useState(false)
+  const [worldIntroOpen, setWorldIntroOpen] = useState(false)
   const [ink, setInk] = useState<{ x: number; y: number } | null>(null)
   const lenisRef = useRef<Lenis | null>(null)
 
@@ -163,7 +165,7 @@ export default function Home() {
     lenisRef.current?.scrollTo(`#${id}`, { duration: 1.1 })
   }, [])
 
-  /** 契约完成：写 store → 欢迎 Toast → 墨染过渡 /lobby */
+  /** 契约完成：写 store → 欢迎 Toast → 先播放世界卡，再墨染进入大厅 */
   const handleContractComplete = useCallback(
     (nickname: string, echoId: string, customName: string) => {
       login(nickname, echoId)
@@ -173,10 +175,15 @@ export default function Home() {
       toast.success(`第 1 日 · 旅人【${nickname}】踏入牌局之间`, {
         description: `与${echo?.name ?? '影从'}立契已成，十日倒计时开始了。`,
       })
-      setInk({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+      setWorldIntroOpen(true)
     },
     [login, updateCompanion],
   )
+
+  const completeWorldIntro = useCallback(() => {
+    setWorldIntroOpen(false)
+    setInk({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+  }, [])
 
   return (
     <div className="relative">
@@ -190,6 +197,7 @@ export default function Home() {
       <FinalCtaSection onEnter={handleEnter} />
 
       <ContractModal open={contractOpen} onClose={() => setContractOpen(false)} onComplete={handleContractComplete} />
+      <WorldIntroFilm open={worldIntroOpen} onComplete={completeWorldIntro} />
 
       {/* 墨染路由过渡：墨从点击处晕开，覆盖后跳转 */}
       <AnimatePresence>
