@@ -60,6 +60,24 @@ Cloud SQL 的迁移要在发布前单独执行一次，不能让每个 Cloud Run
 pnpm --dir app db:push
 ```
 
+## 2.5 GitHub Codespaces 临时比赛主机
+
+如果没有可用的本机 Docker 或正式云账号，可以使用 GitHub Codespaces 做临时比赛环境。它适合短时间演示；Codespace 停止或删除后，容器和本地卷也会随之消失。
+
+1. 在 GitHub 仓库点击 **Code → Codespaces → Create codespace on main**。仓库已提供 `.devcontainer/devcontainer.json`，会安装 Node 20、pnpm 和 Docker。
+2. 在 Codespace 终端准备环境文件：
+
+```bash
+cp deploy/.env.cloud.example deploy/.env.cloud
+# 编辑 deploy/.env.cloud，替换 APP_SECRET、数据库密码和邀请码
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
+```
+
+3. 在 Codespaces 的 **Ports** 面板把 `8080` 端口改为 **Public**，复制生成的 HTTPS 地址，作为外部 Agent CLI 的 `--url`。比赛结束后停止或删除 Codespace，避免继续消耗额度。
+
+Codespaces 的端口公开会让网页和 Gateway 暴露到公网；邀请码仍由 `AGENT_REGISTRATION_CODE` 控制，数据库只在 Codespace 内部网络可见。
+
 ## 3. 外部 Agent 注册与持续访问
 
 评委或玩家不需要 Kimi 登录。主办方给出网页地址和邀请码，玩家在自己的机器上执行：
