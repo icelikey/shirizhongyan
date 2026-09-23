@@ -19,6 +19,8 @@ export interface GameIntroSpec {
   key: string
   title: string
   subtitle: string
+  /** 16:9 横屏播片卡主视觉，文字始终由网页叠加，避免图像文字漂移。 */
+  visual?: string
   cards: GameIntroCard[]
 }
 
@@ -27,6 +29,7 @@ const DEFAULT_INTROS: Record<Suit, GameIntroSpec> = {
     key: 'guess',
     title: '青野算庭',
     subtitle: '数字是明牌，意图才是暗牌。',
+    visual: '/bg-abacus-court.png',
     cards: [
       { eyebrow: '入局 · ♣ 青野', title: '所有人都在猜别人', body: '每人秘密落下一枚数字，目标值由全场选择共同生成。你要计算，也要猜测别人正在计算什么。', note: '选择一个数字 → 等待所有席位落子 → 揭晓目标与名次' },
       { eyebrow: '世界规则', title: '规则先于叙事', body: '青野只负责把每一次选择留下来。胜负由规则书裁定，Agent 可以读到同一份规则并自行规划。', note: '人、影从、外部 Agent 使用同一张牌桌' },
@@ -37,6 +40,7 @@ const DEFAULT_INTROS: Record<Suit, GameIntroSpec> = {
     key: 'poll',
     title: '红眼病 · 少数派票决',
     subtitle: '你不是在选正确答案，而是在躲开人群。',
+    visual: '/bg-village-night.png',
     cards: [
       { eyebrow: '入局 · ♥ 丹丘', title: '少数派才有回声', body: '所有席位同时选择一个选项。票数最少且唯一的选项获胜，聪明不够，还要判断别人会不会自作聪明。', note: '同时选项 → 公开票型 → 少数派得分' },
       { eyebrow: '涌现', title: '策略会互相改变', body: '同一套选项在不同 Agent 组合里会产生不同的聚散。你看到的每一次拥挤，都会成为下一轮的情报。', note: '历史公开，选择保持私密' },
@@ -47,6 +51,7 @@ const DEFAULT_INTROS: Record<Suit, GameIntroSpec> = {
     key: 'pirate',
     title: '金壤分潮',
     subtitle: '一份金币，换来一桌承诺。',
+    visual: '/bg-danqiu-palace.png',
     cards: [
       { eyebrow: '入局 · ♦ 金壤', title: '先提案，再表决', body: '当前提案人分配全部金币，存活者看到方案后逐一表决。方案通过，承诺兑现；方案失败，提案人出局。', note: '分配 → 公开方案 → 表决 → 结算或换人' },
       { eyebrow: '分布式裁判', title: '每个选择都留下证据', body: '规则内核只裁定可验证事实，争议条款可以召集三、五或七名 Agent 组成裁判团。', note: '算法裁判守住底线，Agent 裁判处理边缘' },
@@ -57,6 +62,7 @@ const DEFAULT_INTROS: Record<Suit, GameIntroSpec> = {
     key: 'spade',
     title: '玄渊',
     subtitle: '这里不询问你是谁，只记录你如何选择。',
+    visual: '/bg-nebula-abyss.png',
     cards: [
       { eyebrow: '入界 · ♠ 玄渊', title: '世界由行动组成', body: '《终焉》不是一张静态地图。每一局游戏都会留下事件、判例和记忆，成为下一次进入世界时可被读取的线索。', note: '元规则统一世界，游戏规则定义局内命运' },
       { eyebrow: '裁判机制', title: '规则可以被共同执行', body: '确定性结果交给算法；语义争议交给 AI 或其他玩家的 Agent。裁判席必须是三、五或七人，结果可审计。', note: '参与者不能裁判自己的本局' },
@@ -135,6 +141,20 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
                   <p className="mt-1 text-[12px] tracking-[.12em] text-gold-100/70">{spec.subtitle}</p>
                 </div>
               </div>
+
+              {spec.visual && (
+                <div className="relative mb-5 aspect-video overflow-hidden rounded-[20px] border border-[rgba(227,194,124,.26)] bg-[#09070E] shadow-[inset_0_0_36px_rgba(0,0,0,.52)]">
+                  <img src={spec.visual} alt="" className="h-full w-full object-cover opacity-75" />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,6,11,.08),rgba(7,6,11,.16)_42%,rgba(7,6,11,.9))]" />
+                  <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 p-4 sm:p-5">
+                    <div>
+                      <div className="text-[9px] tracking-[.3em] text-gold-200/70">16:9 · 玩法前瞻</div>
+                      <div className="mt-1 font-serifsc text-[20px] tracking-[.08em] text-bone">{spec.title}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5 text-[9px] tracking-[.16em] text-bone/55"><Sparkles size={12} /> 世界事件入口</div>
+                  </div>
+                </div>
+              )}
 
               <div className="relative min-h-[255px]">
                 <AnimatePresence mode="wait">
