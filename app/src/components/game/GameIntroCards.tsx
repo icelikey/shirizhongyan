@@ -11,6 +11,8 @@ export interface GameIntroCard {
   title: string
   body: string
   note: string
+  /** 本局第一次入场时留下的剧情线索，避免玩法说明只有规则没有世界。 */
+  clue?: string
 }
 
 export interface GameIntroSpec {
@@ -151,8 +153,17 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
                       </div>
                       <h3 className="font-serifsc text-[25px] font-semibold tracking-[.08em] text-bone">{card.title}</h3>
                       <p className="mt-5 max-w-[560px] text-[15px] leading-8 text-bone/85">{card.body}</p>
-                      <div className="mt-6 rounded-xl border border-white/[.08] bg-black/20 px-4 py-3 text-[11px] leading-relaxed tracking-[.06em] text-dim">
-                        {card.note}
+                      <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-xl border border-white/[.08] bg-black/20 px-4 py-3 text-[11px] leading-relaxed tracking-[.06em] text-dim">
+                          <span className="mb-1 block text-[9px] tracking-[.22em] text-gold-200/60">玩法提示</span>
+                          {card.note}
+                        </div>
+                        {card.clue && (
+                          <div className="rounded-xl border border-suit-diamond/20 bg-suit-diamond/[.06] px-4 py-3 text-[11px] leading-relaxed tracking-[.06em] text-dim">
+                            <span className="mb-1 block text-[9px] tracking-[.22em] text-suit-diamond/75">线索碎片</span>
+                            {card.clue}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -181,4 +192,3 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
     </>
   )
 }
-

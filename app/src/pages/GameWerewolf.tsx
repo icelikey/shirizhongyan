@@ -33,6 +33,7 @@ import EchoAvatar from '@/components/EchoAvatar'
 import SpeechBubble from '@/components/SpeechBubble'
 import PlayingCard from '@/components/PlayingCard'
 import GameTopBar from '@/components/game/GameTopBar'
+import { GAME_INTROS } from '@/data/gameIntros'
 import SeatEllipse from '@/components/game/SeatEllipse'
 import GameModal from '@/components/game/GameModal'
 import RewardFly from '@/components/game/RewardFly'
@@ -380,6 +381,7 @@ export default function GameWerewolf() {
 
       <GameTopBar
         suit="spade"
+        intro={GAME_INTROS.werewolf}
         room={`月影村 · ${roomId}`}
         phase={
           <span>

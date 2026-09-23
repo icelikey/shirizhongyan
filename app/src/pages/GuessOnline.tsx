@@ -30,6 +30,7 @@ import OnlineArmillary from '@/components/online/OnlineArmillary'
 import OnlineScorePanel from '@/components/online/OnlineScorePanel'
 import OnlineFinishedPanel from '@/components/online/OnlineFinishedPanel'
 import { seatTokenKey } from '@/components/online/OnlineLobbySection'
+import { GAME_INTROS } from '@/data/gameIntros'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 
@@ -250,6 +251,7 @@ export default function GuessOnline() {
 
       <GameTopBar
         suit="club"
+        intro={GAME_INTROS.guess}
         room={`联机算庭 · ${view?.roomName ?? CODE} · ${CODE}`}
         phase={
           <span className="flex items-center gap-3">

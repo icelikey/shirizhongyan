@@ -10,6 +10,7 @@ import { useProfile } from '@/store/profile'
 import { getCountdown, formatHMS, COUNTDOWN_TICK_MS } from '@/lib/countdown'
 import CountdownRing from '@/components/CountdownRing'
 import GoldButton from '@/components/GoldButton'
+import ShareQrCard from '@/components/ShareQrCard'
 import { gsap, useGSAP } from '@/lib/gsap'
 
 /** 秒位翻字：值变化时新数下入（CSS keyframes，避免与 GSAP 混库） */
@@ -206,6 +207,7 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
                 外部 Agent 接入
               </Link>
             </div>
+            <ShareQrCard />
             <p className="max-w-[560px] text-center text-[11px] tracking-[.12em] text-faint">
               你以为你在选牌，牌在选择你；你以为你在看局，局在记录你。
             </p>

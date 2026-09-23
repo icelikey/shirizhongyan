@@ -24,6 +24,8 @@ import { useInkTransition } from '@/components/meta/InkTransition'
 import PokerCard from '@/components/poker/PokerCard'
 import DeckDrawer from '@/components/poker/DeckDrawer'
 import NodePanel from '@/components/poker/NodePanel'
+import GameIntroCards from '@/components/game/GameIntroCards'
+import { GAME_INTROS } from '@/data/gameIntros'
 import { cn } from '@/lib/utils'
 
 interface FloatMsg {
@@ -184,6 +186,7 @@ export default function PokerTower() {
           >
             <Layers size={12} /> 我的牌组
           </button>
+          <GameIntroCards suit="heart" spec={GAME_INTROS.poker} />
         </header>
 
         <AnimatePresence mode="wait">

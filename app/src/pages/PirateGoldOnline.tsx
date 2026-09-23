@@ -23,6 +23,7 @@ import SeatKindBadge from '@/components/online/SeatKindBadge'
 import OnlineScorePanel from '@/components/online/OnlineScorePanel'
 import OnlineFinishedPanel from '@/components/online/OnlineFinishedPanel'
 import { seatTokenKey } from '@/components/online/OnlineLobbySection'
+import { GAME_INTROS } from '@/data/gameIntros'
 import { cn } from '@/lib/utils'
 
 const PHASE_TEXT: Record<string, string> = {
@@ -139,6 +140,7 @@ export default function PirateGoldOnline() {
 
       <GameTopBar
         suit="diamond"
+        intro={GAME_INTROS.pirate}
         room={`金壤分潮 · ${view?.roomName ?? CODE} · ${CODE}`}
         phase={<span>{status === 'playing' ? PHASE_TEXT.submit : PHASE_TEXT[status]}</span>}
         pool={view ? view.rewards.winner + view.rewards.runnerUp + view.rewards.participation : 80}

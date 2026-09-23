@@ -15,6 +15,9 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 3000,
+    // 评审临时公网入口（Cloudflare Quick Tunnel）会使用随机域名。
+    // 生产镜像不经过 Vite；这里仅放开开发服务器的 Host 校验。
+    allowedHosts: true,
   },
   resolve: {
     alias: {

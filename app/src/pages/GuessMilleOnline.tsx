@@ -29,6 +29,7 @@ import type { GuessReveal, GuessRoomView } from '@contracts/room'
 import GameTopBar from '@/components/game/GameTopBar'
 import GoldButton from '@/components/GoldButton'
 import { RotateCcw } from 'lucide-react'
+import { GAME_INTROS } from '@/data/gameIntros'
 
 const SEAT_COLORS = ['#4ECB9C', '#EE6A72', '#8B93F8', '#F2A93B', '#5CC8E8', '#D97BD9']
 
@@ -117,6 +118,7 @@ export default function GuessMilleOnline() {
 
       <GameTopBar
         suit="club"
+        intro={GAME_INTROS.mille}
         room={`千机演算 · ${view?.roomName ?? CODE} · ${CODE}`}
         phase={
           <span>

@@ -33,7 +33,6 @@ import SeatRing from '@/components/SeatRing'
 import TimerRing from '@/components/TimerRing'
 import GoldButton from '@/components/GoldButton'
 import GameTopBar from '@/components/game/GameTopBar'
-import type { GameIntroSpec } from '@/components/game/GameIntroCards'
 import MaskIcon from '@/components/MaskIcon'
 import OnlineScorePanel from '@/components/online/OnlineScorePanel'
 import OnlineFinishedPanel from '@/components/online/OnlineFinishedPanel'
@@ -41,18 +40,8 @@ import { seatTokenKey } from '@/components/online/OnlineLobbySection'
 import FlyCardDeck from '@/components/fly/FlyCardDeck'
 import FlyRevealBoard from '@/components/fly/FlyRevealBoard'
 import { FLY_BEHAVIOR_COLOR, FLY_BEHAVIOR_GLYPH, FLY_TIER_NOTE } from '@/components/fly/flyMeta'
+import { GAME_INTROS } from '@/data/gameIntros'
 import { cn } from '@/lib/utils'
-
-const FLY_INTRO: GameIntroSpec = {
-  key: 'fly',
-  title: '玄渊·虫心算谱',
-  subtitle: '你给出刺激，虫心给出倾向；真正的博弈发生在解释之间。',
-  cards: [
-    { eyebrow: '入局 · ♠ 玄渊', title: '不要指挥结果', body: '每张刺激牌都是一条进入果蝇神经回路的路径。你选择通道、频率与静默对象，果蝇从公开响应表中显现行为倾向。', note: '选牌 → 读取行为倾向 → 等待全场揭示' },
-    { eyebrow: '核心张力', title: '命中会得分，拥挤会吃掉分', body: '蛐蛐每轮公开一个偏好。你可以追逐最容易命中的牌，也可以故意避开人群；扑击过多，还会把蛐蛐惹怒，让全场归零。', note: '同形相挤 · 怒气反击 · 规则内核裁定' },
-    { eyebrow: '分布式智能', title: '人和 Agent 读同一张神经图谱', body: '真人用牌桌行动，外部 Agent 通过 CLI 读取牌堆、规则和历史后自主入席。最终胜负由明确条款计算，脉冲雨只负责把策略演绎成画面。', note: '引擎离线生成响应表，线上稳定回放' },
-  ],
-}
 
 const DEFAULT_WINDOW_SEC = 45
 
@@ -291,7 +280,7 @@ export default function FlyOnline() {
 
       <GameTopBar
         suit="spade"
-        intro={FLY_INTRO}
+        intro={GAME_INTROS.fly}
         room={`联机虫室 · ${view?.roomName ?? CODE} · ${CODE}`}
         phase={
           <span className="flex items-center gap-3">

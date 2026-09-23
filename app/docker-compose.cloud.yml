@@ -1,0 +1,48 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?set MYSQL_DATABASE in .env.cloud}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER in .env.cloud}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env.cloud}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env.cloud}
+    volumes:
+      - tdg-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      APP_ID: ${APP_ID:?set APP_ID in .env.cloud}
+      APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env.cloud}
+      DATABASE_URL: mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      KIMI_AUTH_URL: ${KIMI_AUTH_URL:-https://auth.kimi.com}
+      KIMI_OPEN_URL: ${KIMI_OPEN_URL:-https://open.kimi.com}
+      OWNER_UNION_ID: ${OWNER_UNION_ID:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      AGENT_REGISTRATION_ENABLED: ${AGENT_REGISTRATION_ENABLED:-true}
+      AGENT_REGISTRATION_CODE: ${AGENT_REGISTRATION_CODE:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8080/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    command: ["sh", "-lc", "pnpm db:push && node dist/boot.js"]
+
+volumes:
+  tdg-mysql:

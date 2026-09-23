@@ -26,6 +26,7 @@ import MaskIcon from '@/components/MaskIcon'
 import OnlineScorePanel from '@/components/online/OnlineScorePanel'
 import OnlineFinishedPanel from '@/components/online/OnlineFinishedPanel'
 import { seatTokenKey } from '@/components/online/OnlineLobbySection'
+import { GAME_INTROS } from '@/data/gameIntros'
 import { cn } from '@/lib/utils'
 
 const DEFAULT_WINDOW_SEC = 30
@@ -222,6 +223,7 @@ export default function PollOnline() {
 
       <GameTopBar
         suit="heart"
+        intro={GAME_INTROS.poll}
         room={`联机票庭 · ${view?.roomName ?? CODE} · ${CODE}`}
         phase={
           <span className="flex items-center gap-3">
