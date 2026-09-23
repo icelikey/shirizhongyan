@@ -44,6 +44,11 @@ export default function App() {
         <Route path="/" element={<Home />} />
         {/* 角色卡视觉试作：公开展示页，便于本机与评审直接查看 */}
         <Route path="/characters" element={<CharacterShowcase />} />
+        {/* 联机房间支持未登录观众；页面自身只在入座/动作时要求登录。 */}
+        <Route element={<AppShell />}>
+          <Route path="/game/online/:code" element={<GuessOnline />} />
+          <Route path="/game/online-poll/:code" element={<PollOnline />} />
+        </Route>
         {/* 应用页：登录守卫 + 布局壳（TopHUD + Outlet） */}
         <Route
           element={
@@ -63,8 +68,6 @@ export default function App() {
           <Route path="/game/spire" element={<SpireHub />} />
           <Route path="/game/spire/map" element={<SpireMap />} />
           <Route path="/game/spire/combat" element={<SpireCombat />} />
-          <Route path="/game/online/:code" element={<GuessOnline />} />
-          <Route path="/game/online-poll/:code" element={<PollOnline />} />
           <Route path="/game/poker" element={<PokerTower />} />
           <Route path="/agent-portal" element={<AgentPortal />} />
         </Route>
