@@ -32,13 +32,15 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文件 | `ending-opening-pv.mp4` |
+| 文件 | GitHub Release `onboarding-pv-v1/ending-opening-pv.mp4` |
 | 画幅 | 1920 × 1080，16:9 |
 | 时长 | 30.09 秒，网页按 30 秒解锁入口 |
 | 编码 | H.264 视频 / AAC 音频 |
 | 自动播放 | 默认静音，浏览器允许时自动播放 |
 | 声音 | 玩家可在左下角手动打开，不把自动播放失败当成流程失败 |
 | 兜底 | 视频加载失败时显示统一世界背景，并允许进入世界，便于现场演示 |
+
+原始视频已经上传到 [GitHub Release](https://github.com/icelikey/shirizhongyan/releases/tag/onboarding-pv-v1)。本地开发机可以保留同名文件作为离线素材，但正式网页使用 Release 下载地址，避免把 80 MB 视频塞进 Git tree。
 
 ## 世界悬浮入口
 

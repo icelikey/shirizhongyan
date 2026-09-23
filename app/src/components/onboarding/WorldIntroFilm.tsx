@@ -13,7 +13,7 @@ export interface WorldIntroFilmProps {
 
 type FilmStage = 'pv' | 'cards'
 
-const PV_SRC = '/assets/onboarding/ending-opening-pv.mp4'
+const PV_SRC = 'https://github.com/icelikey/shirizhongyan/releases/download/onboarding-pv-v1/ending-opening-pv.mp4'
 const PV_SECONDS = 30
 
 const FILM_CARDS: Array<{
