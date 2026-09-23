@@ -3,6 +3,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 
 const VERSION = "0.1.0";
 const DEFAULT_INTERVAL_MS = 1500;
@@ -68,7 +69,18 @@ function required(args, name, value) {
 
 function normalizeBaseUrl(raw) {
   const value = required({}, "url", raw).replace(/\/+$/, "");
-  return /\/api\/trpc$/i.test(value) ? value : `${value}/api/trpc`;
+  const parsed = new URL(value);
+  const pathname = parsed.pathname.replace(/\/+$/, "");
+  if (/\/api\/trpc$/i.test(pathname)) {
+    parsed.pathname = pathname.slice(0, -"/api/trpc".length);
+  } else if (/\/world\/v1$/i.test(pathname)) {
+    parsed.pathname = pathname;
+  } else {
+    parsed.pathname = `${pathname}/world/v1`.replace(/^\/+/g, "/");
+  }
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString().replace(/\/$/, "");
 }
 
 function resolveBaseUrl(args, config, { requiredUrl = true } = {}) {
@@ -107,6 +119,11 @@ function numberArg(args, name, fallback) {
   return value;
 }
 
+function originUrl(baseUrl) {
+  const url = new URL(baseUrl);
+  return url.origin;
+}
+
 function healthUrl(baseUrl) {
   const url = new URL(baseUrl);
   return `${url.origin}/api/health`;
@@ -126,43 +143,77 @@ async function readResponse(response) {
   }
 }
 
-function unwrapTrpc(payload) {
-  if (payload?.error) {
-    const error = payload.error.json || payload.error;
-    const wrapped = new Error(redactMessage(error.message || "tRPC 请求失败"));
-    wrapped.code = error.data?.code || error.code;
-    throw wrapped;
-  }
-  const data = payload?.result?.data;
-  if (data && typeof data === "object" && Object.hasOwn(data, "json")) return data.json;
-  return data;
-}
-
-async function callProcedure(baseUrl, procedure, input, { key = "", method = "GET" } = {}) {
-  const url = `${baseUrl}/${procedure}`;
+async function requestJson(url, { key = "", method = "GET", body } = {}) {
   const headers = { accept: "application/json" };
   if (key) headers["x-api-key"] = key;
   const init = { method, headers };
-  if (method === "GET") {
-    const query = encodeURIComponent(JSON.stringify({ json: input ?? {} }));
-    const response = await fetch(`${url}?input=${query}`, init);
-    const payload = await readResponse(response);
-    if (!response.ok) throw new Error(redactMessage(payload?.error?.json?.message || payload?.message));
-    return unwrapTrpc(payload);
+  if (body !== undefined) {
+    headers["content-type"] = "application/json";
+    init.body = JSON.stringify(body);
   }
-  headers["content-type"] = "application/json";
-  init.body = JSON.stringify({ json: input ?? {} });
   const response = await fetch(url, init);
   const payload = await readResponse(response);
-  if (!response.ok) throw new Error(redactMessage(payload?.error?.json?.message || payload?.message));
-  return unwrapTrpc(payload);
+  if (!response.ok) {
+    throw new Error(redactMessage(payload?.error?.message || payload?.message || "请求失败"));
+  }
+  return payload;
+}
+
+async function gatewayRequest(baseUrl, path, options = {}) {
+  return requestJson(`${baseUrl}${path}`, options);
+}
+
+async function observe(baseUrl, key, code) {
+  const payload = await gatewayRequest(
+    baseUrl,
+    `/matches/${encodeURIComponent(code)}/observation`,
+    { key },
+  );
+  return payload;
+}
+
+function observationData(payload) {
+  return payload?.observation ?? payload;
+}
+
+function commandEnvelope(payload, action, args) {
+  return {
+    protocolVersion: "0.1",
+    commandId: args.command_id || randomUUID(),
+    contextRef: payload.contextRef,
+    bindingId: payload.binding?.bindingId,
+    action,
+  };
+}
+
+async function sendCommand(baseUrl, key, code, action, args) {
+  const current = await observe(baseUrl, key, code);
+  return gatewayRequest(
+    baseUrl,
+    `/matches/${encodeURIComponent(code)}/commands`,
+    { key, method: "POST", body: commandEnvelope(current, action, args) },
+  );
+}
+
+async function readDescriptor(baseUrl) {
+  return requestJson(`${originUrl(baseUrl)}/.well-known/tdg-world.json`);
+}
+
+async function readHealth(baseUrl) {
+  return requestJson(healthUrl(baseUrl));
+}
+
+async function registerAgent(baseUrl, name, inviteCode) {
+  return gatewayRequest(baseUrl, "/agents", {
+    method: "POST",
+    body: { name, inviteCode },
+  });
 }
 
 async function checkHealth(baseUrl) {
   try {
-    const response = await fetch(healthUrl(baseUrl), { headers: { accept: "application/json" } });
-    const payload = await readResponse(response);
-    return { ok: response.ok && payload.ok === true, status: response.status, payload };
+    const payload = await readHealth(baseUrl);
+    return { ok: payload.ok === true, status: 200, payload };
   } catch (error) {
     return { ok: false, status: null, payload: { message: redactMessage(error.message) } };
   }
@@ -194,7 +245,7 @@ function help() {
 诊断与原始读取：
   tdg-agent doctor --json
   tdg-agent rulebook --room ABC123
-  tdg-agent request agent.gatewayRooms --method GET
+  tdg-agent request matches --method GET
 
 全局参数：
   --url <服务地址>       也可用 TDG_BASE；首次 register 必填
@@ -246,13 +297,15 @@ async function run(args) {
     if (config?.key && !args.force) {
       throw new Error(`已有配置 ${configPath(args)}。如需替换旧 Agent，请加 --force。`);
     }
-    const data = await callProcedure(baseUrl, "agent.publicRegister", { name, inviteCode }, { method: "POST" });
+    const data = await registerAgent(baseUrl, name, inviteCode);
+    const agent = data.agent ?? {};
+    const credential = data.credential ?? {};
     const path = saveConfig(args, {
       baseUrl,
-      key: data.key,
-      agentId: data.agentId,
-      userId: data.userId,
-      name: data.name,
+      key: credential.key,
+      agentId: agent.agentId,
+      userId: agent.userId,
+      name: agent.name,
       createdAt: new Date().toISOString(),
     });
     printSuccess(args, { ...data, configPath: path, next: "Key 只显示这一次，请让本机 Agent 从配置文件读取。" });
@@ -277,10 +330,17 @@ async function run(args) {
     const health = await checkHealth(baseUrl);
     const key = resolveKey(args, config);
     const checks = [{ name: "health", ok: health.ok, status: health.status }];
+    try {
+      const descriptor = await readDescriptor(baseUrl);
+      checks.push({ name: "discovery", ok: descriptor.protocolVersion === "0.1" });
+    } catch (error) {
+      checks.push({ name: "discovery", ok: false, message: redactMessage(error.message) });
+    }
     let rooms = null;
     if (key) {
       try {
-        rooms = await callProcedure(baseUrl, "agent.gatewayRooms", {}, { key });
+        const payload = await gatewayRequest(baseUrl, "/matches", { key });
+        rooms = payload.matches ?? [];
         checks.push({ name: "agent-key", ok: true });
       } catch (error) {
         checks.push({ name: "agent-key", ok: false, message: redactMessage(error.message) });
@@ -307,29 +367,30 @@ async function run(args) {
     return;
   }
   if (command === "rooms") {
-    printSuccess(args, await callProcedure(baseUrl, "agent.gatewayRooms", {}, { key }));
+    const payload = await gatewayRequest(baseUrl, "/matches", { key });
+    printSuccess(args, payload.matches ?? []);
     return;
   }
   if (command === "join") {
     const code = required(args, "room", args.room).toUpperCase();
-    printSuccess(args, await callProcedure(baseUrl, "agent.gatewayJoin", { code }, { key, method: "POST" }));
+    printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/join`, { key, method: "POST" }));
     return;
   }
   if (command === "rulebook") {
     const code = required(args, "room", args.room).toUpperCase();
-    printSuccess(args, await callProcedure(baseUrl, "agent.gatewayRulebook", { code }, { key }));
+    printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/rulebook`, { key }));
     return;
   }
   if (command === "act") {
     const code = required(args, "room", args.room).toUpperCase();
-    printSuccess(args, await callProcedure(baseUrl, "agent.gatewayAct", { code, action: actionFromArgs(args) }, { key, method: "POST" }));
+    printSuccess(args, await sendCommand(baseUrl, key, code, actionFromArgs(args), args));
     return;
   }
   if (command === "speak") {
     const code = required(args, "room", args.room).toUpperCase();
     const action = { type: "speak", text: required(args, "text", args.text) };
     if (args.target_seat !== undefined) action.targetSeat = numberArg(args, "target_seat");
-    printSuccess(args, await callProcedure(baseUrl, "agent.gatewayAct", { code, action }, { key, method: "POST" }));
+    printSuccess(args, await sendCommand(baseUrl, key, code, action, args));
     return;
   }
   if (command === "appeal") {
@@ -339,7 +400,15 @@ async function run(args) {
       assertion: required(args, "assertion", args.assertion),
       quorumSize: numberArg(args, "quorum-size", 3),
     };
-    printSuccess(args, await callProcedure(baseUrl, "agent.gatewayAppeal", input, { key, method: "POST" }));
+    printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(input.code)}/appeals`, {
+      key,
+      method: "POST",
+      body: {
+        clauseId: input.clauseId,
+        assertion: input.assertion,
+        quorumSize: input.quorumSize,
+      },
+    }));
     return;
   }
   if (command === "watch") {
@@ -348,7 +417,8 @@ async function run(args) {
     const once = Boolean(args.once);
     let lastSignature = "";
     do {
-      const view = await callProcedure(baseUrl, "agent.gatewayObserve", { code }, { key });
+      const payload = await observe(baseUrl, key, code);
+      const view = observationData(payload);
       const signature = JSON.stringify([view.status, view.round, view.phase, view.submittedCount, view.winner, view.lastReveal]);
       if (signature !== lastSignature || once) {
         printSuccess(args, view);
@@ -360,13 +430,23 @@ async function run(args) {
     return;
   }
   if (command === "request") {
-    const procedure = required(args, "procedure", args._[1]);
+    const rawPath = required(args, "path", args._[1]);
     const method = String(args.method || "GET").toUpperCase();
     if (method !== "GET" && !args.allow_write) {
       throw new Error("原始 request 默认只允许 GET；明确加 --allow-write 才能发送写请求。");
     }
-    const input = args.input_json ? parseJson(args.input_json, "--input-json") : {};
-    printSuccess(args, await callProcedure(baseUrl, procedure, input, { key, method }));
+    const body = args.input_json ? parseJson(args.input_json, "--input-json") : undefined;
+    // Keep the old procedure-shaped request form working while normal paths
+    // use the public TDG-WP gateway.
+    if (!rawPath.includes("/") && rawPath.includes(".")) {
+      printSuccess(args, await callProcedure(baseUrl, rawPath, body ?? {}, { key, method }));
+      return;
+    }
+    const path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    const requestBase = /^\/(?:world\/v1|api\/trpc)(?:\/|$)/i.test(path)
+      ? originUrl(baseUrl)
+      : baseUrl;
+    printSuccess(args, await gatewayRequest(requestBase, path, { key, method, body }));
     return;
   }
   throw new Error(`未知命令：${command}。运行 tdg-agent help 查看用法。`);

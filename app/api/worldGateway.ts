@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
-import { allowPublicRegistration } from "./agentRouter";
+import { allowPublicRegistration, appealForAgent } from "./agentRouter";
 import { registerPublicAgent } from "./queries/agentRegistration";
 import { findActiveAgentKey } from "./queries/agentKeys";
 import { findRoomByCode } from "./queries/rooms";
@@ -14,8 +14,10 @@ import {
   OFFICIAL_GAMES,
 } from "./games/sdk/registry";
 import { gameActionSchema } from "./roomRouter";
+import { ruleBookForTemplate } from "@contracts/rulebooks.data";
+import { isAppealable } from "@contracts/rulebook";
 
-/** TDG-WP v0.1 的 HTTP/JSON 适配层。tRPC 与 CLI 旧入口继续保留。 */
+/** TDG-WP v0.1 的 HTTP/JSON 适配层；网页内部 tRPC 入口另行保留。 */
 export const worldGateway = new Hono();
 
 worldGateway.use("*", cors({ origin: "*", allowHeaders: ["content-type", "x-api-key", "authorization"] }));
@@ -158,6 +160,12 @@ const commandSchema = z.object({
   action: z.unknown(),
 });
 
+const appealSchema = z.object({
+  clauseId: z.string().trim().min(1).max(32),
+  assertion: z.string().trim().min(20).max(500),
+  quorumSize: z.union([z.literal(3), z.literal(5), z.literal(7)]).default(3),
+});
+
 worldGateway.get("/.well-known/tdg-world.json", (c) => c.json(descriptor(c)));
 worldGateway.get("/world/v1", (c) => c.json(descriptor(c)));
 
@@ -230,6 +238,48 @@ worldGateway.get("/world/v1/matches/:code/observation", async (c) => {
   }
 });
 
+worldGateway.get("/world/v1/matches/:code/rulebook", async (c) => {
+  try {
+    const { room } = await agentSeat(c);
+    const book = ruleBookForTemplate(room.def.template);
+    if (!book) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `模板 ${room.def.template} 尚无规则书`,
+      });
+    }
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      rulebook: {
+        id: book.id,
+        name: book.name,
+        version: book.version,
+        clauses: book.clauses.map((clause) => ({
+          id: clause.id,
+          title: clause.title,
+          text: clause.text,
+          category: clause.category,
+          appealable: isAppealable(clause),
+        })),
+      },
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+worldGateway.post("/world/v1/matches/:code/appeals", async (c) => {
+  try {
+    const key = await requireAgent(c);
+    const code = codeFromPath(c);
+    const input = appealSchema.parse(await jsonBody(c));
+    const result = await appealForAgent({ key, code, ...input });
+    return c.json({ protocolVersion: PROTOCOL_VERSION, ...result });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
 worldGateway.post("/world/v1/matches/:code/commands", async (c) => {
   try {
     const { key, room, seat } = await agentSeat(c);
@@ -256,4 +306,3 @@ worldGateway.post("/world/v1/matches/:code/commands", async (c) => {
     return errorResponse(c, error);
   }
 });
-

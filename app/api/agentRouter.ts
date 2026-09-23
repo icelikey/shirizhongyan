@@ -78,6 +78,97 @@ async function requireRoom(code: string) {
   return room;
 }
 
+/**
+ * 外部 Agent 规则质询的领域服务。
+ * tRPC 与 TDG-WP HTTP 适配层都调用这里，避免两条入口出现不同的裁判、
+ * 座位排除或判例入账语义。
+ */
+export async function appealForAgent(input: {
+  key: AgentKey;
+  code: string;
+  clauseId: string;
+  assertion: string;
+  quorumSize: 3 | 5 | 7;
+}) {
+  const room = await requireRoom(input.code);
+  const state = room.getState();
+  const seat = state.seats.find(
+    (s) => s?.kind === "external-agent" && s.agentKeyId === input.key.id,
+  );
+  if (!seat?.seatToken) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "该 Agent 未在此房间入座（先调用 gatewayJoin）",
+    });
+  }
+
+  const book = ruleBookForTemplate(room.def.template);
+  if (!book) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: `模板 ${room.def.template} 尚无规则书`,
+    });
+  }
+
+  let result;
+  try {
+    result = adjudicate({
+      book,
+      clauseId: input.clauseId,
+      assertion: input.assertion,
+      appellantSeat: seat.index,
+      matchSeats: state.seats
+        .map((s, i) => (s ? i : -1))
+        .filter((i) => i >= 0),
+      // 用对局真实种子，使裁判团与回放严格一致。
+      // 兜底仅为防御未开局的房间（此时 seed 尚未生成）。
+      seed: state.seed ?? `${room.code}:${state.startedAt ?? 0}`,
+      quorumSize: input.quorumSize,
+    });
+  } catch (e) {
+    if (e instanceof AppealRejectedError) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: APPEAL_REJECTION_LABEL[e.rejection],
+      });
+    }
+    throw e;
+  }
+
+  const { verdict, panel } = result;
+  const rulingId = await insertRuling({
+    verdict,
+    matchLogId: null,
+    discovererUserId: input.key.userId,
+    discovererName: input.key.name,
+  });
+
+  if (verdict.upheld) {
+    await grantCard({
+      userId: input.key.userId,
+      cardId: `j_${rulingId}`,
+      kind: "ruling",
+      source: "appeal",
+    });
+  }
+
+  await touchAgentKey(input.key.id);
+
+  return {
+    rulingId,
+    upheld: verdict.upheld,
+    summary: verdict.summary,
+    panel: panel.judges.map((j) => ({
+      index: j.index,
+      kind: j.kind,
+      name: j.name,
+    })),
+    votes: verdict.votes,
+    judgeVotes: verdictToJudgeVotes(verdict),
+    cardId: verdict.upheld ? `j_${rulingId}` : null,
+  };
+}
+
 function requestAddress(req: Request): string {
   return (
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
@@ -305,85 +396,12 @@ export const agentRouter = createRouter({
           ctx.req.headers.get("authorization"),
         input.key,
       );
-      const room = await requireRoom(input.code);
-      const state = room.getState();
-      const seat = state.seats.find(
-        (s) => s?.kind === "external-agent" && s.agentKeyId === key.id,
-      );
-      if (!seat?.seatToken) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "该 Agent 未在此房间入座（先调用 gatewayJoin）",
-        });
-      }
-
-      const book = ruleBookForTemplate(room.def.template);
-      if (!book) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: `模板 ${room.def.template} 尚无规则书`,
-        });
-      }
-
-      // 铁律三：本局全部座位排除在裁判之外
-      const matchSeats = state.seats
-        .map((s, i) => (s ? i : -1))
-        .filter(i => i >= 0);
-
-      let result;
-      try {
-        result = adjudicate({
-          book,
-          clauseId: input.clauseId,
-          assertion: input.assertion,
-          appellantSeat: seat.index,
-          matchSeats,
-          // 用对局真实种子，使裁判团与回放严格一致。
-          // 兜底仅为防御未开局的房间（此时 seed 尚未生成）。
-          seed: state.seed ?? `${room.code}:${state.startedAt ?? 0}`,
-          quorumSize: input.quorumSize,
-        });
-      } catch (e) {
-        if (e instanceof AppealRejectedError) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: APPEAL_REJECTION_LABEL[e.rejection],
-          });
-        }
-        throw e;
-      }
-
-      const { verdict, panel } = result;
-      const rulingId = await insertRuling({
-        verdict,
-        matchLogId: null,
-        discovererUserId: key.userId,
-        discovererName: key.name,
+      return appealForAgent({
+        key,
+        code: input.code,
+        clauseId: input.clauseId,
+        assertion: input.assertion,
+        quorumSize: input.quorumSize,
       });
-
-      if (verdict.upheld) {
-        await grantCard({
-          userId: key.userId,
-          cardId: `j_${rulingId}`,
-          kind: "ruling",
-          source: "appeal",
-        });
-      }
-
-      await touchAgentKey(key.id);
-
-      return {
-        rulingId,
-        upheld: verdict.upheld,
-        summary: verdict.summary,
-        panel: panel.judges.map(j => ({
-          index: j.index,
-          kind: j.kind,
-          name: j.name,
-        })),
-        votes: verdict.votes,
-        judgeVotes: verdictToJudgeVotes(verdict),
-        cardId: verdict.upheld ? `j_${rulingId}` : null,
-      };
     }),
 });
