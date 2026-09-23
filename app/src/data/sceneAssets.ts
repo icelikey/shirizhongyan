@@ -3,13 +3,28 @@ export interface SceneAsset {
   label: string
   status: "planned" | "ready"
   modelUrl?: string
+  previewUrl?: string
+  version?: string
   tripoPrompt: string
   gameplayUse: string
 }
 
 /**
+ * 只接受浏览器可访问的 public URL。登记时可写 `models/...`，页面统一补上 `/`，
+ * 避免把 Windows 文件系统路径误当成可部署资源。
+ */
+export function resolveSceneAssetUrl(value?: string): string | undefined {
+  if (!value) return undefined
+  const normalized = value.trim().replaceAll("\\", "/")
+  if (!normalized || /^[a-zA-Z]:\//.test(normalized)) return undefined
+  if (/^(https?:|data:|blob:|\/)/.test(normalized)) return normalized
+  return `/${normalized.replace(/^\/+/, "")}`
+}
+
+/**
  * Tripo 资产登记表：模型是表现层资源，不进入规则内核。
- * 生成 GLB 后只需补 modelUrl 和状态，页面即可切换到真实模型预览。
+ * 生成 GLB 后补齐 modelUrl、previewUrl、version 和状态，页面即可切换到真实模型预览。
+ * modelUrl/previewUrl 必须指向 app/public 下的可部署路径（例如 models/beast-baize/v1.glb）。
  */
 export const SCENE_ASSETS: Record<string, SceneAsset> = {
   baize: {

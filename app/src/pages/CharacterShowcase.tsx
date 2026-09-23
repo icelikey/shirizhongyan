@@ -6,7 +6,7 @@ import CharacterCard from '@/components/CharacterCard'
 import TripoModelViewer from '@/components/TripoModelViewer'
 import { ECHOES, SUIT_META, type Echo } from '@/data/echoes'
 import { getShanHaiAnchor } from '@/data/shanhaijing'
-import { SCENE_ASSETS } from '@/data/sceneAssets'
+import { resolveSceneAssetUrl, SCENE_ASSETS } from '@/data/sceneAssets'
 
 const SHOWCASE_IDS = ['baize', 'eshou', 'xuanji', 'zhuyin']
 
@@ -198,7 +198,8 @@ export default function CharacterShowcase() {
               <div className="grid h-full min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_370px]">
                 <div className="panel-bg min-h-0 overflow-hidden rounded-[18px]">
                   <TripoModelViewer
-                    src={SCENE_ASSETS[selected.id]?.modelUrl}
+                    src={resolveSceneAssetUrl(SCENE_ASSETS[selected.id]?.modelUrl)}
+                    previewSrc={resolveSceneAssetUrl(SCENE_ASSETS[selected.id]?.previewUrl)}
                     alt={`${selected.name}三维资产`}
                     label={SCENE_ASSETS[selected.id]?.label ?? selected.name}
                     className="h-full"

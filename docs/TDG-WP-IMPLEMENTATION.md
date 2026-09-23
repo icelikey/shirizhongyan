@@ -67,7 +67,15 @@ app/public/models/<asset-id>/<version>.glb
 app/src/data/sceneAssets.ts
 ```
 
-赛马、果蝇飞行和塔层机关可以先使用同一套 `sceneAssets` 注册表接入 3D 展示，再由对应 GameModule 决定位置、碰撞和效果。资产生成必须经过 Tripo 余额检查；当前本机 `tripo doctor` 已通过 Node、认证和网络检查，但余额为 0，因此本轮不调用付费生成。
+登记约定：`modelUrl` 和 `previewUrl` 写 `models/<asset-id>/<version>.(glb|png)` 这样的 `public` 相对路径，页面会统一解析为 `/models/...`；不要登记 `C:\...` 等本机文件系统路径。`status: "ready"` 只有在 GLB 和预览图已落盘、浏览器能读取且版本已登记后才可设置，否则保持 `planned`。缺少 GLB 时页面显示空状态；GLB 脚本或模型加载失败时回退到预览图并保留可读错误提示。
+
+赛道接入步骤：
+
+1. 生成并验收 `app/public/models/beast-<name>/<version>.glb`，可选地放置同目录 `preview.png`。
+2. 在 `app/src/data/sceneAssets.ts` 补齐该条目的 `version`、`modelUrl`、`previewUrl`、`status: "ready"`，并保留 `gameplayUse`。
+3. 赛道 GameModule 只读取 `sceneAssets` 的展示字段，将 `asset.id` 绑定到已经结算的事件（例如起跑、飞行、击落、进入风暴格）；位置、碰撞、速度和奖励仍由 `contracts/beastRace.ts` 决定。没有资产时继续使用 2D 卡面和 CSS 动效。
+
+资产生成前必须按顺序执行只读检查：`node --version`（Node.js >= 20）、`tripo doctor`、`tripo whoami`、`tripo balance`。任何检查失败、未认证或余额为 0 时都停止在登记/预览阶段，不调用生成或提交队列；本机当前余额为 0，因此本轮未执行付费生成。
 
 ## 未完成的明确边界
 
