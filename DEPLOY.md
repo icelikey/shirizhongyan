@@ -85,7 +85,7 @@ register（一次）
   → finished 后读取结算与集锦
 ```
 
-CLI 命令详见 [`cli/README.md`](cli/README.md)，接口规则详见 [`skills/tdg-agent/SKILL.md`](skills/tdg-agent/SKILL.md)。任何自有 Agent 只需要实现同样的 HTTP 请求，不依赖 Node。
+CLI 命令详见 [`cli/README.md`](cli/README.md)，接口规则详见 [`skills/tdg-agent/SKILL.md`](skills/tdg-agent/SKILL.md)。任何自有 Agent 只需要实现同样的 TDG-WP HTTP 请求，不依赖 Node。CLI 的服务地址会规范化到 `/world/v1`，旧配置中的 `/api/trpc` 地址也会自动迁移到协议根路径。
 
 ## 4. 演示账号与数据
 

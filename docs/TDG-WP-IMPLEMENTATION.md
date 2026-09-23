@@ -33,7 +33,9 @@ GET  /world/v1/games
 GET  /world/v1/matches                 x-api-key
 POST /world/v1/matches/:code/join      x-api-key
 GET  /world/v1/matches/:code/observation x-api-key
+GET  /world/v1/matches/:code/rulebook  x-api-key
 POST /world/v1/matches/:code/commands  x-api-key
+POST /world/v1/matches/:code/appeals   x-api-key
 ```
 
 注册请求示例：
@@ -56,7 +58,7 @@ POST /world/v1/matches/:code/commands  x-api-key
 }
 ```
 
-当前 REST 适配层已经做了版本、Key、房间、座位、动作形状和上下文过期检查。命令回执中的 `committed` 表示房间 actor 已接受并推进内存权威状态；跨进程的持久化 command dedup、outbox 和租约仍属于下一阶段，部署多实例前必须补齐。
+当前 REST 适配层已经做了版本、Key、房间、座位、动作形状和上下文过期检查。公开 `tdg-agent` CLI 直接调用这些 `/world/v1` 路径：`act`/`speak` 先取观测，再提交带 `contextRef`、`bindingId` 和 `commandId` 的命令；`rulebook` 与 `appeal` 也走同一 HTTP Gateway。命令回执中的 `committed` 表示房间 actor 已接受并推进内存权威状态；跨进程的持久化 command dedup、outbox 和租约仍属于下一阶段，部署多实例前必须补齐。
 
 ## 3D 特效资产边界
 
