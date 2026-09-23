@@ -39,6 +39,16 @@ export const gameActionSchema = z.discriminatedUnion("type", [
     cardId: z.string().trim().min(1).max(48),
     targetSeat: z.number().int().min(0).max(15).optional(),
   }),
+  // 提案（海盗分金）：分配数组长度/总额由模板按 def.params.coins 二次校验
+  z.object({
+    type: z.literal("propose"),
+    allocation: z.array(z.number().int().min(0)).min(2).max(8),
+  }),
+  // 表决（海盗分金）
+  z.object({
+    type: z.literal("vote"),
+    approve: z.boolean(),
+  }),
   // 文本：辩论陈词、猜词提问、自由发言。
   // 上限 600 字——长文会拖慢裁判判定，且牌桌上没人读长文
   z.object({

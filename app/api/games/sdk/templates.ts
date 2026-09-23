@@ -47,12 +47,21 @@ export interface TemplateModule {
   normalizeSubmission(def: GameDefinition, action: GameAction): number | null;
   /** 超时未交的兜底提交值 */
   timeoutFallback(def: GameDefinition, seatIndex: number): number;
-  /** echo-bot 决策（levelK 为 bot 人设层级，pollDuel 可忽略） */
+  /**
+   * echo-bot 决策（levelK 为 bot 人设层级，pollDuel 可忽略）。
+   * phaseName 为当前子阶段名（仅 phasesForRound 模板会收到非空值，
+   * 单阶段模板可忽略此参数——新增可选尾参，不影响既有实现的签名）。
+   */
   botPick(
     def: GameDefinition,
     seatIndex: number,
     levelK: number,
     history: unknown[],
+    phaseName?: string,
+    /** 当前跨轮状态；分阶段模板可据此作出有上下文的动作。 */
+    matchState?: unknown,
+    /** 当前子阶段已经提交的动作；提案→表决等顺序博弈需要读取它。 */
+    entries?: RoundEntry[],
   ): number;
   /**
    * 揭晓本轮：产出公开 reveal 对象 + 每座得分增量。
@@ -76,4 +85,35 @@ export interface TemplateModule {
   };
   /** 一轮 reveal 中的得分座位（终局名次平分时用） */
   roundWinners(reveal: unknown): number[];
+
+  /**
+   * 可选：本模板的一轮拆成多个顺序子阶段（如「提案→表决」）。
+   *
+   * 【为何需要】通用轮次模型是「全员同时密封提交 → 统一揭晓」，猜数/
+   * 投票天然适配；但海盗分金要求表决者先看到提案再投票，是顺序博弈，
+   * 硬塞进同时提交模型会退化成「盲投」，丢失核心看点。
+   *
+   * 不实现此方法的模板视为单阶段，运行时行为与此前完全一致
+   * （每轮一个提交窗，全员同时提交，全部到齐或超时即揭晓）。
+   *
+   * eligibleSeats 内的座位须在本子阶段提交，其余座位本阶段不提交、
+   * 不参与"是否已交齐"判断，也不会被 timeoutFallback 兜底。
+   * 提交跨子阶段累积（不清空），resolveRound 收到的是全部子阶段的合集。
+   */
+  phasesForRound?(
+    def: GameDefinition,
+    round: number,
+    matchState: unknown,
+  ): { name: string; eligibleSeats: number[] }[];
+
+  /**
+   * 可选：子阶段进行中，把已提交但尚未正式揭晓的内容解读为可展示结构
+   * （如"提案已交、表决进行中"时把提案解出来给投票者看）。
+   * 不实现则运行时不下发任何中途可见信息。
+   */
+  describePending?(
+    def: GameDefinition,
+    matchState: unknown,
+    entries: RoundEntry[],
+  ): unknown;
 }

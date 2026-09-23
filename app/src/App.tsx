@@ -21,10 +21,14 @@ import SpireMap from '@/pages/SpireMap'
 import SpireCombat from '@/pages/SpireCombat'
 import Login from '@/pages/Login'
 import GuessOnline from '@/pages/GuessOnline'
+import GuessMilleOnline from '@/pages/GuessMilleOnline'
 import PollOnline from '@/pages/PollOnline'
+import PirateGoldOnline from '@/pages/PirateGoldOnline'
+import FlyOnline from '@/pages/FlyOnline'
 import PokerTower from '@/pages/PokerTower'
 import AgentPortal from '@/pages/AgentPortal'
 import CharacterShowcase from '@/pages/CharacterShowcase'
+import EntryWorld from '@/pages/EntryWorld'
 
 export default function App() {
   return (
@@ -42,12 +46,19 @@ export default function App() {
       />
       <Routes>
         <Route path="/" element={<Home />} />
+        {/* WASD 入界试炼是独立玩法，不属于首页；旧地址保留兼容。 */}
+        <Route path="/game/entry" element={<EntryWorld />} />
+        <Route path="/entry" element={<Navigate to="/game/entry" replace />} />
         {/* 角色卡视觉试作：公开展示页，便于本机与评审直接查看 */}
         <Route path="/characters" element={<CharacterShowcase />} />
         {/* 联机房间支持未登录观众；页面自身只在入座/动作时要求登录。 */}
         <Route element={<AppShell />}>
           <Route path="/game/online/:code" element={<GuessOnline />} />
+          <Route path="/game/online-mille/:code" element={<GuessMilleOnline />} />
           <Route path="/game/online-poll/:code" element={<PollOnline />} />
+          <Route path="/game/online-pirate/:code" element={<PirateGoldOnline />} />
+          <Route path="/game/online-fly/:code" element={<FlyOnline />} />
+          <Route path="/agent-portal" element={<AgentPortal />} />
         </Route>
         {/* 应用页：登录守卫 + 布局壳（TopHUD + Outlet） */}
         <Route
@@ -69,7 +80,6 @@ export default function App() {
           <Route path="/game/spire/map" element={<SpireMap />} />
           <Route path="/game/spire/combat" element={<SpireCombat />} />
           <Route path="/game/poker" element={<PokerTower />} />
-          <Route path="/agent-portal" element={<AgentPortal />} />
         </Route>
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/" replace />} />

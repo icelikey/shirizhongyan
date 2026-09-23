@@ -3,6 +3,7 @@
  * 席位模型：6 席；'echo:<id>' 影从入座 / 'human' 真人入座 / null 空位。
  */
 import type { MetaGame } from '@/components/meta/data'
+import type { MatchMode } from '@contracts/matchMode'
 
 export type Seat = `echo:${string}` | 'human' | null
 
@@ -18,6 +19,7 @@ export interface LobbyRoom {
   ticket: number
   status: 'waiting' | 'playing' | 'locked'
   tags: string[]
+  matchMode: MatchMode
   /** 锁定提示（迷雾大陆） */
   lockTip?: string
 }
@@ -36,6 +38,7 @@ export const SPIRE_WATCH_ROOMS: LobbyRoom[] = [
     ticket: 12,
     status: 'playing',
     tags: ['肉鸽牌局', '观战'],
+    matchMode: 'agent-v-agent',
   },
   {
     id: 'r-spire-watch-speed',
@@ -47,6 +50,7 @@ export const SPIRE_WATCH_ROOMS: LobbyRoom[] = [
     ticket: 12,
     status: 'playing',
     tags: ['肉鸽牌局', '观战'],
+    matchMode: 'human-agent-teams',
   },
 ]
 
@@ -61,6 +65,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 10,
     status: 'waiting',
     tags: ['新手友好', '影从代打允许'],
+    matchMode: 'human-agent-teams',
   },
   {
     id: 'r-qingye-calc',
@@ -72,6 +77,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 10,
     status: 'waiting',
     tags: ['影从代打允许'],
+    matchMode: 'agent-v-agent',
   },
   {
     id: 'r-moon-high',
@@ -83,6 +89,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 25,
     status: 'playing',
     tags: ['高强度'],
+    matchMode: 'human-v-agent',
   },
   {
     id: 'r-diamond-trial',
@@ -94,6 +101,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 20,
     status: 'locked',
     tags: ['竞逐'],
+    matchMode: 'human-v-human',
     lockTip: '金壤大陆尚未开启',
   },
   {
@@ -106,6 +114,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 15,
     status: 'waiting',
     tags: ['心理战', '影从代打允许'],
+    matchMode: 'human-agent-teams',
   },
   {
     id: 'r-abacus-speed',
@@ -117,6 +126,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 5,
     status: 'waiting',
     tags: ['新手友好'],
+    matchMode: 'human-v-human',
   },
   {
     id: 'r-xuanyuan-review',
@@ -128,6 +138,7 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 15,
     status: 'playing',
     tags: ['高强度'],
+    matchMode: 'agent-v-agent',
   },
   {
     id: 'r-qingye-morning',
@@ -139,5 +150,6 @@ export const LOBBY_ROOMS: LobbyRoom[] = [
     ticket: 10,
     status: 'waiting',
     tags: ['影从代打允许', '新手友好'],
+    matchMode: 'human-v-agent',
   },
 ]

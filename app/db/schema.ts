@@ -1,10 +1,10 @@
 import {
   mysqlTable,
   mysqlEnum,
-  serial,
   varchar,
   text,
   timestamp,
+  datetime,
   bigint,
   int,
   boolean,
@@ -14,7 +14,9 @@ import {
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   unionId: varchar("unionId", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }),
@@ -38,7 +40,9 @@ export type InsertUser = typeof users.$inferInsert;
  * ① traveler_profiles —— Kimi 登录用户的云端档案（与 src/store/profile.ts 对应）
  * ------------------------------------------------------------------------- */
 export const travelerProfiles = mysqlTable("traveler_profiles", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   userId: bigint("userId", { mode: "number", unsigned: true })
     .notNull()
     .unique()
@@ -68,7 +72,9 @@ export type InsertTravelerProfile = typeof travelerProfiles.$inferInsert;
  * ② agent_keys —— 外部 Agent API Key（只存 sha256，明文仅注册时返回一次）
  * ------------------------------------------------------------------------- */
 export const agentKeys = mysqlTable("agent_keys", {
-  id: serial("id").primaryKey(),
+  id: bigint("id", { mode: "number", unsigned: true })
+    .autoincrement()
+    .primaryKey(),
   userId: bigint("userId", { mode: "number", unsigned: true })
     .notNull()
     .references(() => users.id),
@@ -79,7 +85,7 @@ export const agentKeys = mysqlTable("agent_keys", {
   prefix: varchar("prefix", { length: 16 }).notNull(),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  lastUsedAt: timestamp("lastUsedAt"),
+  lastUsedAt: datetime("lastUsedAt"),
 });
 
 export type AgentKey = typeof agentKeys.$inferSelect;
@@ -91,7 +97,9 @@ export type InsertAgentKey = typeof agentKeys.$inferInsert;
 export const rooms = mysqlTable(
   "rooms",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     code: varchar("code", { length: 8 }).notNull(),
     game: varchar("game", { length: 16 }).notNull().default("guess"),
     /** v4 SDK：关联 game_defs.defId；旧 guess 行默认 'guess-core' */
@@ -109,9 +117,9 @@ export const rooms = mysqlTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => ({
+  table => ({
     codeIdx: uniqueIndex("rooms_code_idx").on(table.code),
-  }),
+  })
 );
 
 export type Room = typeof rooms.$inferSelect;
@@ -125,7 +133,9 @@ export type InsertRoom = typeof rooms.$inferInsert;
 export const gameDefs = mysqlTable(
   "game_defs",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     defId: varchar("defId", { length: 24 }).notNull(),
     name: varchar("name", { length: 48 }).notNull(),
     template: varchar("template", { length: 24 }).notNull(),
@@ -145,9 +155,9 @@ export const gameDefs = mysqlTable(
     plays: int("plays").notNull().default(0),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
-  (table) => ({
+  table => ({
     defIdIdx: uniqueIndex("game_defs_defId_idx").on(table.defId),
-  }),
+  })
 );
 
 export type GameDefRow = typeof gameDefs.$inferSelect;
@@ -161,7 +171,9 @@ export type InsertGameDefRow = typeof gameDefs.$inferInsert;
 export const matchLogs = mysqlTable(
   "match_logs",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     /** 房间码（便于按房间检索；房间可复用码，故不唯一） */
     roomCode: varchar("roomCode", { length: 8 }).notNull(),
     /** 使用的规则书 id */
@@ -174,7 +186,7 @@ export const matchLogs = mysqlTable(
     winnerSeat: int("winnerSeat"),
     eventCount: int("eventCount").notNull().default(0),
     startedAt: timestamp("startedAt").defaultNow().notNull(),
-    endedAt: timestamp("endedAt"),
+    endedAt: datetime("endedAt"),
   },
   table => ({
     roomIdx: index("match_logs_room_idx").on(table.roomCode),
@@ -193,7 +205,9 @@ export type InsertMatchLogRow = typeof matchLogs.$inferInsert;
 export const commandReceipts = mysqlTable(
   "command_receipts",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     agentKeyId: bigint("agentKeyId", { mode: "number", unsigned: true })
       .notNull()
       .references(() => agentKeys.id),
@@ -214,15 +228,15 @@ export const commandReceipts = mysqlTable(
       .defaultNow()
       .notNull()
       .$onUpdate(() => new Date()),
-    completedAt: timestamp("completedAt"),
+    completedAt: datetime("completedAt"),
   },
   table => ({
     agentCommandIdx: uniqueIndex("command_receipts_agent_command_idx").on(
       table.agentKeyId,
-      table.commandId,
+      table.commandId
     ),
     scopeIdx: index("command_receipts_scope_idx").on(table.scopeId),
-  }),
+  })
 );
 
 export type CommandReceiptRow = typeof commandReceipts.$inferSelect;
@@ -236,30 +250,37 @@ export type InsertCommandReceiptRow = typeof commandReceipts.$inferInsert;
 export const worldOutbox = mysqlTable(
   "world_outbox",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     eventId: varchar("eventId", { length: 192 }).notNull(),
     scopeId: varchar("scopeId", { length: 160 }).notNull(),
     aggregateId: varchar("aggregateId", { length: 160 }),
     eventType: varchar("eventType", { length: 96 }).notNull(),
     commandId: varchar("commandId", { length: 128 }),
     payloadJson: json("payloadJson").notNull(),
-    status: mysqlEnum("status", ["pending", "processing", "published", "failed"])
+    status: mysqlEnum("status", [
+      "pending",
+      "processing",
+      "published",
+      "failed",
+    ])
       .notNull()
       .default("pending"),
     attempts: int("attempts").notNull().default(0),
     availableAt: timestamp("availableAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
-    publishedAt: timestamp("publishedAt"),
+    publishedAt: datetime("publishedAt"),
     lastError: text("lastError"),
   },
   table => ({
     eventIdIdx: uniqueIndex("world_outbox_event_id_idx").on(table.eventId),
     pendingIdx: index("world_outbox_pending_idx").on(
       table.status,
-      table.availableAt,
+      table.availableAt
     ),
     scopeIdx: index("world_outbox_scope_idx").on(table.scopeId),
-  }),
+  })
 );
 
 export type WorldOutboxRow = typeof worldOutbox.$inferSelect;
@@ -273,7 +294,9 @@ export type InsertWorldOutboxRow = typeof worldOutbox.$inferInsert;
 export const playerCards = mysqlTable(
   "player_cards",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     userId: bigint("userId", { mode: "number", unsigned: true })
       .notNull()
       .references(() => users.id),
@@ -305,7 +328,9 @@ export type InsertPlayerCardRow = typeof playerCards.$inferInsert;
 export const rulings = mysqlTable(
   "rulings",
   {
-    id: serial("id").primaryKey(),
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
     /** 被质询的规则书 */
     rulebookId: varchar("rulebookId", { length: 32 }).notNull(),
     /** 被质询的条款 id */

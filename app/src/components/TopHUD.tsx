@@ -1,7 +1,7 @@
 /**
  * <TopHUD> 顶栏（design.md §10.1）—— 登录后所有应用页使用（首页不用）。
  * 高 64px，fixed，z-50，背景 rgba(12,10,19,.72) + backdrop-blur(16px)，底边 1px --line-subtle。
- * 左：logo + 十日牌局；中：导航（大厅/世界/影从/残章/天梯/图鉴）；
+ * 左：logo + 终焉；中：导航（大厅/世界/影从/残章/天梯/图鉴）；
  * 右：CountdownRing mini + 四花色碎片计数（>2 折叠悬浮展开）+ 玩家芯片（点击弹用户抽屉）。
  */
 import { useEffect, useState } from 'react'
@@ -81,8 +81,8 @@ export default function TopHUD() {
           <Link to="/lobby" className="flex items-center gap-2.5 shrink-0 group">
             <MaskIcon src="/logo-mark.svg" size={36} color="#E3C27C" className="transition-transform duration-500 group-hover:rotate-[36deg]" />
             <span className="flex flex-col leading-none">
-              <span className="gold-text font-serifsc font-black text-[18px] tracking-wider">十日牌局</span>
-              <span className="text-faint text-[9px] tracking-[.3em] font-cinzel mt-0.5">TEN DAYS GAMBIT</span>
+              <span className="gold-text font-serifsc font-black text-[18px] tracking-wider">终焉</span>
+              <span className="text-faint text-[9px] tracking-[.3em] font-cinzel mt-0.5">THE ENDGAME WORLD</span>
             </span>
           </Link>
 

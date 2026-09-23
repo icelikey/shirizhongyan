@@ -18,6 +18,7 @@ import { GAME_META } from '@/components/meta/data'
 import type { LobbyRoom, Seat } from '@/components/meta/lobby/rooms'
 import { seatCount } from '@/components/meta/lobby/rooms'
 import { cn } from '@/lib/utils'
+import { MATCH_MODE_META } from '@contracts/matchMode'
 
 type TabKey = 'all' | 'werewolf' | 'guess'
 
@@ -174,6 +175,12 @@ export default function RoomList({ rooms, go, onCreate }: RoomListProps) {
                       {room.hostIsEcho ? '（影从）' : '（旅人）'}
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span
+                        className="rounded-full border px-2 py-0.5 text-[10px] tracking-wider"
+                        style={{ color: MATCH_MODE_META[room.matchMode].color, borderColor: `${MATCH_MODE_META[room.matchMode].color}55`, background: `${MATCH_MODE_META[room.matchMode].color}12` }}
+                      >
+                        {MATCH_MODE_META[room.matchMode].shortLabel}
+                      </span>
                       {room.tags.map((t) => (
                         <span
                           key={t}
@@ -329,6 +336,7 @@ export default function RoomList({ rooms, go, onCreate }: RoomListProps) {
                     ? '6 人局 · 2 狼 1 预言家 1 女巫 2 平民 · 夜晚 40s / 发言 60s / 投票 30s'
                     : '6 人局 · 5 轮秘密出数（0-100）· 目标 = 均值 × 0.8 · 每轮 30s'}
                 </p>
+                <p className="mt-2 text-[12px] text-suit-diamond">参与方式 · {MATCH_MODE_META[detail.matchMode].label}</p>
               </div>
               <div className="flex flex-1 flex-col gap-1.5">
                 <span className="text-[12px] tracking-[.2em] text-dim">聊天记录</span>

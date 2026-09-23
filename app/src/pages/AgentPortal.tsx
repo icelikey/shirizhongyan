@@ -7,7 +7,7 @@
  * ② 我的 Key 列表（prefix / 最近使用 / 吊销）；
  * ③ 快速开始（协议五步精简版，完整见图鉴第玖章 /codex#dev）；
  * ④ 在线房间速查（gatewayRooms 等价于 room.list 的展示）。
- * 注册 / 列表 / 吊销需 Kimi 云登录。
+ * 公开注册无需 Kimi 登录；登录仅用于查看和吊销自己名下的 Key。
  * ============================================================================
  */
 import { useState } from 'react'
@@ -43,18 +43,37 @@ export default function AgentPortal() {
 
   /* ---------------- Key 注册 ---------------- */
   const [nameDraft, setNameDraft] = useState('')
+  const [inviteCode, setInviteCode] = useState(import.meta.env.VITE_AGENT_REGISTRATION_CODE ?? '')
   const [freshKey, setFreshKey] = useState<{ key: string; name: string } | null>(null)
   const [copied, setCopied] = useState(false)
 
+  const finishRegistration = (res: { key: string; name?: string }) => {
+    setFreshKey({ key: res.key, name: res.name ?? nameDraft.trim() })
+    setNameDraft('')
+    setCopied(false)
+    void utils.agent.list.invalidate()
+  }
+
   const registerMutation = trpc.agent.register.useMutation({
-    onSuccess: (res) => {
-      setFreshKey({ key: res.key, name: nameDraft.trim() })
-      setNameDraft('')
-      setCopied(false)
-      void utils.agent.list.invalidate()
-    },
+    onSuccess: finishRegistration,
     onError: (err) => toast('铸钥失败', { description: err.message }),
   })
+
+  const publicRegisterMutation = trpc.agent.publicRegister.useMutation({
+    onSuccess: finishRegistration,
+    onError: (err) => toast('公开注册失败', { description: err.message }),
+  })
+
+  const registerPending = registerMutation.isPending || publicRegisterMutation.isPending
+  const submitRegistration = () => {
+    const name = nameDraft.trim()
+    if (!name) return
+    if (isAuthenticated) {
+      registerMutation.mutate({ name })
+      return
+    }
+    publicRegisterMutation.mutate({ name, inviteCode: inviteCode.trim() })
+  }
 
   /* ---------------- Key 列表 ---------------- */
   const keysQuery = trpc.agent.list.useQuery(undefined, { enabled: isAuthenticated })
@@ -89,7 +108,7 @@ export default function AgentPortal() {
       <motion.div {...enter(0)} className="mb-8 flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="gold-text font-serifsc text-[34px] font-black leading-tight tracking-[.1em]">Agent Gateway</h1>
-          <p className="mt-1 text-[12px] tracking-[.25em] text-faint">带自己的 Agent 来打 · 同席同权 · 座位不看出身</p>
+          <p className="mt-1 text-[12px] tracking-[.25em] text-faint">带自己的 Agent 来打 · 同席同权 · 公开协议入界</p>
         </div>
         <Link
           to="/codex#dev"
@@ -103,7 +122,7 @@ export default function AgentPortal() {
         <motion.div {...enter(0.05)} className="mb-6 rounded-2xl border border-[rgba(242,169,59,.3)] bg-[rgba(242,169,59,.06)] p-5 flex items-center gap-4 flex-wrap">
           <Cloud size={18} className="text-suit-diamond shrink-0" />
           <p className="text-[13px] text-dim flex-1 min-w-[220px] leading-relaxed">
-            铸钥、管钥需以 Kimi 云端档案为凭。登录后此处即刻开工；房间速查与协议文档无需登录。
+            公开注册只需要房主提供的邀请码，不需要玩家登录。登录后可以额外查看和吊销自己名下的 Key。
           </p>
           <GoldButton variant="gold" size="sm" onClick={() => navigate(LOGIN_PATH)}>云登录</GoldButton>
         </motion.div>
@@ -117,16 +136,27 @@ export default function AgentPortal() {
             <h2 className="font-serifsc font-semibold text-[18px] text-bone flex items-center gap-2 mb-1">
               <KeyRound size={17} className="text-suit-diamond" /> 注册 Agent Key
             </h2>
-            <p className="text-[12px] text-faint mb-4">以名为引，铸一柄 tdg_ 密钥 · 明文仅示人一次</p>
+            <p className="text-[12px] text-faint mb-4">以名为引，铸一柄 tdg_ 密钥 · 明文仅示人一次 · 外部 Agent 无需登录</p>
+            {!isAuthenticated && (
+              <div className="mb-2 flex items-center gap-2">
+                <input
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="公开邀请码（如 tdg-demo-2026）"
+                  className="h-9 w-full rounded-full border border-bone/12 bg-ink px-4 text-[12px] text-bone outline-none placeholder:text-faint focus:border-suit-diamond/60 transition-colors"
+                  autoComplete="off"
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
                 maxLength={64}
                 placeholder="Agent 名号（如 oracle-v3）"
-                disabled={!isAuthenticated || registerMutation.isPending}
+                disabled={registerPending}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && nameDraft.trim() && isAuthenticated) registerMutation.mutate({ name: nameDraft.trim() })
+                  if (e.key === 'Enter' && nameDraft.trim() && (isAuthenticated || inviteCode.trim())) submitRegistration()
                 }}
                 className="h-10 flex-1 min-w-0 rounded-full border border-bone/12 bg-ink px-4 text-[13px] text-bone outline-none placeholder:text-faint focus:border-suit-diamond/60 transition-colors disabled:opacity-40"
               />
@@ -135,12 +165,13 @@ export default function AgentPortal() {
                 suit="diamond"
                 size="sm"
                 className="h-10"
-                disabled={!isAuthenticated || !nameDraft.trim() || registerMutation.isPending}
-                onClick={() => registerMutation.mutate({ name: nameDraft.trim() })}
+                disabled={!nameDraft.trim() || (!isAuthenticated && !inviteCode.trim()) || registerPending}
+                onClick={submitRegistration}
               >
-                <Plus size={14} /> {registerMutation.isPending ? '铸钥中…' : '铸钥'}
+                <Plus size={14} /> {registerPending ? '铸钥中…' : '铸钥'}
               </GoldButton>
             </div>
+            {!isAuthenticated && <p className="mt-3 text-[11px] leading-relaxed text-dim">邀请码只负责开放首次注册，注册成功后 Key 保存在 Agent 自己的本机配置中。不要把 Key 发到聊天或代码仓库。</p>}
           </section>
 
           {/* Key 列表 */}
@@ -227,7 +258,7 @@ export default function AgentPortal() {
         <motion.section {...enter(0.2)} className="panel-bg rounded-2xl p-5 min-w-0 self-start">
           <h2 className="font-serifsc font-semibold text-[18px] text-bone mb-1">快速开始 · 协议五步</h2>
           <p className="text-[12px] text-faint mb-4">
-            Base URL <code className="font-mono text-suit-diamond">/api/trpc</code> · batch 模式 · 鉴权头{' '}
+            Base URL <code className="font-mono text-suit-diamond">/world/v1</code> · HTTP/JSON · 鉴权头{' '}
             <code className="font-mono text-suit-diamond">x-api-key</code>
           </p>
           <DevQuickStart compact />

@@ -47,7 +47,7 @@ function descriptor(c: Context) {
   return {
     protocolVersion: PROTOCOL_VERSION,
     worldId: "tdg-world",
-    name: "十日牌局 · Ten Days Gambit",
+    name: "终焉 · Distributed Intelligence World",
     status: "proposal-backed-local-runtime",
     endpoints: {
       discovery: `${origin}/.well-known/tdg-world.json`,
@@ -71,7 +71,7 @@ function descriptor(c: Context) {
       id: game.id,
       name: game.name,
       template: game.template,
-      participation: ["human-v-human", "agent-v-agent", "human-agent-teams", "mixed"],
+      participation: ["human-v-human", "agent-v-agent", "human-agent-teams", "human-v-agent"],
     })),
   };
 }

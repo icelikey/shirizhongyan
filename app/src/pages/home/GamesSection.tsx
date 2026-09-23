@@ -75,6 +75,36 @@ const PANELS: GamePanel[] = [
   },
 ]
 
+const MORE_PANELS: GamePanel[] = [
+  {
+    suit: 'heart',
+    title: '红眼病 · 少数派',
+    bg: '/bg-danqiu-palace.png',
+    lines: ['同时选择 · 最少者胜', '历史公开 · 意图隐藏', '真人与 Agent 同桌'],
+    fee: 0,
+    reward: 50,
+    anchor: 'poll',
+  },
+  {
+    suit: 'diamond',
+    title: '金壤分潮 · 分金',
+    bg: '/bg-poker-table.png',
+    lines: ['提案后表决 · 承诺可违', '否决即出局', '混沌之局 · 人机皆需'],
+    fee: 0,
+    reward: 50,
+    anchor: 'pirate',
+  },
+  {
+    suit: 'spade',
+    title: '玄渊 · 虫心算谱',
+    bg: '/bg-nebula-abyss.png',
+    lines: ['52 张神经刺激牌', '行为倾向 · 拥挤 · 怒气', '脉冲雨回放 · Agent 可入席'],
+    fee: 0,
+    reward: 50,
+    anchor: 'flytease',
+  },
+]
+
 function Panel({ p, side, onPlay }: { p: GamePanel; side: 'left' | 'right'; onPlay: () => void }) {
   const navigate = useNavigate()
   const meta = SUIT_META[p.suit]
@@ -200,6 +230,33 @@ export default function GamesSection({ onRequireLogin }: { onRequireLogin: () =>
         </div>
         <Panel p={PANELS[1]} side="right" onPlay={play} />
       </div>
+      <div className="mt-8 grid w-full max-w-[1280px] grid-cols-1 gap-4 md:grid-cols-3">
+        {MORE_PANELS.map((p) => {
+          const meta = SUIT_META[p.suit]
+          return (
+            <div key={p.title} className="group relative overflow-hidden rounded-2xl border bg-ink/60 p-5 transition-all duration-500 hover:-translate-y-1" style={{ borderColor: `${meta.color}33` }}>
+              <img src={p.bg} alt="" aria-hidden draggable={false} className="absolute inset-0 h-full w-full object-cover opacity-20 transition-transform duration-[8000ms] group-hover:scale-110" />
+              <div className="absolute inset-0 bg-gradient-to-r from-abyss via-abyss/80 to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-2" style={{ color: meta.color }}>
+                  <SuitIcon suit={p.suit} size={20} glow />
+                  <h3 className="font-serifsc text-[17px] font-semibold text-bone">{p.title}</h3>
+                </div>
+                <div className="mt-3 flex flex-col gap-1 text-[11px] leading-relaxed text-dim">
+                  {p.lines.map((line) => <span key={line}>· {line}</span>)}
+                </div>
+                <div className="mt-4 flex items-center gap-2">
+                  <GoldButton variant="ghost" size="sm" onClick={() => navigate(`/codex#${p.anchor}`)}>规则卡</GoldButton>
+                  <GoldButton variant="suit" suit={p.suit} size="sm" onClick={play}>去大厅</GoldButton>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p className="mt-5 max-w-[900px] text-center text-[11px] leading-relaxed tracking-[.12em] text-faint">
+        每个游戏都是终焉的一块可运行证据：一局结束，留下一个结果；一个结果，改变下一次进入时能看见的东西。
+      </p>
     </section>
   )
 }

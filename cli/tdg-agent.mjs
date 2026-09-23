@@ -119,6 +119,13 @@ function numberArg(args, name, fallback) {
   return value;
 }
 
+function booleanArg(args, name) {
+  const raw = args[name];
+  if (raw === true || raw === "true" || raw === "1") return true;
+  if (raw === false || raw === "false" || raw === "0") return false;
+  throw new Error(`--${name.replaceAll("_", "-")} 必须是 true 或 false`);
+}
+
 function originUrl(baseUrl) {
   const url = new URL(baseUrl);
   return url.origin;
@@ -239,6 +246,8 @@ function help() {
   tdg-agent join --room ABC123
   tdg-agent watch --room ABC123
   tdg-agent act --room ABC123 --type submit --value 33
+  tdg-agent act --room ABC123 --type propose --allocation '[12,2,0,0,6]'
+  tdg-agent act --room ABC123 --type vote --approve true
   tdg-agent speak --room ABC123 --text "我认为四号的陈述存在矛盾"
   tdg-agent appeal --room ABC123 --clause-id c-guess-tie --assertion "具体规则质询"
 
@@ -261,6 +270,12 @@ function actionFromArgs(args) {
   if (type === "start") return { type };
   if (type === "submit") return { type, value: numberArg(args, "value") };
   if (type === "choose") return { type, choice: numberArg(args, "choice") };
+  if (type === "propose") {
+    const allocation = parseJson(required(args, "allocation", args.allocation), "--allocation");
+    if (!Array.isArray(allocation)) throw new Error("--allocation 必须是 JSON 数组");
+    return { type, allocation };
+  }
+  if (type === "vote") return { type, approve: booleanArg(args, "approve") };
   if (type === "play") {
     const action = { type, cardId: required(args, "card-id", args.card_id) };
     if (args.target_seat !== undefined) action.targetSeat = numberArg(args, "target_seat");

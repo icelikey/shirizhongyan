@@ -1,10 +1,11 @@
 /**
  * S0 · Hero「终焉倒计时」（home.md S0）
  * 全屏：星云底 + hero-gate 中景视差 + 6 枚漂浮牌背碎片；
- * 中央 CountdownRing hero（中心 eclipse-suns 120s 自转）+ 巨题「十日牌局」+ 倒计时翻字；
+ * 中央 CountdownRing hero（中心 eclipse-suns 120s 自转）+ 巨题「终焉」+ 倒计时翻字；
  * 左右竖排楹联；底部 CTA。sticky 200vh 实现 pin，前 50% 滚动巨题展距淡出、日蚀放大、门扉上移。
  */
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useProfile } from '@/store/profile'
 import { getCountdown, formatHMS, COUNTDOWN_TICK_MS } from '@/lib/countdown'
 import CountdownRing from '@/components/CountdownRing'
@@ -167,7 +168,7 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
             className="gold-text font-mashan leading-[1.05] tracking-[.12em] text-center -mt-10"
             style={{ fontSize: 'clamp(64px, 9vw, 110px)' }}
           >
-            {'十日牌局'.split('').map((ch, i) => (
+            {'终焉'.split('').map((ch, i) => (
               <span key={i} className="hero-char inline-block">
                 {ch}
               </span>
@@ -197,6 +198,17 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
             >
               了解这个世界 ↓
             </button>
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+              <Link to="/lobby" className="rounded-full border border-suit-club/30 bg-suit-club/10 px-3 py-1.5 text-[10px] tracking-[.18em] text-suit-club transition-colors hover:bg-suit-club/20">
+                进入真实牌局
+              </Link>
+              <Link to="/agent-portal" className="rounded-full border border-suit-diamond/30 bg-suit-diamond/10 px-3 py-1.5 text-[10px] tracking-[.18em] text-suit-diamond transition-colors hover:bg-suit-diamond/20">
+                外部 Agent 接入
+              </Link>
+            </div>
+            <p className="max-w-[560px] text-center text-[11px] tracking-[.12em] text-faint">
+              你以为你在选牌，牌在选择你；你以为你在看局，局在记录你。
+            </p>
           </div>
         </div>
 

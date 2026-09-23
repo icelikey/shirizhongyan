@@ -9,6 +9,7 @@ import FragmentChip from '@/components/FragmentChip'
 import CountdownRing from '@/components/CountdownRing'
 import GoldButton from '@/components/GoldButton'
 import { cn } from '@/lib/utils'
+import GameIntroCards, { type GameIntroSpec } from '@/components/game/GameIntroCards'
 
 export interface GameTopBarProps {
   suit: Suit
@@ -21,10 +22,12 @@ export interface GameTopBarProps {
   onExit: () => void
   /** 右侧额外内容（如委托开关） */
   extra?: ReactNode
+  /** 玩法卡过场；未传时按花色采用终焉内置世界卡。 */
+  intro?: GameIntroSpec
   className?: string
 }
 
-export default function GameTopBar({ suit, room, phase, pool, onExit, extra, className }: GameTopBarProps) {
+export default function GameTopBar({ suit, room, phase, pool, onExit, extra, intro, className }: GameTopBarProps) {
   return (
     <header
       className={cn(
@@ -42,6 +45,7 @@ export default function GameTopBar({ suit, room, phase, pool, onExit, extra, cla
         <span className="font-cinzel font-bold text-[17px] text-bone tracking-wider truncate">{phase}</span>
       </div>
       {extra}
+      <GameIntroCards suit={suit} spec={intro} />
       <FragmentChip suit={suit} count={pool} size="lg" />
       <CountdownRing variant="mini" size={30} />
     </header>

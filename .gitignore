@@ -21,6 +21,9 @@ coverage/
 .nyc_output/
 *.log
 
+# ── 本地 Windows 发布目录（ZIP 通过 Git LFS 单独交付）──────────
+release/windows/终焉/
+
 # ── 编辑器与系统 ──────────────────────────────────────────────
 .DS_Store
 Thumbs.db

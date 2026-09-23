@@ -11,6 +11,16 @@ const FRAG_COLUMN = {
   diamond: "fragDiamond",
 } as const satisfies Record<Suit, keyof typeof travelerProfiles.$inferSelect>;
 
+/** mysql2 可能把 JSON 列返回为对象，也可能返回 JSON 字符串。 */
+function parseJsonColumn<T>(value: unknown): T | null {
+  if (typeof value !== "string") return (value as T) ?? null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
 export interface ProfileSaveInput {
   nickname: string;
   fragSpade: number;
@@ -26,9 +36,18 @@ export interface ProfileSaveInput {
 }
 
 export async function findProfileByUserId(userId: number) {
-  return getDb().query.travelerProfiles.findFirst({
+  const row = await getDb().query.travelerProfiles.findFirst({
     where: eq(travelerProfiles.userId, userId),
   });
+  if (!row) return row;
+  return {
+    ...row,
+    zodiacJson: parseJsonColumn(row.zodiacJson),
+    companionJson: parseJsonColumn(row.companionJson),
+    recordsJson: parseJsonColumn(row.recordsJson),
+    echoMemoriesJson: parseJsonColumn(row.echoMemoriesJson),
+    unlockedLoreJson: parseJsonColumn(row.unlockedLoreJson),
+  };
 }
 
 /** 全量保存档案（无则创建，有则覆盖），返回保存后的行 */
@@ -65,7 +84,8 @@ export async function awardGameResult(
       });
       return;
     }
-    const records = (existing.recordsJson ?? {}) as Record<string, unknown>;
+    const records =
+      parseJsonColumn<Record<string, unknown>>(existing.recordsJson) ?? {};
     const rec = (records[opts.recordKey] ?? { played: 0, won: 0 }) as {
       played?: number;
       won?: number;
@@ -108,7 +128,8 @@ export async function awardGuessResult(
       });
       return;
     }
-    const records = (existing.recordsJson ?? {}) as Record<string, unknown>;
+    const records =
+      parseJsonColumn<Record<string, unknown>>(existing.recordsJson) ?? {};
     const guess = (records.guess ?? { played: 0, won: 0 }) as {
       played?: number;
       won?: number;

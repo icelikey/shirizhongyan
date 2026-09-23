@@ -12,6 +12,7 @@
  */
 
 import type { EntryFee, GameTemplate, Rewards } from "./gameSdk";
+import type { MatchMode } from "./matchMode";
 
 /** 房间状态（与 rooms.status 一致） */
 export type RoomStatus = "waiting" | "playing" | "finished";
@@ -88,6 +89,8 @@ export interface GuessRoomView {
   seats: GuessSeatView[];
   /** 上一轮揭晓结果（第一轮前为 null） */
   lastReveal: GuessReveal | null;
+  /** 全部已揭晓轮次历史；千轮猜数据此绘制收敛曲线。 */
+  history: GuessReveal[];
   /** 请求者自己的座位号；无 seatToken 或旁观时为 null */
   mySeat: number | null;
   /** 终局冠军座位号（finished 时必有） */
@@ -122,6 +125,8 @@ export interface RoomSummary {
   gameName: string;
   isOfficial: boolean;
   entryFee: EntryFee;
+  /** 兼容旧房间：缺失时客户端按席位展示默认模式。 */
+  matchMode?: MatchMode;
 }
 
 /** room.create / room.join 返回 */
@@ -153,6 +158,10 @@ export type GuessAction =
   | { type: "submit"; value: number }
   | { type: "choose"; choice: number }
   | { type: "play"; cardId: string; targetSeat?: number }
+  /** 海盗分金：提案人提交按座位号对齐的分配方案。 */
+  | { type: "propose"; allocation: number[] }
+  /** 海盗分金：对当前提案投赞成或反对票。 */
+  | { type: "vote"; approve: boolean }
   /**
    * 提交一段文本（辩论、猜词提问、发言）。
    *

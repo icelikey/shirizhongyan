@@ -22,6 +22,8 @@ import SpireLobbyCard from '@/components/spire/SpireLobbyCard'
 import OnlineLobbySection from '@/components/online/OnlineLobbySection'
 import { LOBBY_ROOMS, SPIRE_WATCH_ROOMS } from '@/components/meta/lobby/rooms'
 import type { LobbyRoom } from '@/components/meta/lobby/rooms'
+import ParticipationModes from '@/components/online/ParticipationModes'
+import type { MatchMode } from '@contracts/matchMode'
 
 const enter = (delay: number) => ({
   initial: { opacity: 0, y: 24 },
@@ -34,6 +36,7 @@ export default function Lobby() {
   const records = useProfile((s) => s.records)
 
   const [rooms, setRooms] = useState<LobbyRoom[]>([...LOBBY_ROOMS, ...SPIRE_WATCH_ROOMS])
+  const [mode, setMode] = useState<MatchMode | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [spin, setSpin] = useState(0)
 
@@ -92,7 +95,8 @@ export default function Lobby() {
               </motion.span>
             </button>
           </div>
-          <RoomList rooms={rooms} go={go} onCreate={() => setCreateOpen(true)} />
+          <ParticipationModes selected={mode} onSelect={setMode} compact />
+          <RoomList rooms={mode ? rooms.filter((room) => room.matchMode === mode) : rooms} go={go} onCreate={() => setCreateOpen(true)} />
           {/* 联机大厅：真实联机房（云端入座 / Agent 同席） */}
           <OnlineLobbySection />
         </motion.section>

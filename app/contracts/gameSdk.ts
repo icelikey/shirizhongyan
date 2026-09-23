@@ -13,6 +13,7 @@
  */
 import { z } from "zod";
 import type { GuessRoomView, GuessReveal } from "./room";
+import type { FlyTeaseParams, FlyTeaseRoomView } from "./flyTease";
 
 /* ------------------------------------------------------------------ */
 /* 基础类型                                                            */
@@ -22,7 +23,7 @@ import type { GuessRoomView, GuessReveal } from "./room";
 export type Suit = "spade" | "heart" | "club" | "diamond";
 
 /** 游戏模板 id */
-export type GameTemplate = "numberGuess" | "pollDuel";
+export type GameTemplate = "numberGuess" | "pollDuel" | "pirateGold" | "flyTease";
 
 /* ------------------------------------------------------------------ */
 /* 席位准入策略                                                        */
@@ -107,7 +108,12 @@ export function validateSeatComposition(params: {
 /* ------------------------------------------------------------------ */
 export const SDK_LIMITS = {
   seats: { min: 2, max: 8 },
-  rounds: { min: 3, max: 10 },
+  /**
+   * 上限从 10 放宽到 1000：千轮猜数（agent-only 官方局）需要跑数百轮才能
+   * 演示 level-k 收敛曲线，这是「分布式智能」相对人类局的核心差异化演出——
+   * 人类局仍受 submitWindowSec 的 10–120s 硬约束，实际不会有人开千轮人类局。
+   */
+  rounds: { min: 3, max: 1000 },
   targetRatio: { min: 0.1, max: 1.5 },
   choices: { min: 2, max: 4 },
   entryFee: { min: 0, max: 50 },
@@ -115,6 +121,15 @@ export const SDK_LIMITS = {
   submitWindowSec: { min: 10, max: 120 },
   name: { max: 48 },
   choiceLabel: { max: 6 },
+  /**
+   * 海盗分金金币总数上限。之所以比座位数上限小得多——服务端把
+   * 「提案分配数组」按 (coins+1) 进制打包进单个 number 存储
+   * （RoundEntry.value 只能是一个数字），8 席 × 60 金币时
+   * 61^8 ≈ 1.9e14，远小于 Number.MAX_SAFE_INTEGER，留足安全余量。
+   */
+  pirateCoins: { min: 6, max: 60 },
+  /** 海盗分金轮数上限 = 座位数上限 - 1（最坏情况逐个提案人出局） */
+  pirateRounds: { min: 1, max: 20 },
 } as const;
 
 /* ------------------------------------------------------------------ */
@@ -169,6 +184,23 @@ export const pollDuelParamsSchema = z.object({
   scoreWin: z.number().int().min(1).max(10),
 });
 
+export const pirateGoldParamsSchema = z.object({
+  /** 最多提案轮数（防止极端场景无限进行；正常局远用不到上限） */
+  rounds: z
+    .number()
+    .int()
+    .min(SDK_LIMITS.pirateRounds.min)
+    .max(SDK_LIMITS.pirateRounds.max),
+  /** 待分配金币总数 */
+  coins: z
+    .number()
+    .int()
+    .min(SDK_LIMITS.pirateCoins.min)
+    .max(SDK_LIMITS.pirateCoins.max),
+});
+
+export { flyTeaseParamsSchema } from "./flyTease";
+
 /** game.createDef 入参（模板判别联合） */
 export const createGameDefSchema = z.discriminatedUnion("template", [
   z.object({
@@ -189,6 +221,38 @@ export const createGameDefSchema = z.discriminatedUnion("template", [
     name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
     seats: z.number().int().min(SDK_LIMITS.seats.min).max(SDK_LIMITS.seats.max),
     params: pollDuelParamsSchema,
+    entryFee: entryFeeSchema,
+    rewards: rewardsSchema,
+    submitWindowSec: z
+      .number()
+      .int()
+      .min(SDK_LIMITS.submitWindowSec.min)
+      .max(SDK_LIMITS.submitWindowSec.max),
+  }),
+  z.object({
+    template: z.literal("pirateGold"),
+    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
+    seats: z.number().int().min(SDK_LIMITS.seats.min).max(SDK_LIMITS.seats.max),
+    params: pirateGoldParamsSchema,
+    entryFee: entryFeeSchema,
+    rewards: rewardsSchema,
+    submitWindowSec: z
+      .number()
+      .int()
+      .min(SDK_LIMITS.submitWindowSec.min)
+      .max(SDK_LIMITS.submitWindowSec.max),
+  }),
+  z.object({
+    template: z.literal("flyTease"),
+    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
+    seats: z.number().int().min(SDK_LIMITS.seats.min).max(SDK_LIMITS.seats.max),
+    params: z.object({
+      rounds: z.number().int().min(3).max(10),
+      fickleness: z.number().min(0).max(1),
+      crowding: z.number().min(0).max(1),
+      rageThreshold: z.number().int().min(1).max(30),
+      scoreWin: z.number().int().min(1).max(10),
+    }),
     entryFee: entryFeeSchema,
     rewards: rewardsSchema,
     submitWindowSec: z
@@ -236,6 +300,13 @@ export interface PollDuelParams {
   scoreWin: number;
 }
 
+export interface PirateGoldParams {
+  rounds: number;
+  coins: number;
+}
+
+export type { FlyTeaseParams } from "./flyTease";
+
 interface GameDefinitionBase {
   /** 'guess-core' / 'poll-duel-core'（官方）或 'ugc_xxxxxxxx' */
   id: string;
@@ -276,7 +347,21 @@ export interface PollDuelDefinition extends GameDefinitionBase {
   params: PollDuelParams;
 }
 
-export type GameDefinition = NumberGuessDefinition | PollDuelDefinition;
+export interface PirateGoldDefinition extends GameDefinitionBase {
+  template: "pirateGold";
+  params: PirateGoldParams;
+}
+
+export interface FlyTeaseDefinition extends GameDefinitionBase {
+  template: "flyTease";
+  params: FlyTeaseParams;
+}
+
+export type GameDefinition =
+  | NumberGuessDefinition
+  | PollDuelDefinition
+  | PirateGoldDefinition
+  | FlyTeaseDefinition;
 
 /* ------------------------------------------------------------------ */
 /* pollDuel 揭示与视图                                                   */
@@ -295,14 +380,56 @@ export interface PollReveal {
   winnerSeats: number[];
 }
 
-/** pollDuel 房间视图（在通用视图基础上 lastReveal 换型 + choices 必有） */
-export interface PollRoomView extends Omit<GuessRoomView, "lastReveal"> {
+/** pollDuel 房间视图（在通用视图基础上 lastReveal/history 换型 + choices 必有） */
+export interface PollRoomView extends Omit<GuessRoomView, "lastReveal" | "history"> {
   lastReveal: PollReveal | null;
+  history: PollReveal[];
   choices: string[];
 }
 
+/* ------------------------------------------------------------------ */
+/* pirateGold 揭示、中途可见提案与视图                                    */
+/* ------------------------------------------------------------------ */
+
+/** 海盗分金一轮（一次提案周期）揭晓：分配方案 + 各存活座位表决 + 是否通过 */
+export interface PirateGoldReveal {
+  round: number;
+  /** 本轮提案人座位号 */
+  proposer: number;
+  /** 分配方案（下标=座位号，值=分得金币数；未提案/提案非法时为全 0） */
+  allocation: number[];
+  /** 座位号 → 是否投赞成票（含提案人自己，恒为 true） */
+  votes: Record<number, boolean>;
+  /** 方案是否通过 */
+  passed: boolean;
+  /** 本轮开始前的存活座位号 */
+  aliveBefore: number[];
+}
+
+/** 表决进行中，提案已交但未正式揭晓时的中途可见结构 */
+export interface PirateGoldPending {
+  proposer: number;
+  allocation: number[];
+  /** 座位号 → 是否已投票（不透露票内容，投票期间不应剧透结果） */
+  voted: number[];
+}
+
+/** pirateGold 房间视图 */
+export interface PirateGoldRoomView extends Omit<GuessRoomView, "lastReveal" | "history"> {
+  lastReveal: PirateGoldReveal | null;
+  history: PirateGoldReveal[];
+  /** 待分配金币总数 */
+  coins: number;
+  /** 当前存活座位号（出局者仍在 seats 列表中，但不再参与提案/表决） */
+  aliveSeats: number[];
+  /** 当前提案人座位号；未开局或已终局为 null */
+  currentProposer: number | null;
+  /** 表决进行中可见的提案摘要；无提案在途或已到揭晓阶段为 null */
+  pending: PirateGoldPending | null;
+}
+
 /** room.state / agent.gatewayObserve 的返回联合（按 template 判别） */
-export type GameRoomView = GuessRoomView | PollRoomView;
+export type GameRoomView = GuessRoomView | PollRoomView | PirateGoldRoomView | FlyTeaseRoomView;
 
 /** 房间动作在 room.ts 的 GuessAction 上扩展了 choose，这里给出门户别名 */
 export type { GuessReveal, GuessRoomView };
@@ -310,7 +437,7 @@ export type { GuessReveal, GuessRoomView };
 /** game.listDefs 返回元素（官方 + 热门 UGC） */
 export interface GameDefSummary extends GameDefinitionBase {
   template: GameTemplate;
-  params: NumberGuessParams | PollDuelParams;
+  params: NumberGuessParams | PollDuelParams | PirateGoldParams | FlyTeaseParams;
   /** 累计开局数（官方定义恒 0，仅 UGC 统计） */
   plays: number;
 }

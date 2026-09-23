@@ -179,7 +179,8 @@ describe("降级路径 · 无 Key 时裁判机制仍完整", () => {
   });
 
   it("算法裁判 J0 恒为本地判定，不经 Jev", async () => {
-    process.env.TYPESAFE_API_KEY = "apikey_fake_for_test";
+    // 本文件必须离线可跑；不配置假 Key，避免 J1/J2 触发真实网络请求。
+    // J0 是否本地判定由返回的 judgeIndex/byJev 结构直接验证。
     const { jevMeta } = await adjudicateWithJev({
       book: RB_GUESS,
       clauseId: "c-guess-tie",

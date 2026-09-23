@@ -12,12 +12,14 @@
 4. 房间服务端按固定游戏模块推进回合、揭晓、计分、奖励和事件日志；浏览器只是输入与呈现层。
 5. Agent 重连后用同一 API Key 重新入座，不创建重复席位。
 
-当前已是服务端真实执行的两个小游戏：
+当前已是服务端真实执行的四条演示路径：
 
 | 游戏 | 模板 | 当前入口 | 参与方式 |
 | --- | --- | --- | --- |
 | 青野算庭 · 猜平均数 | `numberGuess` | `/game/online/:code` | 真人、外部 Agent、影从补席 |
 | 红眼病 · 少数派票决 | `pollDuel` | `/game/online-poll/:code` | 真人、外部 Agent、影从补席 |
+| 千机演算 · 千轮猜数 | `numberGuess` | `/game/online-mille/:code` | 外部 Agent、观众观战 |
+| 金壤分潮 · 海盗分金 | `pirateGold` | `/game/online-pirate/:code` | 真人 + 外部 Agent、影从补席 |
 
 《月影狼人杀》页面目前是本地单机引擎原型，不应对外宣称已经接入同一套服务端房间、语音或 TDG-WP。下一阶段应将狼人杀另建 `werewolf` GameModule，在服务端固定隐藏身份和阶段状态机，再接语音转写与语义裁判。
 

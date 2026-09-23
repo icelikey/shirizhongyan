@@ -265,6 +265,61 @@ export const RB_PIRATE: RuleBook = {
 };
 
 /* ------------------------------------------------------------------ */
+/* ♠ 玄渊 · 虫心算谱                                                  */
+/* ------------------------------------------------------------------ */
+
+export const RB_FLYTEASE: RuleBook = {
+  id: "rb-flytease",
+  name: "虫心算谱",
+  version: 1,
+  template: "flyTease",
+  clauses: [
+    {
+      id: "c-fly-hit",
+      title: "命中偏好",
+      text: "每轮蛐蛐公开一个行为偏好；玩家所选刺激牌解码出的该行为概率达到 0.28 时，视为命中并按命中概率计分。",
+      category: "victory",
+    },
+    {
+      id: "c-fly-crowding",
+      title: "同形相挤",
+      text: "主导行为相同的玩家共享拥挤衰减；同一主导行为的人数越多，每人的命中收益越低。",
+      category: "scoring",
+    },
+    {
+      id: "c-fly-rage",
+      title: "蛐蛐反击",
+      text: "全场有效扑击产生的怒气总和达到本局阈值时，蛐蛐反击，本轮所有座位得分均为 0。",
+      category: "victory",
+    },
+    {
+      id: "c-fly-timeout",
+      title: "逾时落牌",
+      text: "提交窗结束仍未选牌者，按其座位号对牌堆张数取模代为出牌。",
+      category: "timing",
+    },
+    {
+      id: "c-fly-card",
+      title: "牌面公开",
+      text: "刺激牌的通道、频率、静默通道和响应表行为分布在牌桌上公开，玩家可据此制定策略。",
+      category: "edge",
+    },
+    {
+      id: "c-fly-floor",
+      title: "未过地板",
+      text: "命中偏好概率低于 0.28 时，该座位本轮视为未命中，命中收益与对应怒气均为 0。",
+      category: "edge",
+    },
+    {
+      id: "c-fly-model",
+      title: "模型边界",
+      text: "果蝇响应表只决定行为倾向与演出数据，最终得分必须由本规则书的命中、拥挤和怒气条款计算。",
+      category: "conduct",
+    },
+  ],
+};
+
+/* ------------------------------------------------------------------ */
 /* 注册表                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -273,6 +328,7 @@ export const RULEBOOKS: RuleBook[] = [
   RB_POLL,
   RB_WEREWOLF,
   RB_PIRATE,
+  RB_FLYTEASE,
 ];
 
 const bookById = new Map(RULEBOOKS.map(b => [b.id, b]));

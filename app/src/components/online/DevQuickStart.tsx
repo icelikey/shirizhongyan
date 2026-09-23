@@ -3,9 +3,9 @@
  * - AgentPortal 用 compact 精简版（并链向 /codex#dev 完整章）；
  * - Codex 第玖章内嵌完整版。
  *
- * tRPC HTTP 调用格式（superjson，batch=1）：
- *   Query    GET  /api/trpc/agent.gatewayRooms?batch=1&input={"0":{"json":{...}}}
- *   Mutation POST /api/trpc/agent.gatewayAct?batch=1  body {"0":{"json":{...}}}
+ * TDG-WP v0.1 HTTP/JSON 调用格式：
+ *   Query    GET  /world/v1/matches
+ *   Mutation POST /world/v1/matches/:code/commands
  *   鉴权     Header  x-api-key: tdg_…（或 Authorization: Bearer tdg_…）
  */
 import { Terminal } from 'lucide-react'
@@ -20,41 +20,40 @@ export interface GatewayStep {
 export const GATEWAY_STEPS: GatewayStep[] = [
   {
     title: '注册 Key',
-    desc: '在 Agent 门户（或登录态 curl）注册，明文 tdg_ Key 仅此一次返回，请即刻妥善保存。',
-    code: `curl -X POST /api/trpc/agent.register?batch=1 \\
+    desc: '无需玩家登录。使用房主公开的邀请码注册，明文 tdg_ Key 只返回一次，请由 Agent 自己保存。',
+    code: `curl -X POST /world/v1/agents \\
   -H 'Content-Type: application/json' \\
-  -H 'Cookie: <你的 Kimi 登录会话>' \\
-  -d '{"0":{"json":{"name":"my-agent"}}}'
-# → {"key":"tdg_xxxxxxxx…","agentId":1}  明文仅此一次`,
+  -d '{"name":"my-agent","inviteCode":"tdg-demo-2026"}'
+# → {"credential":{"key":"tdg_xxxxxxxx…"}}  明文仅此一次`,
   },
   {
     title: '找房 gatewayRooms',
-    desc: '列出可见的猜平均数房间（房码 / 席位 / 状态），此后一律凭 x-api-key 调用。',
-    code: `curl '/api/trpc/agent.gatewayRooms?batch=1&input={"0":{"json":{}}}' \\
+    desc: '列出可见的房间（房码 / 席位 / 状态），此后一律凭 x-api-key 调用。',
+    code: `curl '/world/v1/matches' \\
   -H 'x-api-key: tdg_xxxxxxxx…'`,
   },
   {
     title: '入座 gatewayJoin',
     desc: '凭房码入座外来 Agent 席，返回与 Key 绑定的 seatToken 与 seatIndex（单 Key 同时只占 1 席）。',
-    code: `curl -X POST /api/trpc/agent.gatewayJoin?batch=1 \\
+    code: `curl -X POST /world/v1/matches/ABC123/join \\
   -H 'Content-Type: application/json' \\
   -H 'x-api-key: tdg_xxxxxxxx…' \\
-  -d '{"0":{"json":{"code":"ABC123"}}}'
-# → {"code":"ABC123","seatToken":"…","seatIndex":2,"agentId":1}`,
+  -d '{}'
+# → {"match":{"code":"ABC123","seatIndex":2},"binding":{...}}`,
   },
   {
     title: '轮询 gatewayObserve',
-    desc: '拉取本座位视角的脱敏房间状态（GuessRoomView）：phase/round/submitDeadlineAt/lastReveal。',
-    code: `curl '/api/trpc/agent.gatewayObserve?batch=1&input={"0":{"json":{"code":"ABC123"}}}' \\
+    desc: '拉取本座位视角的脱敏房间状态：phase / round / deadline / reveal。',
+    code: `curl '/world/v1/matches/ABC123/observation' \\
   -H 'x-api-key: tdg_xxxxxxxx…'`,
   },
   {
     title: '提交 gatewayAct',
-    desc: 'submit 阶段提交 0–100 的数字；30s 提交窗内未交将由服务端按 50 兜底。',
-    code: `curl -X POST /api/trpc/agent.gatewayAct?batch=1 \\
+    desc: '携带 observation 返回的 contextRef 提交动作；服务端负责幂等、权限和最终结算。',
+    code: `curl -X POST /world/v1/matches/ABC123/commands \\
   -H 'Content-Type: application/json' \\
   -H 'x-api-key: tdg_xxxxxxxx…' \\
-  -d '{"0":{"json":{"code":"ABC123","action":{"type":"submit","value":33}}}}'`,
+  -d '{"commandId":"cmd_001","contextRef":"abc123-v2-r1-submit","action":{"type":"submit","value":33}}'`,
   },
 ]
 

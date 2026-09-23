@@ -40,7 +40,7 @@ function HomeMenu({
       <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 rounded-full border border-[rgba(227,194,124,.2)] bg-[#0C0A13CC] px-3 py-2 shadow-[0_10px_30px_rgba(0,0,0,.28)] backdrop-blur-md sm:px-4">
         <button type="button" onClick={() => onNavigate('s0')} className="flex shrink-0 items-center gap-2.5" aria-label="回到世界序章">
           <MaskIcon src="/logo-mark.svg" size={27} color="#E3C27C" />
-          <span className="gold-text font-serifsc text-[15px] font-black tracking-wider">十日牌局</span>
+          <span className="gold-text font-serifsc text-[15px] font-black tracking-wider">终焉</span>
         </button>
 
         <nav className="hidden items-center gap-1 md:flex" aria-label="世界菜单">
@@ -55,6 +55,9 @@ function HomeMenu({
           <a href="#s5" className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
             入场
           </a>
+          <Link to="/agent-portal" className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
+            Agent 接入
+          </Link>
           <Link to="/codex" className="rounded-full px-3 py-2 text-[11px] tracking-[.18em] text-dim transition-colors hover:bg-gold-300/10 hover:text-gold-100">
             规则
           </Link>

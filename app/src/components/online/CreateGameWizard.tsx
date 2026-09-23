@@ -1,6 +1,6 @@
 /**
  * 「⚒ 创造游戏」三步向导（sdk.md §5）。
- * ① 选模板（猜数博弈 ♣ / 红眼病投票 ♥）→ ② 参数（人数/轮数/倍率或选项/
+ * ① 选模板（猜数博弈 ♣ / 红眼病投票 ♥ / 虫心算谱 ♠）→ ② 参数（人数/轮数/倍率或选项/
  * 门票/奖励/时限，实时显示预计一局时长）→ ③ 命名 +「开天辟地」印章
  * → game.createDef + room.create → 直入房间。
  */
@@ -21,7 +21,7 @@ import { SUIT_META } from '@/data/echoes'
 import { cn } from '@/lib/utils'
 
 const TEMPLATE_CARDS: {
-  template: GameTemplate
+  template: Exclude<GameTemplate, 'pirateGold'>
   title: string
   suit: Suit
   desc: string
@@ -40,6 +40,13 @@ const TEMPLATE_CARDS: {
     suit: 'heart',
     desc: '全员同时投票，选中「最少人选的选项」者得分。丹丘的心理乱斗。',
     tagline: '心理与少数派',
+  },
+  {
+    template: 'flyTease',
+    title: '虫心算谱',
+    suit: 'spade',
+    desc: '读取果蝇响应表，选择刺激牌命中蛐蛐偏好；同形相挤，怒气反击，玄渊只记录你的选择。',
+    tagline: '神经与博弈',
   },
 ]
 
@@ -100,7 +107,7 @@ function Stepper({
 export default function CreateGameWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
-  const [template, setTemplate] = useState<GameTemplate>('numberGuess')
+  const [template, setTemplate] = useState<Exclude<GameTemplate, 'pirateGold'>>('numberGuess')
   const [seats, setSeats] = useState(6)
   const [rounds, setRounds] = useState(5)
   const [targetRatio, setTargetRatio] = useState(0.667)
@@ -109,6 +116,9 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
   const [scoreWin, setScoreWin] = useState(2)
   const [scoreSecond, setScoreSecond] = useState(1)
   const [choices, setChoices] = useState<string[]>(['红', '蓝'])
+  const [fickleness, setFickleness] = useState(0.35)
+  const [crowding, setCrowding] = useState(0.6)
+  const [rageThreshold, setRageThreshold] = useState(8)
   const [feeSuit, setFeeSuit] = useState<Suit>('club')
   const [feeAmount, setFeeAmount] = useState(0)
   const [rewardWinner, setRewardWinner] = useState(50)
@@ -122,15 +132,16 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
   const createRoom = trpc.room.create.useMutation()
 
   const estimateSec = rounds * (windowSec + 5)
-  const activeSuit: Suit = template === 'pollDuel' ? 'heart' : feeSuit
+  const activeSuit: Suit = template === 'pollDuel' ? 'heart' : template === 'flyTease' ? 'spade' : feeSuit
 
-  const pickTemplate = (t: GameTemplate) => {
+  const pickTemplate = (t: Exclude<GameTemplate, 'pirateGold'>) => {
     setTemplate(t)
-    setFeeSuit(t === 'pollDuel' ? 'heart' : 'club')
+    setFeeSuit(t === 'pollDuel' ? 'heart' : t === 'flyTease' ? 'spade' : 'club')
   }
 
   const step2Valid = useMemo(() => {
     if (template === 'numberGuess') return rangeMin < rangeMax
+    if (template === 'flyTease') return true
     return (
       choices.length >= SDK_LIMITS.choices.min &&
       choices.every((c) => c.trim().length > 0)
@@ -169,7 +180,8 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
               rewards: { winner: rewardWinner, runnerUp: rewardRunner, participation: rewardPart },
               submitWindowSec: windowSec,
             }
-          : {
+          : template === 'pollDuel'
+            ? {
               template,
               name: finalName,
               seats,
@@ -182,14 +194,35 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
               entryFee: { suit: feeSuit, amount: feeAmount },
               rewards: { winner: rewardWinner, runnerUp: rewardRunner, participation: rewardPart },
               submitWindowSec: windowSec,
+            }
+            : {
+              template,
+              name: finalName,
+              seats,
+              params: {
+                rounds,
+                fickleness,
+                crowding,
+                rageThreshold,
+                scoreWin,
+              },
+              entryFee: { suit: feeSuit, amount: feeAmount },
+              rewards: { winner: rewardWinner, runnerUp: rewardRunner, participation: rewardPart },
+              submitWindowSec: windowSec,
             },
       )
       const room = await createRoom.mutateAsync({ defId: def.id, roomName: finalName })
-      sessionStorage.setItem(seatTokenKey(room.code), room.seatToken)
+      if (room.seatToken) sessionStorage.setItem(seatTokenKey(room.code), room.seatToken)
       toast('开天辟地 · 游戏已成', { description: `「${finalName}」房码 ${room.code}，直入新房。` })
       onClose()
       reset()
-      navigate(def.template === 'pollDuel' ? `/game/online-poll/${room.code}` : `/game/online/${room.code}`)
+      navigate(
+        def.template === 'pollDuel'
+          ? `/game/online-poll/${room.code}`
+          : def.template === 'flyTease'
+            ? `/game/online-fly/${room.code}`
+            : `/game/online/${room.code}`,
+      )
     } catch (err) {
       toast('创造失败', { description: err instanceof Error ? err.message : '星网繁忙，稍后再试。' })
       setForging(false)
@@ -299,7 +332,7 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
                   <Stepper label="胜轮得分" value={scoreWin} min={1} max={10} onChange={setScoreWin} />
                   <Stepper label="次近得分" value={scoreSecond} min={0} max={10} onChange={setScoreSecond} />
                 </>
-              ) : (
+              ) : template === 'pollDuel' ? (
                 <>
                   <div className="mt-2 border-t border-[rgba(227,194,124,.08)] pt-2">
                     <div className="mb-1.5 flex items-center justify-between">
@@ -345,6 +378,39 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
                     </div>
                   </div>
                   <Stepper label="少数派得分" value={scoreWin} min={1} max={10} onChange={setScoreWin} />
+                </>
+              ) : (
+                <>
+                  <div className="mt-2 border-t border-[rgba(227,194,124,.08)] pt-2">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-[13px] text-dim">蛐蛐善变度</span>
+                      <span className="font-mono text-[14px] text-suit-spade">{fickleness.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[fickleness]}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onValueChange={(v) => setFickleness(v[0])}
+                      className="w-full [&_[data-slot=slider-range]]:bg-suit-spade [&_[data-slot=slider-thumb]]:border-suit-spade [&_[data-slot=slider-thumb]]:bg-ink"
+                    />
+                  </div>
+                  <div className="mt-2 border-t border-[rgba(227,194,124,.08)] pt-2">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-[13px] text-dim">同形拥挤度</span>
+                      <span className="font-mono text-[14px] text-suit-spade">{crowding.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[crowding]}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onValueChange={(v) => setCrowding(v[0])}
+                      className="w-full [&_[data-slot=slider-range]]:bg-suit-spade [&_[data-slot=slider-thumb]]:border-suit-spade [&_[data-slot=slider-thumb]]:bg-ink"
+                    />
+                  </div>
+                  <Stepper label="怒气阈值" value={rageThreshold} min={1} max={30} onChange={setRageThreshold} />
+                  <Stepper label="命中得分" value={scoreWin} min={1} max={10} onChange={setScoreWin} />
                 </>
               )}
             </div>
@@ -406,7 +472,9 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
             <p className="text-center text-[12px] leading-relaxed text-dim">
               {template === 'numberGuess'
                 ? `${seats} 席 · ${rounds} 轮 · ${rangeMin}–${rangeMax} 出数 · 倍率 ${targetRatio.toFixed(3)}`
-                : `${seats} 席 · ${rounds} 轮 · ${choices.map((c) => c || '？').join(' / ')} 少数派胜`}
+                : template === 'pollDuel'
+                  ? `${seats} 席 · ${rounds} 轮 · ${choices.map((c) => c || '？').join(' / ')} 少数派胜`
+                  : `${seats} 席 · ${rounds} 轮 · 善变 ${fickleness.toFixed(2)} · 拥挤 ${crowding.toFixed(2)} · 怒气阈值 ${rageThreshold}`}
               <br />
               门票 {feeAmount} <span style={{ color: SUIT_META[activeSuit].color }}>{SUIT_META[activeSuit].symbol}</span>
               {' · '}冠军 {rewardWinner} / 亚军 {rewardRunner} / 参与 {rewardPart} · 时限 {windowSec}s

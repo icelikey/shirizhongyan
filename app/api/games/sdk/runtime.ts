@@ -24,8 +24,12 @@ import type {
 import type {
   GameDefinition,
   GameRoomView,
+  PirateGoldParams,
+  PirateGoldPending,
+  PirateGoldReveal,
   PollReveal,
 } from "@contracts/gameSdk";
+import { cricketMoodFor, type FlyTeaseParams, type FlyTeaseReveal } from "@contracts/flyTease";
 import {
   resolveSeatPolicy,
   seatKindAllowed,
@@ -40,6 +44,7 @@ import { detectEggs } from "../../world/eggs";
 import { ruleBookForTemplate } from "@contracts/rulebooks.data";
 import { EventRecorder, newMatchSeed } from "./eventRecorder";
 import type { RoundEntry, TemplateModule } from "./templates";
+import { FLY_ATLAS } from "./flybrain/atlas.generated";
 
 export const REVEAL_MS = 5_000;
 /** v4 SDK 房间快照标记（v3 旧快照无此字段 → 不恢复） */
@@ -55,6 +60,17 @@ const BOT_NAMES = [
   "守拙",
   "百晓生",
 ];
+
+/** 从已记录的对局种子派生稳定的人设层级，避免回放受 Math.random() 影响。 */
+function botLevel(seed: string, seat: number): number {
+  let hash = 2166136261;
+  for (const char of `${seed}:${seat}`) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  const fraction = (hash >>> 0) / 0xffffffff;
+  return 1.6 + fraction * 2;
+}
 
 /* ------------------------------------------------------------------ */
 /* 内部状态结构（整体序列化进 rooms.stateJson）                          */
@@ -86,6 +102,18 @@ export interface SdkRoomState {
   submitDeadlineAt: number | null;
   startedAt: number | null;
   settled: boolean;
+  /**
+   * 跨轮持久状态（initMatchState 的产物）。无状态模板
+   * （numberGuess/pollDuel）恒为 null，行为不受影响。
+   */
+  matchState: unknown;
+  /**
+   * 本轮子阶段列表（phasesForRound 的产物）；单阶段模板恒为 null，
+   * 此时提交/揭晓行为与新增此机制之前完全一致。
+   */
+  subPhases: { name: string; eligibleSeats: number[] }[] | null;
+  /** 当前子阶段下标（单阶段模板恒为 0，不参与任何判断） */
+  subPhaseIdx: number;
   /**
    * 对局种子（开局时生成）。回放与裁判团组建都依赖它——
    * 此前质询只能用「房间码 + 开局时刻」凑，现在有真种子了。
@@ -160,6 +188,9 @@ export class SdkRoom {
       submitDeadlineAt: null,
       startedAt: null,
       settled: false,
+      matchState: null,
+      subPhases: null,
+      subPhaseIdx: 0,
     };
   }
 
@@ -243,8 +274,8 @@ export class SdkRoom {
 
   async joinAsAgent(key: { id: number; name: string }) {
     return this.enqueue(() => {
-      // 幂等恢复：CLI 重启、网络重连或服务从 stateJson 恢复后，
-      // 同一个长期 API Key 继续拿回原座位，不重复占席。
+      // 外部 Agent 的 join 是幂等的：断线重连、CLI 重启或进程恢复时，
+      // 使用同一 API Key 返回原座位，不重复占席，也不要求房间仍在 waiting。
       const existing = this.state.seats.find(
         (s) => s?.kind === "external-agent" && s.agentKeyId === key.id,
       );
@@ -359,7 +390,6 @@ export class SdkRoom {
           agentKeyId: null,
           score: 0,
         };
-        this.botLevels.set(i, 1.6 + Math.random() * 2);
       }
     }
     this.state.scores = Object.fromEntries(
@@ -371,6 +401,11 @@ export class SdkRoom {
     // 开局：生成种子并起记录器。种子写入事件流，故回放仍可复现
     const seed = newMatchSeed(this.code);
     this.state.seed = seed;
+    for (const seat of this.state.seats) {
+      if (seat?.kind === "echo-bot") {
+        this.botLevels.set(seat.index, botLevel(seed, seat.index));
+      }
+    }
     this.state.matchLogId = null;
     const book = ruleBookForTemplate(this.def.template);
     this.recorder = new EventRecorder({
@@ -383,6 +418,9 @@ export class SdkRoom {
         .filter((s): s is SeatState => s !== null)
         .map(s => ({ index: s.index, name: s.name, kind: s.kind })),
     );
+
+    this.state.matchState =
+      this.module.initMatchState?.(this.def, this.seatCount) ?? null;
 
     this.beginRound(1);
     this.touch();
@@ -400,14 +438,19 @@ export class SdkRoom {
     if (Date.now() > this.state.submitDeadlineAt) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "提交窗口已结束" });
     }
+    // 分阶段模板（如海盗分金）：只有本子阶段的座位可以提交；
+    // 单阶段模板 phaseEligible() 返回全部在场座位，行为与此前完全一致。
+    if (!this.phaseEligible().includes(seat.index)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "当前阶段不轮到你行动" });
+    }
     if (this.state.submissions.some((e) => e.seat === seat.index)) {
       throw new TRPCError({ code: "CONFLICT", message: "本轮已提交" });
     }
     this.commit(seat.index, payload);
     this.touch();
-    if (this.state.submissions.length >= this.seatCount) {
-      // 全员提交 → 提前揭晓（await 使 act 在揭晓完成后返回，便于客户端/测试同步）
-      await this.revealRound();
+    if (this.isPhaseComplete()) {
+      // 本（子）阶段提前交齐 → 推进（await 使 act 在推进完成后返回，便于客户端/测试同步）
+      await this.afterSubmitWindow();
     }
     return { ok: true };
   }
@@ -429,6 +472,27 @@ export class SdkRoom {
   /* ---------------------------------------------------------------- */
   /* 轮次编排（全模板通用：窗口 = def.submitWindowSec）                    */
   /* ---------------------------------------------------------------- */
+
+  /**
+   * 当前（子）阶段允许提交的座位号。
+   * 单阶段模板（未实现 phasesForRound）返回全部在场座位，
+   * 与新增分阶段机制之前的行为完全一致。
+   */
+  private phaseEligible(): number[] {
+    const all = this.state.seats
+      .filter((s): s is SeatState => s !== null)
+      .map((s) => s.index);
+    if (!this.state.subPhases) return all;
+    return this.state.subPhases[this.state.subPhaseIdx]?.eligibleSeats ?? all;
+  }
+
+  /** 当前（子）阶段是否已交齐（仅看该阶段应交座位，不受累积提交里其它阶段记录干扰） */
+  private isPhaseComplete(): boolean {
+    const eligible = this.phaseEligible();
+    const submitted = new Set(this.state.submissions.map((e) => e.seat));
+    return eligible.length > 0 && eligible.every((s) => submitted.has(s));
+  }
+
   private botSubmit(seat: SeatState, remainMs?: number) {
     const delay =
       remainMs != null
@@ -440,18 +504,29 @@ export class SdkRoom {
         if (
           this.state.status !== "playing" ||
           this.state.phase !== "submit" ||
-          Date.now() > (this.state.submitDeadlineAt ?? 0)
+          Date.now() > (this.state.submitDeadlineAt ?? 0) ||
+          !this.phaseEligible().includes(seat.index) ||
+          this.state.submissions.some((e) => e.seat === seat.index)
         ) {
           return;
         }
         const levelK = this.botLevels.get(seat.index) ?? 2.4;
+        const phaseName = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
         this.commit(
           seat.index,
-          this.module.botPick(this.def, seat.index, levelK, this.state.history),
+          this.module.botPick(
+            this.def,
+            seat.index,
+            levelK,
+            this.state.history,
+            phaseName,
+            this.state.matchState,
+            [...this.state.submissions],
+          ),
         );
         this.touch();
-        if (this.state.submissions.length >= this.seatCount) {
-          return this.revealRound();
+        if (this.isPhaseComplete()) {
+          return this.afterSubmitWindow();
         }
       });
     }, delay);
@@ -461,25 +536,43 @@ export class SdkRoom {
   private beginRound(round: number) {
     this.clearTimers();
     this.state.round = round;
-    this.state.phase = "submit";
     this.state.submissions = [];
-    this.state.submitDeadlineAt = Date.now() + this.windowMs;
     this.recorder?.roundBegin(round);
+
+    this.state.subPhases = this.module.phasesForRound
+      ? this.module.phasesForRound(this.def, round, this.state.matchState)
+      : null;
+    this.state.subPhaseIdx = 0;
+
+    this.beginSubPhase();
+  }
+
+  /** 开启当前（子）阶段的提交窗；单阶段模板视为唯一一个覆盖全部座位的阶段 */
+  private beginSubPhase() {
+    this.state.phase = "submit";
+    this.state.submitDeadlineAt = Date.now() + this.windowMs;
 
     this.submitTimer = setTimeout(() => {
       this.submitTimer = null;
-      void this.enqueue(() => this.revealRound());
+      void this.enqueue(() => this.afterSubmitWindow());
     }, this.windowMs);
 
-    // echo-bot 座位：1–4s 随机延迟后提交
+    const eligible = this.phaseEligible();
+    // echo-bot 座位：1–4s 随机延迟后提交（仅本阶段应交的 bot）
     for (const seat of this.state.seats) {
       if (seat?.kind !== "echo-bot") continue;
+      if (!eligible.includes(seat.index)) continue;
       this.botSubmit(seat);
     }
   }
 
-  /** 结算本轮：超时未交由模板兜底 → 模板揭晓/计分 → 5s 后下一轮或终局 */
-  private async revealRound() {
+  /**
+   * 提交窗口结束（交齐或超时）：本（子）阶段超时未交者由模板兜底 →
+   * 若还有下一子阶段则直接推进（提交跨子阶段累积，不清空）；
+   * 否则本轮全部子阶段已完成 → 正式揭晓。
+   * 单阶段模板只有一个隐式子阶段，此函数等价于此前的 revealRound 入口。
+   */
+  private async afterSubmitWindow() {
     if (this.state.status !== "playing" || this.state.phase !== "submit") {
       return;
     }
@@ -490,21 +583,37 @@ export class SdkRoom {
     for (const t of this.botTimers) clearTimeout(t);
     this.botTimers.clear();
 
-    // 超时兜底
-    for (const seat of this.state.seats) {
-      if (!seat) continue;
-      if (!this.state.submissions.some((e) => e.seat === seat.index)) {
-        this.commit(seat.index, this.module.timeoutFallback(this.def, seat.index));
+    // 本（子）阶段超时兜底：仅对本阶段应交座位
+    for (const seatIndex of this.phaseEligible()) {
+      if (!this.state.submissions.some((e) => e.seat === seatIndex)) {
+        this.commit(seatIndex, this.module.timeoutFallback(this.def, seatIndex));
       }
     }
+    this.touch();
 
+    if (
+      this.state.subPhases &&
+      this.state.subPhaseIdx < this.state.subPhases.length - 1
+    ) {
+      this.state.subPhaseIdx += 1;
+      this.beginSubPhase();
+      this.touch();
+      return;
+    }
+
+    return this.revealRound();
+  }
+
+  /** 结算本轮：模板揭晓/计分 → 5s 后下一轮或终局 */
+  private async revealRound() {
     const entries = [...this.state.submissions].sort(
       (a, b) => a.order - b.order,
     );
-    const { reveal, scoreDeltas } = this.module.resolveRound(
+    const { reveal, scoreDeltas, finished } = this.module.resolveRound(
       this.def,
       this.state.round,
       entries,
+      this.state.matchState,
     );
     for (const [seat, delta] of Object.entries(scoreDeltas)) {
       const i = Number(seat);
@@ -515,10 +624,12 @@ export class SdkRoom {
     this.state.history.push(reveal);
     this.state.phase = "reveal";
     this.state.submitDeadlineAt = null;
+    this.state.subPhases = null;
+    this.state.subPhaseIdx = 0;
     this.recorder?.reveal(reveal, this.module.roundWinners(reveal));
     this.touch();
 
-    if (this.state.round >= this.totalRounds) {
+    if (finished || this.state.round >= this.totalRounds) {
       return this.finish();
     }
     this.revealTimer = setTimeout(() => {
@@ -689,7 +800,10 @@ export class SdkRoom {
     if (this.state.status !== "playing") return;
     for (const seat of this.state.seats) {
       if (seat?.kind === "echo-bot") {
-        this.botLevels.set(seat.index, 1.6 + Math.random() * 2);
+        this.botLevels.set(
+          seat.index,
+          botLevel(this.state.seed ?? this.code, seat.index),
+        );
       }
     }
     if (this.state.phase === "submit") {
@@ -703,7 +817,7 @@ export class SdkRoom {
       this.submitTimer = setTimeout(
         () => {
           this.submitTimer = null;
-          void this.enqueue(() => this.revealRound());
+          void this.enqueue(() => this.afterSubmitWindow());
         },
         Math.max(0, remain),
       );
@@ -752,6 +866,7 @@ export class SdkRoom {
           gone: false,
         })),
       lastReveal: this.state.lastReveal as GuessRoomView["lastReveal"],
+      history: this.state.history as GuessRoomView["history"],
       mySeat: me ? me.index : null,
       winner: this.state.winner,
       rankings: this.state.rankings,
@@ -766,7 +881,55 @@ export class SdkRoom {
       return {
         ...base,
         lastReveal: this.state.lastReveal as PollReveal | null,
+        history: this.state.history as PollReveal[],
         choices: choices ?? [],
+      };
+    }
+    if (this.def.template === "pirateGold") {
+      const pending =
+        this.state.status === "playing" && this.module.describePending
+          ? this.module.describePending(
+              this.def,
+              this.state.matchState,
+              this.state.submissions,
+            )
+          : null;
+      return {
+        ...base,
+        lastReveal: this.state.lastReveal as PirateGoldReveal | null,
+        history: this.state.history as PirateGoldReveal[],
+        coins: (this.def.params as PirateGoldParams).coins,
+        aliveSeats: (this.state.matchState as { alive?: boolean[] } | null)?.alive
+          ? (this.state.matchState as { alive: boolean[] }).alive
+              .map((a, i) => (a ? i : -1))
+              .filter((i) => i >= 0)
+          : this.state.seats
+              .filter((s): s is SeatState => s !== null)
+              .map((s) => s.index),
+        currentProposer:
+          this.state.status === "playing"
+            ? ((this.state.matchState as { proposer?: number } | null)?.proposer ?? null)
+            : null,
+        pending: pending as PirateGoldPending | null,
+      };
+    }
+    if (this.def.template === "flyTease") {
+      const params = this.def.params as FlyTeaseParams;
+      const currentRound = Math.max(1, this.state.round);
+      return {
+        ...base,
+        lastReveal: this.state.lastReveal as FlyTeaseReveal | null,
+        choices: null,
+        fly: {
+          fickleness: params.fickleness,
+          crowding: params.crowding,
+          rageThreshold: params.rageThreshold,
+          scoreWin: params.scoreWin,
+          mood: cricketMoodFor(this.def.id, currentRound, params.fickleness),
+          engine: FLY_ATLAS.engine,
+          cardCount: FLY_ATLAS.cards.length,
+          atlasVersion: FLY_ATLAS.version,
+        },
       };
     }
     return base;

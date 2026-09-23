@@ -20,15 +20,22 @@ import { cn } from '@/lib/utils'
 /** seatToken 持久化 key（GuessOnline 同用） */
 export const seatTokenKey = (code: string) => `tdg-seat-${code.toUpperCase()}`
 
-/** 模板徽标（猜数 ♣ / 红眼病 ♥） */
+/** 模板徽标（猜数 ♣ / 红眼病 ♥ / 分金 ♦ / 虫心 ♠） */
 const TEMPLATE_META: Record<RoomSummary['template'], { label: string; color: string }> = {
   numberGuess: { label: '猜数', color: '#4ECB9C' },
   pollDuel: { label: '票决', color: '#EE6A72' },
+  pirateGold: { label: '分金', color: '#F2A93B' },
+  flyTease: { label: '虫心', color: '#9B7FE8' },
 }
 
-/** 按模板路由到对应游玩页 */
-export const onlineRoomPath = (r: Pick<RoomSummary, 'template' | 'code'>) =>
-  r.template === 'pollDuel' ? `/game/online-poll/${r.code}` : `/game/online/${r.code}`
+/** 按模板路由到对应游玩页（千轮猜数是 numberGuess 模板换参数，靠 defId 单独分流） */
+export const onlineRoomPath = (r: Pick<RoomSummary, 'template' | 'code' | 'defId'>) => {
+  if (r.template === 'pollDuel') return `/game/online-poll/${r.code}`
+  if (r.template === 'pirateGold') return `/game/online-pirate/${r.code}`
+  if (r.template === 'flyTease') return `/game/online-fly/${r.code}`
+  if (r.defId === 'guess-mille-core') return `/game/online-mille/${r.code}`
+  return `/game/online/${r.code}`
+}
 
 const STATUS_META: Record<RoomSummary['status'], { label: string; color: string }> = {
   waiting: { label: '待开局', color: '#4ECB9C' },
@@ -55,9 +62,10 @@ export default function OnlineLobbySection() {
 
   const createMutation = trpc.room.create.useMutation({
     onSuccess: (res) => {
-      sessionStorage.setItem(seatTokenKey(res.code), res.seatToken)
+      // agent-only 官方局（如千轮猜数）创建者不占座，seatToken 为 null，不写入本地凭证
+      if (res.seatToken) sessionStorage.setItem(seatTokenKey(res.code), res.seatToken)
       toast('联机房已开', { description: `房码 ${res.code} · 席位虚位以待。` })
-      navigate(`/game/online/${res.code}`)
+      navigate(onlineRoomPath({ template: res.template, code: res.code, defId: res.defId }))
     },
     onError: (err) => toast('开房失败', { description: err.message }),
   })
@@ -66,7 +74,7 @@ export default function OnlineLobbySection() {
     onSuccess: (res, vars) => {
       sessionStorage.setItem(seatTokenKey(res.code), res.seatToken)
       const room = rooms.find((r) => r.code === res.code || r.code === vars.code.toUpperCase())
-      navigate(onlineRoomPath({ template: room?.template ?? 'numberGuess', code: res.code }))
+      navigate(onlineRoomPath({ template: room?.template ?? 'numberGuess', code: res.code, defId: room?.defId ?? '' }))
     },
     onError: (err) => toast('入座失败', { description: err.message }),
   })
@@ -80,6 +88,11 @@ export default function OnlineLobbySection() {
   const handleCreate = () => {
     if (!requireCloud()) return
     createMutation.mutate({ roomName: nameDraft.trim() || undefined })
+  }
+
+  const handleQuickLaunch = (defId: string) => {
+    if (!requireCloud()) return
+    createMutation.mutate({ defId, roomName: nameDraft.trim() || undefined })
   }
 
   const handleJoin = (code: string) => {
@@ -108,6 +121,36 @@ export default function OnlineLobbySection() {
             <Plus size={14} /> 创建联机房
           </GoldButton>
         </div>
+      </div>
+
+      {/* 官方对局速开：千轮猜数（agent-only）/ 海盗分金（mixed-required）/ 虫心算谱 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] tracking-[.2em] text-faint">官方速开</span>
+        <GoldButton
+          variant="ghost"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => handleQuickLaunch('guess-mille-core')}
+        >
+          千机演算 · 千轮猜数
+        </GoldButton>
+        <GoldButton
+          variant="ghost"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => handleQuickLaunch('pirate-gold-core')}
+        >
+          金壤分潮 · 海盗分金
+        </GoldButton>
+        <GoldButton
+          variant="ghost"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => handleQuickLaunch('flytease-core')}
+        >
+          玄渊·虫心算谱
+        </GoldButton>
+        <span className="text-[10px] text-faint">千轮猜数仅容 Agent 入座，创建后凭 API Key 落座 0 号席开局</span>
       </div>
 
       {/* ⚒ 创造游戏卡：UGC 三步向导入口 */}

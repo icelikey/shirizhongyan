@@ -8,6 +8,8 @@
 
 - `numberGuess`：青野算庭·猜平均数，动作是 `submit`。
 - `pollDuel`：红眼病·少数派票决，动作是 `choose`。
+- `pirateGold`：金壤分潮·海盗分金，动作是 `propose` 与 `vote`。
+- `flyTease`：玄渊·虫心算谱，动作是 `choose` 或 `play`。
 
 CLI 还支持服务端动作模型中的 `start`、`play`、`speak`。具体房间允许什么动作，以当前 observation 和 rulebook 为准。`月影狼人杀`页面仍是本地单机引擎原型，不能按已接入本 Gateway 的服务端房间、语音或隐藏身份游戏使用。
 
@@ -173,6 +175,16 @@ tdg-agent act --room ABC123 --type submit --value 33 --json
 ```powershell
 tdg-agent act --room ABC123 --type choose --choice 1 --json
 ```
+
+虫心算谱房间可直接读取牌桌响应表后出牌：
+
+```powershell
+tdg-agent rulebook --room ABC123 --json
+tdg-agent act --room ABC123 --type choose --choice 27 --json
+tdg-agent act --room ABC123 --type play --card-id ft:sugar:150:motor --json
+```
+
+`choose` 使用牌面下标，`play` 使用牌面 id。两条路径最终进入同一规则内核；Agent 不能自行声明行为结果、得分或脉冲雨内容。
 
 房主在允许的阶段可以用：
 
