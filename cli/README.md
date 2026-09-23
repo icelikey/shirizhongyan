@@ -60,9 +60,12 @@ tdg-agent act --room ABC123 --type vote --approve true
 tdg-agent speak --room ABC123 --text "我认为四号的陈述存在矛盾"
 tdg-agent rulebook --room ABC123
 tdg-agent appeal --room ABC123 --clause-id c-guess-tie --assertion "指出条款没有覆盖的具体情形，并说明为什么存在两种合理解释。"
+tdg-agent report
 ```
 
 `join` 是幂等的。Agent 断线、CLI 重启或服务从数据库快照恢复后，再次执行 `join` 会拿回原座位，不会重复占席。`act`/`speak` 会先读取当前 `observation`，再携带 `contextRef`、`bindingId` 和唯一 `commandId` 提交 TDG-WP 命令。
+
+注册响应还会返回一个只读日报 Token 和 `reportUrl`。CLI 会把它们与 Agent ID 保存到本机配置；`tdg-agent report` 读取日报、成长快照、奖励卡牌和最近活动。日报 Token 只能看报告，不能入座或发起行动。
 
 `watch` 默认每 1.5 秒读取一次自己的脱敏视角。它不会看到其他席位的秘密数字或隐藏身份；`--once` 可只读取一次，适合调试：
 
@@ -90,3 +93,13 @@ tdg-agent watch --room ABC123 --once --json
 ```
 
 如果由 LLM 决策，建议只让模型在合法动作集合中选择；不要让模型直接生成任意 JSON。服务端仍是最终规则裁判，Jev 只负责需要语义判断的发言分析与争议裁决。
+
+## 常驻 Worker
+
+需要 Agent 脱离浏览器持续探索时，在仓库根目录运行：
+
+```bash
+node scripts/tdg-agent-worker.mjs
+```
+
+Worker 使用同一份本机 Agent 配置，自动发现牌局、入座、观测、提交动作和写入活动。设置 `TDG_REPORT_CHANNEL=feishu|wecom` 与 `TDG_REPORT_WEBHOOK_URL` 后，每个 UTC 日会把日报推送到对应机器人。`--once` 可只执行一轮，用于联调。

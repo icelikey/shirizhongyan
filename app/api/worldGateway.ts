@@ -6,7 +6,16 @@ import { TRPCError } from "@trpc/server";
 import { randomBytes } from "node:crypto";
 import { allowPublicRegistration, appealForAgent } from "./agentRouter";
 import { registerPublicAgent } from "./queries/agentRegistration";
-import { findActiveAgentKey } from "./queries/agentKeys";
+import {
+  findActiveAgentKey,
+  findActiveAgentKeyByReportToken,
+} from "./queries/agentKeys";
+import {
+  buildDailyReport,
+  getAgentReportSnapshot,
+  listAgentActivities,
+  recordAgentActivity,
+} from "./queries/agentActivity";
 import { findRoomByCode } from "./queries/rooms";
 import {
   getSdkRoom,
@@ -52,6 +61,8 @@ function descriptor(c: Context) {
     endpoints: {
       discovery: `${origin}/.well-known/tdg-world.json`,
       registerAgent: `${origin}/world/v1/agents`,
+      agentActivity: `${origin}/world/v1/agents/:agentId/activity`,
+      agentReport: `${origin}/world/v1/agents/:agentId/report`,
       games: `${origin}/world/v1/games`,
       matches: `${origin}/world/v1/matches`,
     },
@@ -65,6 +76,9 @@ function descriptor(c: Context) {
       cli: true,
       mcp: "adapter-planned",
       a2a: "adapter-planned",
+      persistentWorker: true,
+      dailyReports: true,
+      reportChannels: ["feishu", "wecom"],
       sse: false,
     },
     supportedGames: OFFICIAL_GAMES.map((game) => ({
@@ -187,6 +201,14 @@ const appealSchema = z.object({
   quorumSize: z.union([z.literal(3), z.literal(5), z.literal(7)]).default(3),
 });
 
+const activitySchema = z.object({
+  kind: z.string().trim().min(1).max(32),
+  title: z.string().trim().min(1).max(128),
+  detail: z.string().trim().max(4000).optional(),
+  payload: z.unknown().optional(),
+  occurredAt: z.string().datetime().optional(),
+});
+
 worldGateway.get("/.well-known/tdg-world.json", (c) => c.json(descriptor(c)));
 worldGateway.get("/world/v1", (c) => c.json(descriptor(c)));
 
@@ -195,10 +217,17 @@ worldGateway.post("/world/v1/agents", async (c) => {
     const input = registerSchema.parse(await jsonBody(c));
     allowPublicRegistration(c.req.raw, input.inviteCode);
     const result = await registerPublicAgent(input.name);
+    const origin = new URL(c.req.url).origin;
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       agent: { agentId: result.agentId, userId: result.userId, name: result.name },
-      credential: { type: "api-key", key: result.key, shownOnce: true },
+      credential: {
+        type: "api-key",
+        key: result.key,
+        shownOnce: true,
+        reportToken: result.reportToken,
+        reportUrl: `${origin}/agent-report/${result.agentId}?token=${encodeURIComponent(result.reportToken)}`,
+      },
     }, 201);
   } catch (error) {
     return errorResponse(c, error);
@@ -234,12 +263,104 @@ worldGateway.post("/world/v1/matches/:code/join", async (c) => {
     const key = await requireAgent(c);
     const room = await requireRoom(codeFromPath(c));
     const joined = await room.joinAsAgent({ id: key.id, name: key.name });
+    void recordAgentActivity({
+      agentKeyId: key.id,
+      kind: "match",
+      title: `入座 · ${room.def.name}`,
+      detail: `影从入座 ${room.code} 的第 ${joined.seatIndex + 1} 席。`,
+      payload: {
+        code: room.code,
+        gameName: room.def.name,
+        template: room.def.template,
+        seatIndex: joined.seatIndex,
+      },
+    }).catch(() => undefined);
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       match: { code: joined.code, seatIndex: joined.seatIndex },
       binding: bindingFor(room.code, key.id, joined.seatIndex),
       observation: room.view(joined.seatToken),
     });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+function agentIdFromPath(c: Context): number {
+  const value = Number(c.req.param("agentId"));
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Agent ID 无效" });
+  }
+  return value;
+}
+
+async function reportAgent(c: Context) {
+  const agentId = agentIdFromPath(c);
+  const reportToken = c.req.header("x-report-token") ?? new URL(c.req.url).searchParams.get("token") ?? "";
+  const key = reportToken
+    ? await findActiveAgentKeyByReportToken(reportToken)
+    : await requireAgent(c);
+  if (!key || key.id !== agentId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "日报 Token 与 Agent 不匹配" });
+  }
+  return { key, agentId };
+}
+
+worldGateway.post("/world/v1/agents/:agentId/activity", async (c) => {
+  try {
+    const key = await requireAgent(c);
+    const agentId = agentIdFromPath(c);
+    if (key.id !== agentId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "只能记录当前 Agent 的活动" });
+    }
+    const input = activitySchema.parse(await jsonBody(c));
+    await recordAgentActivity({
+      agentKeyId: key.id,
+      kind: input.kind,
+      title: input.title,
+      detail: input.detail,
+      payload: input.payload,
+      occurredAt: input.occurredAt ? new Date(input.occurredAt) : undefined,
+    });
+    return c.json({ protocolVersion: PROTOCOL_VERSION, ok: true });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+worldGateway.get("/world/v1/agents/:agentId/report", async (c) => {
+  try {
+    const { key } = await reportAgent(c);
+    const reportDate = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
+    const report = await buildDailyReport(key.id, reportDate);
+    const snapshot = await getAgentReportSnapshot(key.id, reportDate);
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      readOnly: true,
+      report,
+      snapshot,
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+worldGateway.post("/world/v1/agents/:agentId/daily", async (c) => {
+  try {
+    const { key } = await reportAgent(c);
+    const reportDate = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
+    const report = await buildDailyReport(key.id, reportDate);
+    return c.json({ protocolVersion: PROTOCOL_VERSION, report });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+worldGateway.get("/world/v1/agents/:agentId/activities", async (c) => {
+  try {
+    const { key } = await reportAgent(c);
+    const limit = Number(c.req.query("limit") ?? 60);
+    return c.json({ protocolVersion: PROTOCOL_VERSION, activities: await listAgentActivities(key.id, limit) });
   } catch (error) {
     return errorResponse(c, error);
   }
@@ -376,6 +497,21 @@ worldGateway.post("/world/v1/matches/:code/commands", async (c) => {
       contextRef: contextFor(room),
       observation: room.view(seat.seatToken!),
     };
+    void recordAgentActivity({
+      agentKeyId: key.id,
+      kind: "action",
+      title: `${room.def.name} · ${action.type}`,
+      detail: `在 ${room.code} 提交了 ${action.type} 动作。`,
+      payload: {
+        code: room.code,
+        gameName: room.def.name,
+        template: room.def.template,
+        actionType: action.type,
+        round: (response.observation as { round?: number }).round,
+        status: (response.observation as { status?: string }).status,
+        result: response.receipt.result,
+      },
+    }).catch(() => undefined);
     try {
       await completeCommandReceipt({
         receiptId: receipt.id,

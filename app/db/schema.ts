@@ -83,6 +83,8 @@ export const agentKeys = mysqlTable("agent_keys", {
   keyHash: varchar("keyHash", { length: 64 }).notNull().unique(),
   /** 明文前缀，用于列表展示（tdg_xxxx…） */
   prefix: varchar("prefix", { length: 16 }).notNull(),
+  /** 只读日报 Token 的 sha256；明文仅在注册响应中返回一次。 */
+  reportTokenHash: varchar("reportTokenHash", { length: 64 }),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   lastUsedAt: datetime("lastUsedAt"),
@@ -92,7 +94,72 @@ export type AgentKey = typeof agentKeys.$inferSelect;
 export type InsertAgentKey = typeof agentKeys.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ③ rooms —— 联机房间（当前仅 'guess' 猜平均数），stateJson 为权威房间状态
+ * ③ agent_activities —— Agent 的长期活动流
+ *     入座、观测、行动、奇遇与 Worker 自主判断都写入这里。它是日报、
+ *     Agent 档案和外部通知的共同事实来源，不把运行状态藏在 Worker 日志里。
+ * ------------------------------------------------------------------------- */
+export const agentActivities = mysqlTable(
+  "agent_activities",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    agentKeyId: bigint("agentKeyId", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => agentKeys.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    title: varchar("title", { length: 128 }).notNull(),
+    detail: text("detail"),
+    payloadJson: json("payloadJson"),
+    occurredAt: datetime("occurredAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    agentOccurredIdx: index("agent_activities_agent_occurred_idx").on(
+      table.agentKeyId,
+      table.occurredAt,
+    ),
+    kindIdx: index("agent_activities_kind_idx").on(table.kind),
+  }),
+);
+
+export type AgentActivityRow = typeof agentActivities.$inferSelect;
+export type InsertAgentActivityRow = typeof agentActivities.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ④ agent_daily_reports —— 可重建、可审计的日报快照
+ * ------------------------------------------------------------------------- */
+export const agentDailyReports = mysqlTable(
+  "agent_daily_reports",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    agentKeyId: bigint("agentKeyId", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => agentKeys.id, { onDelete: "cascade" }),
+    reportDate: varchar("reportDate", { length: 10 }).notNull(),
+    summary: text("summary").notNull(),
+    statsJson: json("statsJson").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt")
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+  },
+  table => ({
+    agentDateIdx: uniqueIndex("agent_daily_reports_agent_date_idx").on(
+      table.agentKeyId,
+      table.reportDate,
+    ),
+  }),
+);
+
+export type AgentDailyReportRow = typeof agentDailyReports.$inferSelect;
+export type InsertAgentDailyReportRow = typeof agentDailyReports.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ⑤ rooms —— 联机房间（当前仅 'guess' 猜平均数），stateJson 为权威房间状态
  * ------------------------------------------------------------------------- */
 export const rooms = mysqlTable(
   "rooms",
@@ -126,7 +193,7 @@ export type Room = typeof rooms.$inferSelect;
 export type InsertRoom = typeof rooms.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ④ game_defs —— v4 Game SDK：玩家自创（UGC）游戏定义
+ * ⑥ game_defs —— v4 Game SDK：玩家自创（UGC）游戏定义
  *    官方定义（guess-core / poll-duel-core）是 api/games/sdk/registry.ts 中的
  *    常量，不入库；本表仅存 UGC 定义，defId 形如 'ugc_xxxxxxxx'。
  * ------------------------------------------------------------------------- */
@@ -164,7 +231,7 @@ export type GameDefRow = typeof gameDefs.$inferSelect;
 export type InsertGameDefRow = typeof gameDefs.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑤ match_logs —— 对局事件流（回放 / J2 仲裁 / 彩蛋判定 / 观战演出的唯一来源）
+ * ⑦ match_logs —— 对局事件流（回放 / J2 仲裁 / 彩蛋判定 / 观战演出的唯一来源）
  *    payloadJson 结构见 contracts/matchLog.ts 的 MatchLogEnvelope。
  *    seed + rulebookId 足以从内核重跑整局，事件流用于逐步比对。
  * ------------------------------------------------------------------------- */
@@ -197,7 +264,7 @@ export type MatchLogRow = typeof matchLogs.$inferSelect;
 export type InsertMatchLogRow = typeof matchLogs.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑥ command_receipts —— Gateway 命令幂等收据
+ * ⑧ command_receipts —— Gateway 命令幂等收据
  *    唯一键是已认证 Agent（agent_keys.id）+ commandId。payloadHash 用于
  *    拒绝同一 commandId 携带不同动作；pending 表示效果可能已交给房间
  *    actor，但收据尚未完成，不能把它当作 committed 重放。
@@ -243,7 +310,7 @@ export type CommandReceiptRow = typeof commandReceipts.$inferSelect;
 export type InsertCommandReceiptRow = typeof commandReceipts.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑦ world_outbox —— 最小可靠事件出口
+ * ⑨ world_outbox —— 最小可靠事件出口
  *    Gateway 成功命令写入一条 committed 事件；消费者可按 status/availableAt
  *    领取并以 eventId 幂等确认。它不替代 match_logs 的完整对局事件流。
  * ------------------------------------------------------------------------- */
@@ -287,7 +354,7 @@ export type WorldOutboxRow = typeof worldOutbox.$inferSelect;
 export type InsertWorldOutboxRow = typeof worldOutbox.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑧ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
+ * ⑩ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
  *    卡牌不参与对局胜负计算，只决定能解开什么 / 进入哪里 / 引用什么条款。
  *    同一张卡可重复获得（count），重复份可用于交易。
  * ------------------------------------------------------------------------- */
@@ -321,7 +388,7 @@ export type PlayerCardRow = typeof playerCards.$inferSelect;
 export type InsertPlayerCardRow = typeof playerCards.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑨ rulings —— 判例：规则质询被 J1 裁判团采纳后沉淀
+ * ⑪ rulings —— 判例：规则质询被 J1 裁判团采纳后沉淀
  *    判例不改判已结算的胜负（否则回放不可复现），只影响本局后续与
  *    未来使用同一 RuleBook 的对局。世界的规则由 AI 的博弈真实地演化。
  * ------------------------------------------------------------------------- */

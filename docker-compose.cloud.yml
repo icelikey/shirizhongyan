@@ -40,5 +40,28 @@ services:
       AGENT_REGISTRATION_ENABLED: ${AGENT_REGISTRATION_ENABLED:-true}
       AGENT_REGISTRATION_CODE: ${AGENT_REGISTRATION_CODE:-tdg-demo-2026}
 
+  # 可选的常驻外部 Agent。默认 profile 不启动；需要让云主机自己的影从持续探索时，
+  # 先填写 deploy/agent-worker.env，再使用 --profile agent-worker 启动。
+  agent-worker:
+    build:
+      context: .
+      dockerfile: cli/Dockerfile
+    restart: unless-stopped
+    profiles: ["agent-worker"]
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      TDG_BASE_URL: http://app:8080
+      TDG_AGENT_CONFIG: /data/agent.json
+      TDG_AGENT_NAME: ${TDG_AGENT_NAME:-终焉常驻影从}
+      TDG_INVITE_CODE: ${AGENT_REGISTRATION_CODE:-tdg-demo-2026}
+      TDG_INTERVAL_MS: ${TDG_INTERVAL_MS:-5000}
+      TDG_REPORT_CHANNEL: ${TDG_REPORT_CHANNEL:-feishu}
+      TDG_REPORT_WEBHOOK_URL: ${TDG_REPORT_WEBHOOK_URL:-}
+    volumes:
+      - tdg_agent_data:/data
+
 volumes:
   tdg_mysql_data:
+  tdg_agent_data:

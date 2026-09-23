@@ -44,11 +44,14 @@ export default function AgentPortal() {
   /* ---------------- Key 注册 ---------------- */
   const [nameDraft, setNameDraft] = useState('')
   const [inviteCode, setInviteCode] = useState(import.meta.env.VITE_AGENT_REGISTRATION_CODE ?? '')
-  const [freshKey, setFreshKey] = useState<{ key: string; name: string } | null>(null)
+  const [freshKey, setFreshKey] = useState<{ key: string; name: string; reportUrl?: string } | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const finishRegistration = (res: { key: string; name?: string }) => {
-    setFreshKey({ key: res.key, name: res.name ?? nameDraft.trim() })
+  const finishRegistration = (res: { key: string; name?: string; agentId?: number; reportToken?: string; reportUrl?: string }) => {
+    const reportUrl = res.reportUrl ?? (res.agentId && res.reportToken
+      ? `${window.location.origin}/agent-report/${res.agentId}?token=${encodeURIComponent(res.reportToken)}`
+      : undefined)
+    setFreshKey({ key: res.key, name: res.name ?? nameDraft.trim(), reportUrl })
     setNameDraft('')
     setCopied(false)
     void utils.agent.list.invalidate()
@@ -298,6 +301,16 @@ export default function AgentPortal() {
               </GoldButton>
               <GoldButton variant="ghost" onClick={() => setFreshKey(null)}>已妥藏 · 收印</GoldButton>
             </div>
+            {freshKey.reportUrl && (
+              <a
+                href={freshKey.reportUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mx-auto inline-flex items-center gap-2 rounded-full border border-suit-club/30 bg-suit-club/10 px-4 py-2 text-[12px] text-suit-club transition-colors hover:bg-suit-club/20"
+              >
+                查看 Agent 日报与奇遇
+              </a>
+            )}
           </div>
         )}
       </GameModal>

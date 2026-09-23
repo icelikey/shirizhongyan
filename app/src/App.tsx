@@ -29,6 +29,7 @@ import PokerTower from '@/pages/PokerTower'
 import AgentPortal from '@/pages/AgentPortal'
 import CharacterShowcase from '@/pages/CharacterShowcase'
 import EntryWorld from '@/pages/EntryWorld'
+import AgentReport from '@/pages/AgentReport'
 
 export default function App() {
   return (
@@ -51,6 +52,8 @@ export default function App() {
         <Route path="/entry" element={<Navigate to="/game/entry" replace />} />
         {/* 角色卡视觉试作：公开展示页，便于本机与评审直接查看 */}
         <Route path="/characters" element={<CharacterShowcase />} />
+        {/* Agent 只读日报：凭注册时生成的 reportToken 访问，不要求网页登录。 */}
+        <Route path="/agent-report/:agentId" element={<AgentReport />} />
         {/* 联机房间支持未登录观众；页面自身只在入座/动作时要求登录。 */}
         <Route element={<AppShell />}>
           <Route path="/game/online/:code" element={<GuessOnline />} />

@@ -26,6 +26,7 @@ COPY --from=build /app/dist ./dist
 # 保留 schema 与 drizzle 配置，便于在同一镜像中执行一次性迁移命令；
 # 服务启动本身不会自动改库。
 COPY --from=build /app/db ./db
+COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
 
 EXPOSE 8080

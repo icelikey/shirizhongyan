@@ -1,13 +1,19 @@
 import { randomBytes } from "node:crypto";
 import * as schema from "@db/schema";
 import { getDb } from "./connection";
-import { generateAgentKey, hashAgentKey } from "./agentKeys";
+import {
+  generateAgentKey,
+  generateReportToken,
+  hashAgentKey,
+  hashReportToken,
+} from "./agentKeys";
 
 export interface PublicAgentRegistration {
   agentId: number;
   userId: number;
   name: string;
   key: string;
+  reportToken: string;
 }
 
 /**
@@ -22,8 +28,10 @@ export async function registerPublicAgent(
 ): Promise<PublicAgentRegistration> {
   const displayName = name.trim();
   const key = generateAgentKey();
+  const reportToken = generateReportToken();
   const unionId = `agent:${randomBytes(16).toString("hex")}`;
   const keyHash = hashAgentKey(key);
+  const reportTokenHash = hashReportToken(reportToken);
   const prefix = key.slice(0, 8);
 
   return getDb().transaction(async (tx) => {
@@ -40,9 +48,9 @@ export async function registerPublicAgent(
 
     const [agent] = await tx
       .insert(schema.agentKeys)
-      .values({ userId, name: displayName, keyHash, prefix })
+      .values({ userId, name: displayName, keyHash, prefix, reportTokenHash })
       .$returningId();
 
-    return { agentId: agent.id, userId, name: displayName, key };
+    return { agentId: agent.id, userId, name: displayName, key, reportToken };
   });
 }

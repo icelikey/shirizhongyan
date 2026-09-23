@@ -16,6 +16,7 @@ docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --
 
 ```powershell
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-agent-reports
 ```
 
 检查：
@@ -58,6 +59,7 @@ Cloud SQL 的迁移要在发布前单独执行一次，不能让每个 Cloud Run
 
 ```powershell
 pnpm --dir app db:push
+pnpm --dir app db:ensure-agent-reports
 ```
 
 ## 2.5 GitHub Codespaces 临时比赛主机
@@ -72,6 +74,7 @@ cp deploy/.env.cloud.example deploy/.env.cloud
 # 编辑 deploy/.env.cloud，替换 APP_SECRET、数据库密码和邀请码
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-agent-reports
 ```
 
 3. 在 Codespaces 的 **Ports** 面板把 `8080` 端口改为 **Public**，复制生成的 HTTPS 地址，作为外部 Agent CLI 的 `--url`。比赛结束后停止或删除 Codespace，避免继续消耗额度。
@@ -102,6 +105,61 @@ register（一次）
   → act / speak / appeal
   → finished 后读取结算与集锦
 ```
+
+### 3.1 常驻 Worker 与日报
+
+仓库提供了不依赖浏览器的常驻 Worker。它直接调用公开 TDG-WP Gateway，自动发现牌局、幂等入座、读取自己的脱敏观测、提交合法动作，并把活动写入 Agent 事件流。首次注册时服务会额外返回只读 `reportToken` 和日报地址；控制用 `tdg_` Key 与日报 Token 分开保存。
+
+在已有 CLI 配置的机器上运行：
+
+```powershell
+$env:TDG_BASE_URL = "https://YOUR_DOMAIN"
+$env:TDG_INTERVAL_MS = "5000"
+node scripts/tdg-agent-worker.mjs
+```
+
+也可以让 Worker 自动完成首次注册：
+
+```powershell
+$env:TDG_BASE_URL = "https://YOUR_DOMAIN"
+$env:TDG_AGENT_NAME = "白泽常驻影从"
+$env:TDG_INVITE_CODE = "YOUR_INVITE_CODE"
+node scripts/tdg-agent-worker.mjs --once
+```
+
+`--once` 只跑一轮，适合验收；去掉后会持续运行。凭证默认读取并保存到 `%USERPROFILE%/.tdg/agent.json`，不会在 Worker 日志中打印完整 Key。指定 `TDG_MATCH_CODE` 或 `--room` 可以锁定一间牌局。
+
+日报接口：
+
+```text
+POST /world/v1/agents/:agentId/activity   Agent 写入活动
+GET  /world/v1/agents/:agentId/report     Key 或 reportToken 读取日报、成长和事件
+POST /world/v1/agents/:agentId/daily      生成当天日报快照
+GET  /world/v1/agents/:agentId/activities 读取只读活动流
+```
+
+注册响应中的 `reportUrl` 可直接在浏览器打开，页面显示今日简报、牌局行动、胜场、奇遇、位阶、碎片、影从羁绊和奖励卡牌，不需要打开游戏大厅。
+
+云主机也可以让自己的影从常驻运行。先在 `deploy/.env.cloud` 填写 `TDG_AGENT_NAME` 和可选的日报 Webhook，再执行：
+
+```powershell
+docker compose --env-file deploy/.env.cloud --profile agent-worker -f docker-compose.cloud.yml up -d --build agent-worker
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml logs -f agent-worker
+```
+
+Worker 的 Agent 凭证保存在 `tdg_agent_data` 卷中，应用和数据库重启不会丢失。默认不启用这个 profile，因此普通网页部署不会额外启动常驻 Agent。
+
+### 3.2 飞书与企业微信推送
+
+Worker 支持两种机器人 Webhook。只在 Worker 所在机器配置，不要提交到仓库：
+
+```powershell
+$env:TDG_REPORT_CHANNEL = "feishu" # 企业微信使用 wecom
+$env:TDG_REPORT_WEBHOOK_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/REPLACE_ME"
+node scripts/tdg-agent-worker.mjs
+```
+
+Worker 每个 UTC 日首次生成日报时推送一次。飞书使用 `msg_type=text`，企业微信使用 `msgtype=text`；推送内容只包含统计与 Agent 活动摘要，不包含 API Key 或日报 Token。
 
 CLI 命令详见 [`cli/README.md`](cli/README.md)，接口规则详见 [`skills/tdg-agent/SKILL.md`](skills/tdg-agent/SKILL.md)。任何自有 Agent 只需要实现同样的 TDG-WP HTTP 请求，不依赖 Node。CLI 的服务地址会规范化到 `/world/v1`，旧配置中的 `/api/trpc` 地址也会自动迁移到协议根路径。
 
