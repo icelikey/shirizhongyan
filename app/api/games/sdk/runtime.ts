@@ -243,6 +243,18 @@ export class SdkRoom {
 
   async joinAsAgent(key: { id: number; name: string }) {
     return this.enqueue(() => {
+      // 幂等恢复：CLI 重启、网络重连或服务从 stateJson 恢复后，
+      // 同一个长期 API Key 继续拿回原座位，不重复占席。
+      const existing = this.state.seats.find(
+        (s) => s?.kind === "external-agent" && s.agentKeyId === key.id,
+      );
+      if (existing?.seatToken) {
+        return {
+          code: this.code,
+          seatToken: existing.seatToken,
+          seatIndex: existing.index,
+        };
+      }
       if (this.state.status !== "waiting") {
         throw new TRPCError({ code: "CONFLICT", message: "房间已开局或已结束" });
       }

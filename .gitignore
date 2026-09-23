@@ -8,6 +8,8 @@ build/
 .env
 .env.local
 .env.*.local
+deploy/.env.cloud
+deploy/cloud-run.env.yaml
 
 # ── 本地数据库 ────────────────────────────────────────────────
 *.db

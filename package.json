@@ -1,0 +1,13 @@
+{
+  "name": "tdg-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub 安装入口：十日牌局公开 Agent CLI",
+  "type": "module",
+  "bin": {
+    "tdg-agent": "cli/tdg-agent.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -25,12 +25,21 @@ import {
 import { getSdkRoom, listRoomSummaries } from "./games/sdk/registry";
 import { findRoomByCode } from "./queries/rooms";
 import { gameActionSchema } from "./roomRouter";
+import { env } from "./lib/env";
+import { registerPublicAgent } from "./queries/agentRegistration";
 
 const codeSchema = z
   .string()
   .min(4)
   .max(8)
   .transform((s) => s.toUpperCase());
+
+const registrationAttempts = new Map<
+  string,
+  { startedAt: number; count: number }
+>();
+const REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
+const REGISTRATION_LIMIT_PER_IP = 10;
 
 /** 从入参或 Header 提取并校验 API Key（返回 active 的 agent_keys 行） */
 async function requireAgentKey(
@@ -69,7 +78,59 @@ async function requireRoom(code: string) {
   return room;
 }
 
+function requestAddress(req: Request): string {
+  return (
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    "unknown"
+  );
+}
+
+function allowPublicRegistration(req: Request, inviteCode: string) {
+  if (!env.agentRegistrationEnabled || !env.agentRegistrationCode) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "公开 Agent 注册尚未开启，请向房主索取已有 API Key",
+    });
+  }
+  if (inviteCode.trim() !== env.agentRegistrationCode) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Agent 注册码无效" });
+  }
+
+  const now = Date.now();
+  const address = requestAddress(req);
+  const previous = registrationAttempts.get(address);
+  const current =
+    !previous || now - previous.startedAt >= REGISTRATION_WINDOW_MS
+      ? { startedAt: now, count: 0 }
+      : previous;
+  if (current.count >= REGISTRATION_LIMIT_PER_IP) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "该网络的 Agent 注册次数已达到本小时上限",
+    });
+  }
+  current.count += 1;
+  registrationAttempts.set(address, current);
+}
+
 export const agentRouter = createRouter({
+  /**
+   * 公开 CLI 注册：邀请码由比赛主办方公开，长期 Key 只返回一次。
+   * 不依赖 Kimi 登录，适合评委把自己的 Agent 接入演示房间。
+   */
+  publicRegister: publicQuery
+    .input(
+      z.object({
+        name: z.string().trim().min(1).max(64),
+        inviteCode: z.string().trim().min(1).max(128),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      allowPublicRegistration(ctx.req, input.inviteCode);
+      return registerPublicAgent(input.name);
+    }),
+
   /** 生成 tdg_ 前缀 API Key（明文仅返回一次，库存 sha256 + prefix） */
   register: authedQuery
     .input(z.object({ name: z.string().min(1).max(64) }))

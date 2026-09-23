@@ -1,0 +1,44 @@
+name: ten-days-gambit
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ten_days_gambit}
+      MYSQL_USER: ${MYSQL_USER:-tdg}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tdg-local-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tdg-root-password}
+    volumes:
+      - tdg_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${TDG_PORT:-8080}:8080"
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      APP_ID: ${APP_ID:-tdg-local}
+      APP_SECRET: ${APP_SECRET:-replace-this-before-sharing}
+      DATABASE_URL: ${DATABASE_URL:-mysql://tdg:tdg-local-password@mysql:3306/ten_days_gambit}
+      KIMI_AUTH_URL: ${KIMI_AUTH_URL:-https://auth.kimi.com}
+      KIMI_OPEN_URL: ${KIMI_OPEN_URL:-https://open.kimi.com}
+      OWNER_UNION_ID: ${OWNER_UNION_ID:-}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      AGENT_REGISTRATION_ENABLED: ${AGENT_REGISTRATION_ENABLED:-true}
+      AGENT_REGISTRATION_CODE: ${AGENT_REGISTRATION_CODE:-tdg-demo-2026}
+
+volumes:
+  tdg_mysql_data:

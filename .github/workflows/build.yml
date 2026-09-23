@@ -1,0 +1,50 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    env:
+      APP_ID: tdg-ci
+      APP_SECRET: ci-only-secret
+      DATABASE_URL: mysql://root:ci-root-password@127.0.0.1:3306/ten_days_gambit
+      KIMI_AUTH_URL: https://auth.kimi.com
+      KIMI_OPEN_URL: https://open.kimi.com
+      VITE_KIMI_AUTH_URL: https://auth.kimi.com
+      VITE_APP_ID: tdg-ci
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: ten_days_gambit
+          MYSQL_ROOT_PASSWORD: ci-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root-password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm db:push
+      - run: pnpm test -- --run
+      - run: pnpm build

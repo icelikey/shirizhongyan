@@ -1,0 +1,19 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - app/Dockerfile
+      - --build-arg
+      - VITE_APP_ID=${_VITE_APP_ID}
+      - --build-arg
+      - VITE_KIMI_AUTH_URL=${_VITE_KIMI_AUTH_URL}
+      - -t
+      - ${_IMAGE}
+      - app
+images:
+  - ${_IMAGE}
+substitutions:
+  _IMAGE: us-docker.pkg.dev/example/tdg/ten-days-gambit:latest
+  _VITE_APP_ID: tdg-cloud
+  _VITE_KIMI_AUTH_URL: https://auth.kimi.com
