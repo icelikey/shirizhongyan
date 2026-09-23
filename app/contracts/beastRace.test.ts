@@ -25,10 +25,14 @@ import {
   type BeastId,
   type RacerState,
   type TileKind,
+  legalRaceActions,
+  normalizeRaceAction,
+  reduceRaceRound,
 } from "./beastRace";
 import {
   RACE_CARDS,
   cardsOfBeast,
+  createRaceMatchState,
   generateTrack,
   getRaceCard,
 } from "./beastRace.data";
@@ -344,5 +348,46 @@ describe("狐的伪示（悬疑感的机制来源）", () => {
   it("伪装为 0 格也生效（不被当作未伪装）", () => {
     // 若实现用 || 而非 ??，这里会错误返回真位置
     expect(visiblePosition(racer({ position: 30, feignedPosition: 0 }))).toBe(0);
+  });
+});
+
+describe("确定性状态与回合 reducer", () => {
+  it("同 seed 生成相同赛道、动物和手牌", () => {
+    expect(createRaceMatchState("replay-seed", 4)).toEqual(
+      createRaceMatchState("replay-seed", 4),
+    );
+    expect(createRaceMatchState("replay-seed", 4)).not.toEqual(
+      createRaceMatchState("other-seed", 4),
+    );
+  });
+
+  it("初始化为 100 格赛道且每席 8 张卡", () => {
+    const state = createRaceMatchState("contract", 3);
+    expect(state.track).toHaveLength(100);
+    expect(state.racers.every(r => r.hand)).toBe(true);
+    expect(state.racers.every(r => r.hand.length === 8)).toBe(true);
+  });
+
+  it("合法候选只包含手牌和合法目标", () => {
+    const state = createRaceMatchState("candidates", 3);
+    const actions = legalRaceActions(state, 0);
+    const disruptCount = state.racers[0].hand.filter(id => getRaceCard(id)?.kind === "disrupt").length;
+    expect(actions).toHaveLength(state.racers[0].hand.length - disruptCount + disruptCount * 2);
+    expect(actions.every(a => state.racers[0].hand.includes(a.cardId))).toBe(true);
+    expect(() => normalizeRaceAction(state, 0, { cardId: "made-up" })).toThrow();
+    const disrupt = actions.find(a => a.targetSeat !== undefined);
+    expect(disrupt?.targetSeat).toBeGreaterThanOrEqual(1);
+  });
+
+  it("同一状态和动作序列得到相同事件与高光", () => {
+    const a = createRaceMatchState("reducer", 2);
+    const b = createRaceMatchState("reducer", 2);
+    const actions = [
+      { seat: 0, action: { cardId: a.racers[0].hand[0] } },
+      { seat: 1, action: { cardId: a.racers[1].hand[0] } },
+    ];
+    expect(reduceRaceRound(a, actions, 1)).toEqual(
+      reduceRaceRound(b, actions, 1),
+    );
   });
 });

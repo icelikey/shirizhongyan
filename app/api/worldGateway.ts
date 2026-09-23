@@ -16,6 +16,13 @@ import {
 import { gameActionSchema } from "./roomRouter";
 import { ruleBookForTemplate } from "@contracts/rulebooks.data";
 import { isAppealable } from "@contracts/rulebook";
+import {
+  commandPayloadForHash,
+  commandPayloadHash,
+  completeCommandReceipt,
+  rejectCommandReceipt,
+  reserveCommandReceipt,
+} from "./queries/commandReceipts";
 
 /** TDG-WP v0.1 的 HTTP/JSON 适配层；网页内部 tRPC 入口另行保留。 */
 export const worldGateway = new Hono();
@@ -23,6 +30,17 @@ export const worldGateway = new Hono();
 worldGateway.use("*", cors({ origin: "*", allowHeaders: ["content-type", "x-api-key", "authorization"] }));
 
 const PROTOCOL_VERSION = "0.1";
+
+class GatewayError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 500,
+  ) {
+    super(message);
+    this.name = "GatewayError";
+  }
+}
 
 function descriptor(c: Context) {
   const origin = new URL(c.req.url).origin;
@@ -63,20 +81,23 @@ function errorStatus(code: string): 400 | 401 | 403 | 404 | 409 | 429 | 500 {
   if (code === "FORBIDDEN") return 403;
   if (code === "NOT_FOUND") return 404;
   if (code === "CONFLICT") return 409;
+  if (code === "IDEMPOTENCY_CONFLICT") return 409;
+  if (code === "COMMAND_IN_PROGRESS") return 409;
   if (code === "TOO_MANY_REQUESTS") return 429;
   return code === "INTERNAL_SERVER_ERROR" ? 500 : 400;
 }
 
 function errorResponse(c: Context, error: unknown) {
   const trpc = error instanceof TRPCError;
-  const code = trpc ? error.code : "BAD_REQUEST";
+  const gatewayError = error instanceof GatewayError;
+  const code = trpc ? error.code : gatewayError ? error.code : "BAD_REQUEST";
   const message = error instanceof Error ? error.message : "请求失败";
   return c.json(
     {
       protocolVersion: PROTOCOL_VERSION,
       error: { code, message },
     },
-    errorStatus(code),
+    gatewayError ? (error as GatewayError).status : errorStatus(code),
   );
 }
 
@@ -285,23 +306,97 @@ worldGateway.post("/world/v1/matches/:code/commands", async (c) => {
     const { key, room, seat } = await agentSeat(c);
     const envelope = commandSchema.parse(await jsonBody(c));
     const action = gameActionSchema.parse(envelope.action);
+    const scopeId = `match-${room.code.toLowerCase()}`;
+    const expectedBinding = bindingFor(room.code, key.id, seat.index);
+    if (envelope.bindingId && envelope.bindingId !== expectedBinding.bindingId) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "bindingId 与当前 Agent 座位不匹配" });
+    }
+    const commandId = envelope.commandId ?? `cmd_${randomBytes(10).toString("hex")}`;
+    const payload = commandPayloadForHash({
+      contextRef: envelope.contextRef,
+      bindingId: envelope.bindingId,
+      action,
+    });
+    const payloadHash = commandPayloadHash(payload);
+    const reservation = await reserveCommandReceipt({
+      agentKeyId: key.id,
+      commandId,
+      scopeId,
+      bindingId: envelope.bindingId ?? expectedBinding.bindingId,
+      contextRef: envelope.contextRef,
+      payloadHash,
+    });
+    const receipt = reservation.receipt;
+    if (receipt.payloadHash !== payloadHash) {
+      throw new GatewayError("IDEMPOTENCY_CONFLICT", "commandId 已使用不同 payload，拒绝执行", 409);
+    }
+    if (!reservation.created) {
+      if (receipt.status === "committed" && receipt.responseJson) {
+        return c.json(receipt.responseJson as Record<string, unknown>);
+      }
+      if (receipt.status === "rejected") {
+        return c.json({
+          protocolVersion: PROTOCOL_VERSION,
+          error: {
+            code: receipt.errorCode ?? "BAD_REQUEST",
+            message: receipt.errorMessage ?? "命令已拒绝",
+          },
+        }, errorStatus(receipt.errorCode ?? "BAD_REQUEST"));
+      }
+      throw new GatewayError("COMMAND_IN_PROGRESS", "同一 commandId 的命令仍在处理，未重复执行", 409);
+    }
     const expectedContext = contextFor(room);
     if (envelope.contextRef && envelope.contextRef !== expectedContext) {
+      await rejectCommandReceipt({
+        receiptId: receipt.id,
+        errorCode: "CONFLICT",
+        errorMessage: "contextRef 已过期，请先重新读取 observation",
+      });
       throw new TRPCError({ code: "CONFLICT", message: "contextRef 已过期，请先重新读取 observation" });
     }
-    const result = await room.act(seat.seatToken!, action);
-    const commandId = envelope.commandId ?? `cmd_${randomBytes(10).toString("hex")}`;
-    return c.json({
+    let result: unknown;
+    try {
+      result = await room.act(seat.seatToken!, action);
+    } catch (error) {
+      await rejectCommandReceipt({
+        receiptId: receipt.id,
+        errorCode: error instanceof TRPCError ? error.code : "BAD_REQUEST",
+        errorMessage: error instanceof Error ? error.message : "命令执行失败",
+      });
+      throw error;
+    }
+    const response = {
       protocolVersion: PROTOCOL_VERSION,
       receipt: {
         commandId,
-        scopeId: `match-${room.code.toLowerCase()}`,
+        scopeId,
         status: "committed",
         result,
       },
       contextRef: contextFor(room),
       observation: room.view(seat.seatToken!),
-    });
+    };
+    try {
+      await completeCommandReceipt({
+        receiptId: receipt.id,
+        commandId,
+        scopeId,
+        response: response as never,
+        eventPayload: {
+          commandId,
+          scopeId,
+          payloadHash,
+          response,
+        } as never,
+      });
+    } catch (error) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "命令效果已交给房间，但持久化收据未完成，请稍后按原 commandId 重试",
+        cause: error,
+      });
+    }
+    return c.json(response);
   } catch (error) {
     return errorResponse(c, error);
   }

@@ -25,12 +25,11 @@
 /* ------------------------------------------------------------------ */
 
 /**
- * 赛道长度 60 格。
+ * 赛道长度 100 格。
  *
- * 不用 100 格：每轮平均前进 4–6 格，60 格约 12 轮完赛；
- * 100 格要 20 轮以上，观众会失去耐心。戏剧性密度比绝对长度重要。
+ * 长度是内容包契约的一部分；节奏由卡牌、格子和提前结束控制。
  */
-export const TRACK_LENGTH = 60;
+export const TRACK_LENGTH = 100;
 
 /** 移动方式：决定对格子的适应性 */
 export type Locomotion = "ground" | "air" | "water";
@@ -232,11 +231,249 @@ export interface RacerState {
 
 /** 整局状态（TemplateModule.initMatchState 的产物） */
 export interface RaceMatchState {
+  /** 生成赛道与初始发牌所用的公开种子。 */
+  seed?: string;
   /** 赛道每格的类型（开局由 seed 生成，全程不变） */
   track: TileKind[];
   racers: RacerState[];
   /** 已完赛数（决定下一个完赛者的名次） */
   finishedCount: number;
+}
+
+/** 服务端接受的唯一赛马动作形状。 */
+export interface RaceAction {
+  cardId: string;
+  targetSeat?: number;
+}
+
+export interface RaceEvent {
+  type:
+    | "card_committed"
+    | "card_revealed"
+    | "effect_applied"
+    | "tile_triggered"
+    | "movement_applied"
+    | "status_changed"
+    | "race_finished";
+  round: number;
+  seat: number;
+  targetSeat?: number;
+  cardId?: string;
+  tile?: TileKind;
+  delta?: number;
+  note: string;
+}
+
+export type HighlightKind =
+  | "overtake"
+  | "counter"
+  | "hazard"
+  | "finish";
+
+export interface RaceHighlight {
+  kind: HighlightKind;
+  round: number;
+  seats: number[];
+  eventTypes: RaceEvent["type"][];
+  title: string;
+  note: string;
+}
+
+export interface RaceRoundResult {
+  state: RaceMatchState;
+  reveal: RaceReveal;
+  events: RaceEvent[];
+  highlights: RaceHighlight[];
+}
+
+/** 只从当前手牌和当前局面产生候选；LLM/Agent 不得自行造 cardId 或数值效果。 */
+export function legalRaceActions(
+  state: RaceMatchState,
+  seat: number,
+): RaceAction[] {
+  const racer = state.racers.find(r => r.seat === seat);
+  if (!racer || racer.finishRank !== null) return [];
+  const actions: RaceAction[] = [];
+  for (const cardId of racer.hand) {
+    const card = getRaceCardForReducer(cardId);
+    if (!card) continue;
+    if (card.kind === "disrupt") {
+      for (const target of state.racers) {
+        if (target.seat !== seat && target.finishRank === null) {
+          actions.push({ cardId, targetSeat: target.seat });
+        }
+      }
+    } else {
+      actions.push({ cardId });
+    }
+  }
+  return actions;
+}
+
+/** 校验动作属于合法候选集合；返回规范化副本，避免保留额外字段。 */
+export function normalizeRaceAction(
+  state: RaceMatchState,
+  seat: number,
+  action: RaceAction,
+): RaceAction {
+  if (!action || typeof action.cardId !== "string") {
+    throw new Error("赛马动作必须包含 cardId");
+  }
+  const candidate = legalRaceActions(state, seat).find(
+    a => a.cardId === action.cardId && a.targetSeat === action.targetSeat,
+  );
+  if (!candidate) throw new Error("赛马动作不在当前合法候选集合中");
+  return candidate;
+}
+
+type ReducerCard = { kind: CardKind; delta: number; name: string };
+
+function getRaceCardForReducer(id: string): ReducerCard | undefined {
+  // 避免 contracts 依赖 data，卡牌表通过 reducer 注入，见 setRaceCardLookup。
+  return raceCardLookup(id);
+}
+
+let raceCardLookup: (id: string) => ReducerCard | undefined = () => undefined;
+
+/** 由 data 模块注册静态卡牌查找器；仅用于消除 contracts↔data 的循环依赖。 */
+export function setRaceCardLookup(
+  lookup: (id: string) => ReducerCard | undefined,
+): void {
+  raceCardLookup = lookup;
+}
+
+/**
+ * 一轮确定性 reducer。所有数值来自静态卡牌和状态，输入 seed 不参与运行时随机。
+ * 结算顺序：扣牌/翻牌 → 卡牌效果 → 基础移动 → 落点格子 → 冲线与高光。
+ */
+export function reduceRaceRound(
+  input: RaceMatchState,
+  actions: readonly { seat: number; action: RaceAction }[],
+  round: number,
+): RaceRoundResult {
+  const state: RaceMatchState = {
+    ...input,
+    track: [...input.track],
+    racers: input.racers.map(r => ({ ...r, hand: [...r.hand] })),
+  };
+  const events: RaceEvent[] = [];
+  const cardDeltas = new Map<number, number>();
+  const before = new Map(state.racers.map(r => [r.seat, r.position]));
+  const priority = (entry: { seat: number; action: RaceAction }) => {
+    const card = getRaceCardForReducer(entry.action.cardId);
+    return card?.kind === "guard" || card?.kind === "riposte" ? 0 : 1;
+  };
+  // 先亮出防护/反照，再结算扰行，保证同时出牌时反制成立。
+  const chosen = [...actions].sort((a, b) => priority(a) - priority(b) || a.seat - b.seat);
+
+  for (const entry of chosen) {
+    const racer = state.racers.find(r => r.seat === entry.seat);
+    if (!racer || racer.finishRank !== null) continue;
+    const action = normalizeRaceAction(state, entry.seat, entry.action);
+    const card = getRaceCardForReducer(action.cardId)!;
+    racer.hand = racer.hand.filter(id => id !== action.cardId);
+    events.push({ type: "card_committed", round, seat: racer.seat, cardId: action.cardId, note: `${card.name}已扣除并进入揭晓` });
+    events.push({ type: "card_revealed", round, seat: racer.seat, cardId: action.cardId, note: card.name });
+    if (card.kind === "advance") {
+      cardDeltas.set(racer.seat, (cardDeltas.get(racer.seat) ?? 0) + card.delta);
+    } else if (card.kind === "guard") {
+      racer.guarded = true;
+      events.push({ type: "status_changed", round, seat: racer.seat, note: "获得一次扰行防护" });
+    } else if (card.kind === "riposte") {
+      racer.riposting = true;
+      events.push({ type: "status_changed", round, seat: racer.seat, note: "获得一次反照" });
+    } else {
+      const target = state.racers.find(r => r.seat === action.targetSeat);
+      if (!target || target.seat === racer.seat || target.finishRank !== null) continue;
+      const amount = Math.abs(card.delta);
+      if (target.guarded) {
+        target.guarded = false;
+        events.push({ type: "effect_applied", round, seat: racer.seat, targetSeat: target.seat, cardId: action.cardId, delta: 0, note: "扰行被御守挡下" });
+      } else if (target.riposting) {
+        target.riposting = false;
+        racer.position = clampPosition(racer.position + amount);
+        events.push({ type: "effect_applied", round, seat: racer.seat, targetSeat: target.seat, cardId: action.cardId, delta: amount, note: "扰行被反照并反弹" });
+      } else {
+        target.position = clampPosition(target.position - amount);
+        events.push({ type: "effect_applied", round, seat: racer.seat, targetSeat: target.seat, cardId: action.cardId, delta: -amount, note: `目标退${amount}格` });
+      }
+    }
+  }
+
+  for (const racer of state.racers) {
+    if (racer.finishRank !== null) continue;
+    const beast = getBeast(racer.beastId)!;
+    const delta = computeAdvance({ racer, cardDelta: cardDeltas.get(racer.seat) ?? 0, baseSpeed: beast.baseSpeed });
+    const next = clampPosition(racer.position + delta);
+    racer.position = next;
+    events.push({ type: "movement_applied", round, seat: racer.seat, delta: next - (before.get(racer.seat) ?? next), note: `基础移动与疾行结算至${next}格` });
+    const tile = state.track[Math.max(0, Math.min(TRACK_LENGTH - 1, next - 1))] ?? "plain";
+    let tileDelta = 0;
+    const immune = isImmune(beast, tile);
+    if (!immune && tile === "headwind") racer.slowedNextRound = true;
+    if (!immune && tile === "marsh" && beast.locomotion === "ground") racer.stunnedRounds = Math.max(racer.stunnedRounds, 1);
+    if (!immune && tile === "marsh" && beast.locomotion === "water") tileDelta = 3;
+    if (!immune && tile === "current") tileDelta = 3;
+    if (!immune && tile === "thundercloud" && beast.locomotion === "air") tileDelta = -5;
+    if (tileDelta) racer.position = clampPosition(racer.position + tileDelta);
+    events.push({ type: "tile_triggered", round, seat: racer.seat, tile, delta: tileDelta, note: immune ? `${beast.name}免疫${tile}` : (tileDelta ? `${beast.name}受${tile}影响${tileDelta > 0 ? "前进" : "后退"}${Math.abs(tileDelta)}格` : `触发${tile}`) });
+    if (racer.slowedNextRound && tile !== "headwind") racer.slowedNextRound = false;
+    if (racer.stunnedRounds > 0) racer.stunnedRounds -= 1;
+  }
+
+  const finishers: number[] = [];
+  for (const racer of [...state.racers].sort((a, b) => a.seat - b.seat)) {
+    if (racer.position >= TRACK_LENGTH && racer.finishRank === null) {
+      racer.finishRank = ++state.finishedCount;
+      finishers.push(racer.seat);
+      events.push({ type: "race_finished", round, seat: racer.seat, note: `第${racer.finishRank}名冲线` });
+    }
+  }
+  const highlights: RaceHighlight[] = [];
+  if (finishers.length) highlights.push({ kind: "finish", round, seats: finishers, eventTypes: ["race_finished"], title: "冲线时刻", note: finishers.map(s => `席位${s}`).join("、") + "冲过终点" });
+  for (const e of events) {
+    if (e.type === "effect_applied" && e.delta && e.delta > 0) highlights.push({ kind: "counter", round, seats: [e.seat, e.targetSeat!], eventTypes: ["effect_applied"], title: "反照反击", note: e.note });
+    if (e.type === "tile_triggered" && e.delta && e.delta < 0) highlights.push({ kind: "hazard", round, seats: [e.seat], eventTypes: ["tile_triggered"], title: "险地发作", note: e.note });
+  }
+  const positions = Object.fromEntries(state.racers.map(r => [r.seat, r.position]));
+  const effects: RaceEffect[] = events
+    .filter((e): e is RaceEvent & { type: "effect_applied"; cardId: string; targetSeat: number } =>
+      e.type === "effect_applied" && !!e.cardId && e.targetSeat !== undefined,
+    )
+    .map(e => {
+      const card = getRaceCardForReducer(e.cardId)!;
+      return {
+        seat: e.seat,
+        cardId: e.cardId,
+        cardName: card.name,
+        kind: card.kind,
+        targetSeat: e.targetSeat,
+        applied: e.delta !== 0,
+        blockedBy: e.delta === 0 ? e.note : null,
+        delta: e.delta ?? 0,
+      };
+    });
+  const tiles: TileTrigger[] = events
+    .filter((e): e is RaceEvent & { type: "tile_triggered"; tile: TileKind } =>
+      e.type === "tile_triggered" && !!e.tile,
+    )
+    .map(e => ({
+      seat: e.seat,
+      tile: e.tile,
+      tileName: TILE_META[e.tile].name,
+      applied: !(e.note.includes("免疫")),
+      note: e.note,
+    }));
+  const reveal: RaceReveal = {
+    round,
+    effects,
+    tiles,
+    positions,
+    finishers,
+    events,
+    highlights,
+  };
+  return { state, reveal, events, highlights };
 }
 
 /* ------------------------------------------------------------------ */
@@ -280,6 +517,9 @@ export interface RaceReveal {
   positions: Record<number, number>;
   /** 本轮新完赛的座位（按名次） */
   finishers: number[];
+  /** 服务端事件流的模板化演出数据。 */
+  events?: RaceEvent[];
+  highlights?: RaceHighlight[];
 }
 
 /* ------------------------------------------------------------------ */

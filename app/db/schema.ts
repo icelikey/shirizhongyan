@@ -185,7 +185,88 @@ export type MatchLogRow = typeof matchLogs.$inferSelect;
 export type InsertMatchLogRow = typeof matchLogs.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑥ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
+ * ⑥ command_receipts —— Gateway 命令幂等收据
+ *    唯一键是已认证 Agent（agent_keys.id）+ commandId。payloadHash 用于
+ *    拒绝同一 commandId 携带不同动作；pending 表示效果可能已交给房间
+ *    actor，但收据尚未完成，不能把它当作 committed 重放。
+ * ------------------------------------------------------------------------- */
+export const commandReceipts = mysqlTable(
+  "command_receipts",
+  {
+    id: serial("id").primaryKey(),
+    agentKeyId: bigint("agentKeyId", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => agentKeys.id),
+    commandId: varchar("commandId", { length: 128 }).notNull(),
+    scopeId: varchar("scopeId", { length: 160 }).notNull(),
+    bindingId: varchar("bindingId", { length: 160 }),
+    contextRef: varchar("contextRef", { length: 160 }),
+    /** canonical { contextRef, bindingId, action } 的 SHA-256 十六进制摘要 */
+    payloadHash: varchar("payloadHash", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["pending", "committed", "rejected"])
+      .notNull()
+      .default("pending"),
+    responseJson: json("responseJson"),
+    errorCode: varchar("errorCode", { length: 64 }),
+    errorMessage: text("errorMessage"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt")
+      .defaultNow()
+      .notNull()
+      .$onUpdate(() => new Date()),
+    completedAt: timestamp("completedAt"),
+  },
+  table => ({
+    agentCommandIdx: uniqueIndex("command_receipts_agent_command_idx").on(
+      table.agentKeyId,
+      table.commandId,
+    ),
+    scopeIdx: index("command_receipts_scope_idx").on(table.scopeId),
+  }),
+);
+
+export type CommandReceiptRow = typeof commandReceipts.$inferSelect;
+export type InsertCommandReceiptRow = typeof commandReceipts.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ⑦ world_outbox —— 最小可靠事件出口
+ *    Gateway 成功命令写入一条 committed 事件；消费者可按 status/availableAt
+ *    领取并以 eventId 幂等确认。它不替代 match_logs 的完整对局事件流。
+ * ------------------------------------------------------------------------- */
+export const worldOutbox = mysqlTable(
+  "world_outbox",
+  {
+    id: serial("id").primaryKey(),
+    eventId: varchar("eventId", { length: 192 }).notNull(),
+    scopeId: varchar("scopeId", { length: 160 }).notNull(),
+    aggregateId: varchar("aggregateId", { length: 160 }),
+    eventType: varchar("eventType", { length: 96 }).notNull(),
+    commandId: varchar("commandId", { length: 128 }),
+    payloadJson: json("payloadJson").notNull(),
+    status: mysqlEnum("status", ["pending", "processing", "published", "failed"])
+      .notNull()
+      .default("pending"),
+    attempts: int("attempts").notNull().default(0),
+    availableAt: timestamp("availableAt").defaultNow().notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    publishedAt: timestamp("publishedAt"),
+    lastError: text("lastError"),
+  },
+  table => ({
+    eventIdIdx: uniqueIndex("world_outbox_event_id_idx").on(table.eventId),
+    pendingIdx: index("world_outbox_pending_idx").on(
+      table.status,
+      table.availableAt,
+    ),
+    scopeIdx: index("world_outbox_scope_idx").on(table.scopeId),
+  }),
+);
+
+export type WorldOutboxRow = typeof worldOutbox.$inferSelect;
+export type InsertWorldOutboxRow = typeof worldOutbox.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ⑧ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
  *    卡牌不参与对局胜负计算，只决定能解开什么 / 进入哪里 / 引用什么条款。
  *    同一张卡可重复获得（count），重复份可用于交易。
  * ------------------------------------------------------------------------- */
@@ -217,7 +298,7 @@ export type PlayerCardRow = typeof playerCards.$inferSelect;
 export type InsertPlayerCardRow = typeof playerCards.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑦ rulings —— 判例：规则质询被 J1 裁判团采纳后沉淀
+ * ⑨ rulings —— 判例：规则质询被 J1 裁判团采纳后沉淀
  *    判例不改判已结算的胜负（否则回放不可复现），只影响本局后续与
  *    未来使用同一 RuleBook 的对局。世界的规则由 AI 的博弈真实地演化。
  * ------------------------------------------------------------------------- */

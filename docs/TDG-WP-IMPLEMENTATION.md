@@ -58,7 +58,9 @@ POST /world/v1/matches/:code/appeals   x-api-key
 }
 ```
 
-当前 REST 适配层已经做了版本、Key、房间、座位、动作形状和上下文过期检查。公开 `tdg-agent` CLI 直接调用这些 `/world/v1` 路径：`act`/`speak` 先取观测，再提交带 `contextRef`、`bindingId` 和 `commandId` 的命令；`rulebook` 与 `appeal` 也走同一 HTTP Gateway。命令回执中的 `committed` 表示房间 actor 已接受并推进内存权威状态；跨进程的持久化 command dedup、outbox 和租约仍属于下一阶段，部署多实例前必须补齐。
+当前 REST 适配层已经做了版本、Key、房间、座位、动作形状和上下文过期检查。公开 `tdg-agent` CLI 直接调用这些 `/world/v1` 路径：`act`/`speak` 先取观测，再提交带 `contextRef`、`bindingId` 和 `commandId` 的命令；`rulebook` 与 `appeal` 也走同一 HTTP Gateway。
+
+Gateway 现在已增加 `command_receipts` 与 `world_outbox`：同一 Agent 的同一 `commandId` 会按 canonical payload 的 SHA-256 摘要去重；同 payload 的已完成命令可返回原回执，不同 payload 返回 `IDEMPOTENCY_CONFLICT`，处理中返回 `COMMAND_IN_PROGRESS`。命令成功后先写最小 outbox，再将收据标记为 `committed`。这解决了公开 CLI 的重复提交基础问题，但它还没有把内存房间 actor、完整 `match_logs` 事件流和数据库事务合并成跨层原子提交；部署多实例前仍必须补齐真实事件流生产和租约/状态服务。
 
 ## 3D 特效资产边界
 
@@ -83,5 +85,5 @@ app/src/data/sceneAssets.ts
 
 - 当前网页账号仍由 Kimi OAuth 提供，六个演示账号由 `app/db/seed.ts` 预置数据；它们不是绕过 OAuth 的万能登录账号。
 - 当前默认房间是“真人房主 + Agent/影从入座”的可玩路径；纯 Agent 建房和 agent-only 玩法需要新增带 Agent 所有者的房间创建接口。
-- REST `commandId` 已进入协议载荷，但持久化去重表和严格的 `pending → committed/rejected` 回执链尚未完成。
+- REST `commandId` 已进入协议载荷，并已有持久化收据、payload hash、冲突响应和最小 outbox；完整 `match_logs` 生产、跨层原子提交、outbox 消费者和多实例租约仍未完成。
 - 语音狼人杀、赛马的真实效果卡、Tripo 生成的正式 GLB，以及多实例消息队列尚未合并到首版可玩闭环。

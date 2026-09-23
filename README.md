@@ -10,6 +10,12 @@
 - [DEPLOY.md](DEPLOY.md)：本地 Docker、Cloud Run 和外部 Agent 接入
 - [ARCHITECTURE.md](ARCHITECTURE.md)：服务端规则、密态投影和 SDK 边界
 - [cli/README.md](cli/README.md)：`tdg-agent` 安装与命令
+- [docs/ORIGINAL-WORLD-BIBLE.md](docs/ORIGINAL-WORLD-BIBLE.md)：原创世界观、小说参考边界与世界规则
+- [docs/GAME-PACKS-AND-OWNERSHIP.md](docs/GAME-PACKS-AND-OWNERSHIP.md)：小游戏内容包、三人分工与接口冻结
+- [docs/EXTERNAL-AGENT-HANDBOOK.md](docs/EXTERNAL-AGENT-HANDBOOK.md)：外部 Agent 注册、上桌与持续运行手册
+- [docs/TEAM-TEST-AND-DEPLOY.md](docs/TEAM-TEST-AND-DEPLOY.md)：队友测试、数据库、临时公网与云端部署验收
+- [marketing/POSTER.md](marketing/POSTER.md) · [marketing/终焉_黑客松主视觉.svg](marketing/终焉_黑客松主视觉.svg)：事件营销海报
+- [marketing/INVESTOR-DECK.md](marketing/INVESTOR-DECK.md) · [marketing/终焉_投资人介绍.pptx](marketing/终焉_投资人介绍.pptx)：投资人亮点材料
 
 ## 本地开发
 
@@ -42,3 +48,12 @@ Key 只在注册时返回一次，CLI 自动保存到本机 `%USERPROFILE%\.tdg\
 ## 产品边界
 
 所有游戏模板共享 Gateway、`GameAction`、事件流、裁判和奖励系统。首版先把“注册 → 入座 → 对抗 → 裁断 → 回放”做成可靠闭环；超能力赛马作为后续 `♦ 金壤` 内容包接入，不与主线同时拆分成多个半成品。
+
+## 当前开发成熟度
+
+项目分成两个层级：
+
+1. **黑客松可玩切片**：猜平均数与少数派票决已经是真实服务端房间；外部 Agent 可以通过公开 CLI 注册、入座、观测和行动。规则辩论与超能力赛马正在按内容包并行开发。
+2. **终焉长期产品母体**：TDG-WP、有限视角、奇数裁判、奖励/能力进化、事件回放和内容包扩展是长期基础设施。狼人杀当前仍是本地可玩原型，服务端化、语音和事件流生产端必须单独验收。
+
+当前仍需补齐的产品化工作：命令持久幂等、事件 outbox、真实 `match_logs` 生产、观战/回放页、多实例状态服务，以及 Cloud Run + Cloud SQL 的公网验收。详见 [GAP.md](GAP.md) 和 [docs/TEAM-TEST-AND-DEPLOY.md](docs/TEAM-TEST-AND-DEPLOY.md)。

@@ -18,6 +18,8 @@ import {
   type CardKind,
   type RaceCardDef,
   type TileKind,
+  setRaceCardLookup,
+  type RaceMatchState,
 } from "./beastRace";
 
 /** 构造卡牌的内部辅助（减少重复字面量） */
@@ -127,6 +129,11 @@ export const RACE_CARDS: readonly RaceCardDef[] = [
 
 const cardById = new Map(RACE_CARDS.map(c => [c.id, c]));
 
+setRaceCardLookup(id => {
+  const c = cardById.get(id);
+  return c ? { kind: c.kind, delta: c.delta, name: c.name } : undefined;
+});
+
 export function getRaceCard(id: string): RaceCardDef | undefined {
   return cardById.get(id);
 }
@@ -134,6 +141,42 @@ export function getRaceCard(id: string): RaceCardDef | undefined {
 /** 某兽的全部卡牌（开局发牌用） */
 export function cardsOfBeast(beastId: BeastId): RaceCardDef[] {
   return RACE_CARDS.filter(c => c.beastId === beastId);
+}
+
+/** 确定性洗牌；同一个 seed 与席位数得到完全相同的初始状态。 */
+function shuffle<T>(items: readonly T[], rng: () => number): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** 生成赛道、分配动物和 8 张初始手牌；不依赖运行时随机。 */
+export function createRaceMatchState(seed: string, seatCount: number): RaceMatchState {
+  if (!Number.isInteger(seatCount) || seatCount < 2 || seatCount > BEASTS.length) {
+    throw new Error("赛马席位数必须在 2–6 之间");
+  }
+  const rng = mulberry32(hashSeed(`${seed}:match`));
+  const beasts = shuffle(BEASTS, rng).slice(0, seatCount);
+  return {
+    seed,
+    track: generateTrack(seed),
+    racers: beasts.map((beast, seat) => ({
+      seat,
+      beastId: beast.id,
+      position: 0,
+      hand: cardsOfBeast(beast.id).map(c => c.id),
+      slowedNextRound: false,
+      stunnedRounds: 0,
+      guarded: false,
+      riposting: false,
+      feignedPosition: null,
+      finishRank: null,
+    })),
+    finishedCount: 0,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -172,7 +215,7 @@ function pickTile(rng: () => number): TileKind {
 }
 
 /**
- * 生成赛道。
+ * 生成 100 格赛道。
  *
  * 起点三格恒为平地——开局就踩雷云会让玩家觉得莫名其妙，
  * 而戏剧性要建立在玩家已理解局势之后。

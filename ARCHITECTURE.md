@@ -318,14 +318,15 @@ score  数值评分      → 主张的论据强度
 | 优先级 | 缺口 | 影响 |
 |---|---|---|
 | P0 | **事件流生产端** | `SdkRoom` 不产 `MatchEvent`，`match_logs` 仍未被写入 |
+| P0 | **跨层原子提交** | `command_receipts`/`world_outbox` 已存在，但房间 actor、完整事件流和收据尚未纳入同一提交边界 |
 | P1 | 狼人杀联机化 | 最有观赏性的游戏只能单机跑 |
 | P1 | 观战页 / 裁判席 UI | 后端已就绪，前端无入口 |
 | P1 | 海盗分金模板 | 规则书已写，缺 `TemplateModule` 实现 |
 | P2 | 异能进化路径 | 构想 6 只有一半（有异能，无进化） |
 | P2 | 异能扩充 8→48 | 契约支持，数据只有 8 条 |
 
-**P0 现在只剩一项**：`SdkRoom` → `MatchEvent` → `match_logs` 这条链。
-落库查询层已就绪（`insertMatchLog`），缺的是在 `runtime.ts` 里埋点产出事件。
+**P0 的核心仍是**：`SdkRoom` → `MatchEvent` → `match_logs` 这条链，并把它与已有的 `command_receipts`/`world_outbox` 收口到可恢复的提交边界。
+落库查询层和最小命令收据层已就绪，缺的是在 `runtime.ts` 里埋点产出完整事件、写入 `match_logs`，再由 outbox 消费者驱动通知、叙事和高光。
 
 注：质询目前用「房间码 + 开局时刻」派生种子。事件流落地后应改用
 对局真实 seed，使裁判团与回放严格一致。
