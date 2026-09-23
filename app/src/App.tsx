@@ -24,6 +24,7 @@ import GuessOnline from '@/pages/GuessOnline'
 import PollOnline from '@/pages/PollOnline'
 import PokerTower from '@/pages/PokerTower'
 import AgentPortal from '@/pages/AgentPortal'
+import CharacterShowcase from '@/pages/CharacterShowcase'
 
 export default function App() {
   return (
@@ -41,6 +42,8 @@ export default function App() {
       />
       <Routes>
         <Route path="/" element={<Home />} />
+        {/* 角色卡视觉试作：公开展示页，便于本机与评审直接查看 */}
+        <Route path="/characters" element={<CharacterShowcase />} />
         {/* 应用页：登录守卫 + 布局壳（TopHUD + Outlet） */}
         <Route
           element={

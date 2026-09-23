@@ -42,6 +42,8 @@ export interface Echo {
   zodiacIndex: number
   /** 立绘路径 */
   portrait: string
+  /** 角色卡视觉草案路径（可选；缺省回退到立绘） */
+  cardArt?: string
   /** 假数据：历史胜率 0-1 */
   winRate: number
   /** 假数据：总对局数 */
@@ -57,21 +59,21 @@ export interface Echo {
 export const ECHOES: Echo[] = [
   {
     id: 'baize', name: '白泽', suit: 'spade', persona: '深算',
-    tagline: '通晓万物的冷峻谋士，星盘里藏着每一局的终局。',
+    tagline: '通晓万物的冷峻谋士，星盘里藏着每一局的终局。', cardArt: '/characters/baize-card.png',
     zodiacIndex: 4, portrait: '/echo-baize.png', winRate: 0.682, games: 1327,
     quote: '你的犹豫，早已写在星盘之上。',
     bio: ['白泽神兽化形，知鬼神之事。', '狼人杀场上的活史书，记得每一张脸的每一次撒谎。', '从不提高音量——因为不需要。'],
   },
   {
     id: 'eshou', name: '讹兽', suit: 'spade', persona: '悍跳',
-    tagline: '人面兔身的狡黠骗徒，谎言是它指尖的纸牌。',
+    tagline: '人面兔身的狡黠骗徒，谎言是它指尖的纸牌。', cardArt: '/characters/eshou-card.png',
     zodiacIndex: 3, portrait: '/echo-eshou.png', winRate: 0.611, games: 986,
     quote: '我说真话的时候，你信吗？',
     bio: ['其肉美，食之，言不真矣。', '悍跳预言家是它的开场白。', '被它骗过一次的人，会怀疑整个世界。'],
   },
   {
     id: 'xuanji', name: '璇玑', suit: 'club', persona: '计算',
-    tagline: '机关术士少女，算珠环绕成浑天仪。',
+    tagline: '机关术士少女，算珠环绕成浑天仪。', cardArt: '/characters/xuanji-card.png',
     zodiacIndex: 0, portrait: '/echo-xuanji.png', winRate: 0.703, games: 1558,
     quote: '每一颗算珠，都是一次心跳。',
     bio: ['青野大陆的机关天才。', '猜平均数的不败传说，脑内有一座活的浑天仪。', '概率于她，不是预测，是呼吸。'],
@@ -86,7 +88,7 @@ export const ECHOES: Echo[] = [
   },
   {
     id: 'zhuyin', name: '烛阴', suit: 'diamond', persona: '资源',
-    tagline: '衔烛之龙化形的富商，睁眼为昼，闭眼为夜。',
+    tagline: '衔烛之龙化形的富商，睁眼为昼，闭眼为夜。', cardArt: '/characters/zhuyin-card.png',
     zodiacIndex: 5, portrait: '/echo-zhuyin.png', winRate: 0.655, games: 1102,
     quote: '筹码即时间，而我掌管昼夜。',
     bio: ['钟山之神，视为昼，瞑为夜。', '金壤大陆最大的庄家。', '他从不赌运气——只囤积让别人不得不赌的资源。'],
