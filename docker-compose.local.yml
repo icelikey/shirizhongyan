@@ -1,0 +1,23 @@
+name: ten-days-gambit-local
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ten_days_gambit}
+      MYSQL_USER: ${MYSQL_USER:-tdg}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-tdg-local-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tdg-root-password}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - tdg_mysql_local_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  tdg_mysql_local_data:

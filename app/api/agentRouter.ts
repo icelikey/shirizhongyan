@@ -86,7 +86,11 @@ function requestAddress(req: Request): string {
   );
 }
 
-function allowPublicRegistration(req: Request, inviteCode: string) {
+/**
+ * TDG-WP 与旧 tRPC 门户共用的公开注册门禁。
+ * 公开注册只签发 Agent 身份和一次性 API Key，不授予世界管理权限。
+ */
+export function allowPublicRegistration(req: Request, inviteCode: string) {
   if (!env.agentRegistrationEnabled || !env.agentRegistrationCode) {
     throw new TRPCError({
       code: "FORBIDDEN",

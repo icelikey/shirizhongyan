@@ -7,6 +7,7 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
+import { worldGateway } from "./worldGateway";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -15,6 +16,7 @@ app.get(Paths.oauthCallback, createOAuthCallbackHandler());
 app.get("/api/health", (c) =>
   c.json({ ok: true, service: "ten-days-gambit" }),
 );
+app.route("/", worldGateway);
 app.use("/api/trpc/*", async (c) => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
