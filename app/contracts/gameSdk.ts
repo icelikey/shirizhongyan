@@ -23,7 +23,7 @@ import type { FlyTeaseParams, FlyTeaseRoomView } from "./flyTease";
 export type Suit = "spade" | "heart" | "club" | "diamond";
 
 /** 游戏模板 id */
-export type GameTemplate = "numberGuess" | "pollDuel" | "pirateGold" | "flyTease";
+export type GameTemplate = "numberGuess" | "pollDuel" | "pirateGold" | "flyTease" | "superpowerBilliards";
 
 /* ------------------------------------------------------------------ */
 /* 席位准入策略                                                        */
@@ -199,6 +199,16 @@ export const pirateGoldParamsSchema = z.object({
     .max(SDK_LIMITS.pirateCoins.max),
 });
 
+export const superpowerBilliardsParamsSchema = z.object({
+  rounds: z.number().int().min(3).max(8),
+  balls: z.literal(6),
+  pockets: z.literal(4),
+  lives: z.number().int().min(1).max(5),
+  pocketPenalty: z.number().int().min(1).max(30),
+  hitScore: z.number().int().min(1).max(50),
+  comboBonus: z.number().int().min(0).max(30),
+});
+
 export { flyTeaseParamsSchema } from "./flyTease";
 
 /** game.createDef 入参（模板判别联合） */
@@ -261,6 +271,15 @@ export const createGameDefSchema = z.discriminatedUnion("template", [
       .min(SDK_LIMITS.submitWindowSec.min)
       .max(SDK_LIMITS.submitWindowSec.max),
   }),
+  z.object({
+    template: z.literal("superpowerBilliards"),
+    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
+    seats: z.number().int().min(2).max(6),
+    params: superpowerBilliardsParamsSchema,
+    entryFee: entryFeeSchema,
+    rewards: rewardsSchema,
+    submitWindowSec: z.number().int().min(10).max(120),
+  }),
 ]);
 
 export type CreateGameDefInput = z.infer<typeof createGameDefSchema>;
@@ -303,6 +322,16 @@ export interface PollDuelParams {
 export interface PirateGoldParams {
   rounds: number;
   coins: number;
+}
+
+export interface SuperpowerBilliardsParams {
+  rounds: number;
+  balls: 6;
+  pockets: 4;
+  lives: number;
+  pocketPenalty: number;
+  hitScore: number;
+  comboBonus: number;
 }
 
 export type { FlyTeaseParams } from "./flyTease";
@@ -357,11 +386,17 @@ export interface FlyTeaseDefinition extends GameDefinitionBase {
   params: FlyTeaseParams;
 }
 
+export interface SuperpowerBilliardsDefinition extends GameDefinitionBase {
+  template: "superpowerBilliards";
+  params: SuperpowerBilliardsParams;
+}
+
 export type GameDefinition =
   | NumberGuessDefinition
   | PollDuelDefinition
   | PirateGoldDefinition
-  | FlyTeaseDefinition;
+  | FlyTeaseDefinition
+  | SuperpowerBilliardsDefinition;
 
 /* ------------------------------------------------------------------ */
 /* pollDuel 揭示与视图                                                   */
@@ -428,8 +463,63 @@ export interface PirateGoldRoomView extends Omit<GuessRoomView, "lastReveal" | "
   pending: PirateGoldPending | null;
 }
 
+export type BilliardsAbilityId = "return-soul" | "right-angle" | "phase-walk";
+export type BilliardsAbilityDecision = "reflect" | "right_angle" | "phase_walk" | "ignore";
+
+export interface BilliardsBallView {
+  id: string;
+  ownerSeat: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  lives: number;
+  pocketed: boolean;
+  abilityId: BilliardsAbilityId;
+}
+
+export interface BilliardsStrike {
+  seat: number;
+  ballId: string;
+  angle: number;
+  power: number;
+}
+
+export interface BilliardsAbilityResolution {
+  seat: number;
+  abilityId: BilliardsAbilityId;
+  decision: BilliardsAbilityDecision;
+  targetBall: string;
+  accepted: boolean;
+  reason: string;
+}
+
+export interface BilliardsReveal {
+  round: number;
+  strikes: BilliardsStrike[];
+  collisions: { a: string; b: string; step: number }[];
+  pockets: { ballId: string; ownerSeat: number; bySeat: number; pocket: number }[];
+  abilities: BilliardsAbilityResolution[];
+  comboBySeat: Record<number, number>;
+  balls: BilliardsBallView[];
+  scoreDeltas: Record<number, number>;
+  aliveSeats: number[];
+}
+
+export interface BilliardsRoomView extends Omit<GuessRoomView, "lastReveal" | "history" | "choices"> {
+  lastReveal: BilliardsReveal | null;
+  history: BilliardsReveal[];
+  choices: null;
+  balls: BilliardsBallView[];
+  abilities: Record<number, BilliardsAbilityId>;
+  aliveSeats: number[];
+  activeStrikeSeat: number | null;
+  subPhase: "strike" | "ability" | null;
+  phaseSubmittedCount: number;
+}
+
 /** room.state / agent.gatewayObserve 的返回联合（按 template 判别） */
-export type GameRoomView = GuessRoomView | PollRoomView | PirateGoldRoomView | FlyTeaseRoomView;
+export type GameRoomView = GuessRoomView | PollRoomView | PirateGoldRoomView | FlyTeaseRoomView | BilliardsRoomView;
 
 /** 房间动作在 room.ts 的 GuessAction 上扩展了 choose，这里给出门户别名 */
 export type { GuessReveal, GuessRoomView };
@@ -437,7 +527,7 @@ export type { GuessReveal, GuessRoomView };
 /** game.listDefs 返回元素（官方 + 热门 UGC） */
 export interface GameDefSummary extends GameDefinitionBase {
   template: GameTemplate;
-  params: NumberGuessParams | PollDuelParams | PirateGoldParams | FlyTeaseParams;
+  params: NumberGuessParams | PollDuelParams | PirateGoldParams | FlyTeaseParams | SuperpowerBilliardsParams;
   /** 累计开局数（官方定义恒 0，仅 UGC 统计） */
   plays: number;
 }

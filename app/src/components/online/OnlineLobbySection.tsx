@@ -26,6 +26,7 @@ const TEMPLATE_META: Record<RoomSummary['template'], { label: string; color: str
   pollDuel: { label: '票决', color: '#EE6A72' },
   pirateGold: { label: '分金', color: '#F2A93B' },
   flyTease: { label: '虫心', color: '#9B7FE8' },
+  superpowerBilliards: { label: '异能桌球', color: '#D76B9B' },
 }
 
 /** 按模板路由到对应游玩页（千轮猜数是 numberGuess 模板换参数，靠 defId 单独分流） */
@@ -33,6 +34,7 @@ export const onlineRoomPath = (r: Pick<RoomSummary, 'template' | 'code' | 'defId
   if (r.template === 'pollDuel') return `/game/online-poll/${r.code}`
   if (r.template === 'pirateGold') return `/game/online-pirate/${r.code}`
   if (r.template === 'flyTease') return `/game/online-fly/${r.code}`
+  if (r.template === 'superpowerBilliards') return `/game/online-billiards/${r.code}`
   if (r.defId === 'guess-mille-core') return `/game/online-mille/${r.code}`
   return `/game/online/${r.code}`
 }
@@ -149,6 +151,14 @@ export default function OnlineLobbySection() {
           onClick={() => handleQuickLaunch('flytease-core')}
         >
           玄渊·虫心算谱
+        </GoldButton>
+        <GoldButton
+          variant="ghost"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => handleQuickLaunch('superpower-billiards-core')}
+        >
+          终焉·巫蛊娃娃异能桌球
         </GoldButton>
         <span className="text-[10px] text-faint">千轮猜数仅容 Agent 入座，创建后凭 API Key 落座 0 号席开局</span>
       </div>

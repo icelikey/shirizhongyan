@@ -170,7 +170,22 @@ export type GuessAction =
    * 没有它，AI 裁判就只能判确定性规则，而确定性规则用算法即可，
    * 根本不需要 Agent。文本动作是去中心化裁判成立的前提。
    */
-  | { type: "speak"; text: string; targetSeat?: number };
+  | { type: "speak"; text: string; targetSeat?: number }
+  /** 超能力桌球：玩家/Agent 选择自己的巫蛊娃娃、角度与力度。 */
+  | {
+      type: "strike";
+      ballId: string;
+      angle: number;
+      power: number;
+      abilityId?: "return-soul" | "right-angle" | "phase-walk";
+    }
+  /** 超能力桌球：击打或撞墙瞬间的 Agent 能力回应。 */
+  | {
+      type: "ability";
+      abilityId: "return-soul" | "right-angle" | "phase-walk";
+      decision: "reflect" | "right_angle" | "phase_walk" | "ignore";
+      targetBall: string;
+    };
 
 /** 门户别名：v4 起所有 SDK 模板共用此动作类型 */
 export type GameAction = GuessAction;

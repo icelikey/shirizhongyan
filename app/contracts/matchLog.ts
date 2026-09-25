@@ -73,6 +73,8 @@ export interface ActionEvent extends EventBase {
   kind: string;
   /** 数值载荷（出数、选项下标、筹码额、目标座位…） */
   value: number | null;
+  /** 可选结构化动作载荷（桌球瞄准线/能力提案等），不参与裁判权限。 */
+  payload?: unknown;
 }
 
 export interface SpeechEvent extends EventBase {

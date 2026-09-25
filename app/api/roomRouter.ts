@@ -56,6 +56,19 @@ export const gameActionSchema = z.discriminatedUnion("type", [
     text: z.string().trim().min(1).max(600),
     targetSeat: z.number().int().min(0).max(15).optional(),
   }),
+  z.object({
+    type: z.literal("strike"),
+    ballId: z.string().trim().min(1).max(24),
+    angle: z.number().finite().min(-6.28319).max(6.28319),
+    power: z.number().finite().min(0).max(1),
+    abilityId: z.enum(["return-soul", "right-angle", "phase-walk"]).optional(),
+  }),
+  z.object({
+    type: z.literal("ability"),
+    abilityId: z.enum(["return-soul", "right-angle", "phase-walk"]),
+    decision: z.enum(["reflect", "right_angle", "phase_walk", "ignore"]),
+    targetBall: z.string().trim().min(1).max(24),
+  }),
 ]);
 
 /** v3 别名（agent.gatewayAct 沿用） */

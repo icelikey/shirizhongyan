@@ -28,6 +28,9 @@ import type {
   PirateGoldPending,
   PirateGoldReveal,
   PollReveal,
+  BilliardsRoomView,
+  BilliardsReveal,
+  BilliardsBallView,
 } from "@contracts/gameSdk";
 import { cricketMoodFor, type FlyTeaseParams, type FlyTeaseReveal } from "@contracts/flyTease";
 import {
@@ -320,14 +323,17 @@ export class SdkRoom {
         throw new TRPCError({ code: "FORBIDDEN", message: "无效的 seatToken" });
       }
       if (action.type === "start") return this.startInternal(seat);
-      const payload = this.module.normalizeSubmission(this.def, action);
-      if (payload === null) {
+      const normalized = this.module.normalizeStructuredSubmission
+        ? this.module.normalizeStructuredSubmission(this.def, action)
+        : this.module.normalizeSubmission(this.def, action);
+      if (normalized === null) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `模板 ${this.def.template} 不支持动作 ${action.type}`,
         });
       }
-      return this.submitInternal(seat, payload);
+      const payload = typeof normalized === "number" ? { value: normalized } : normalized;
+      return this.submitInternal(seat, payload.value, payload.payload);
     });
   }
 
@@ -427,7 +433,7 @@ export class SdkRoom {
     return { ok: true };
   }
 
-  private async submitInternal(seat: SeatState, payload: number) {
+  private async submitInternal(seat: SeatState, payload: number, extraPayload?: unknown) {
     if (
       this.state.status !== "playing" ||
       this.state.phase !== "submit" ||
@@ -443,10 +449,11 @@ export class SdkRoom {
     if (!this.phaseEligible().includes(seat.index)) {
       throw new TRPCError({ code: "FORBIDDEN", message: "当前阶段不轮到你行动" });
     }
-    if (this.state.submissions.some((e) => e.seat === seat.index)) {
+    const currentPhase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+    if (this.state.submissions.some((e) => e.seat === seat.index && e.phase === currentPhase)) {
       throw new TRPCError({ code: "CONFLICT", message: "本轮已提交" });
     }
-    this.commit(seat.index, payload);
+    this.commit(seat.index, payload, extraPayload);
     this.touch();
     if (this.isPhaseComplete()) {
       // 本（子）阶段提前交齐 → 推进（await 使 act 在推进完成后返回，便于客户端/测试同步）
@@ -459,14 +466,17 @@ export class SdkRoom {
    * 所有提交的唯一入口——真人、echo-bot、超时兜底都经此，
    * 故事件记录埋在这里最可靠，不会漏掉任何一条动作。
    */
-  private commit(seatIndex: number, value: number) {
-    if (this.state.submissions.some((e) => e.seat === seatIndex)) return;
+  private commit(seatIndex: number, value: number, payload?: unknown) {
+    const phase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+    if (this.state.submissions.some((e) => e.seat === seatIndex && e.phase === phase)) return;
     this.state.submissions.push({
       seat: seatIndex,
       value,
       order: this.state.submissions.length,
+      payload,
+      phase,
     });
-    this.recorder?.action(seatIndex, this.module.gameKind, value);
+    this.recorder?.action(seatIndex, this.module.gameKind, value, payload);
   }
 
   /* ---------------------------------------------------------------- */
@@ -489,7 +499,8 @@ export class SdkRoom {
   /** 当前（子）阶段是否已交齐（仅看该阶段应交座位，不受累积提交里其它阶段记录干扰） */
   private isPhaseComplete(): boolean {
     const eligible = this.phaseEligible();
-    const submitted = new Set(this.state.submissions.map((e) => e.seat));
+    const phase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+    const submitted = new Set(this.state.submissions.filter((e) => e.phase === phase).map((e) => e.seat));
     return eligible.length > 0 && eligible.every((s) => submitted.has(s));
   }
 
@@ -506,15 +517,23 @@ export class SdkRoom {
           this.state.phase !== "submit" ||
           Date.now() > (this.state.submitDeadlineAt ?? 0) ||
           !this.phaseEligible().includes(seat.index) ||
-          this.state.submissions.some((e) => e.seat === seat.index)
+          this.state.submissions.some((e) => e.seat === seat.index && e.phase === this.state.subPhases?.[this.state.subPhaseIdx]?.name)
         ) {
           return;
         }
         const levelK = this.botLevels.get(seat.index) ?? 2.4;
         const phaseName = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
-        this.commit(
-          seat.index,
-          this.module.botPick(
+        const picked = this.module.botPickStructured
+          ? this.module.botPickStructured(
+              this.def,
+              seat.index,
+              levelK,
+              this.state.history,
+              phaseName,
+              this.state.matchState,
+              [...this.state.submissions],
+            )
+          : this.module.botPick(
             this.def,
             seat.index,
             levelK,
@@ -522,8 +541,10 @@ export class SdkRoom {
             phaseName,
             this.state.matchState,
             [...this.state.submissions],
-          ),
-        );
+            );
+        if (picked === null) return;
+        const normalized = typeof picked === "number" ? { value: picked } : picked;
+        this.commit(seat.index, normalized.value, normalized.payload);
         this.touch();
         if (this.isPhaseComplete()) {
           return this.afterSubmitWindow();
@@ -585,8 +606,14 @@ export class SdkRoom {
 
     // 本（子）阶段超时兜底：仅对本阶段应交座位
     for (const seatIndex of this.phaseEligible()) {
-      if (!this.state.submissions.some((e) => e.seat === seatIndex)) {
-        this.commit(seatIndex, this.module.timeoutFallback(this.def, seatIndex));
+      const phase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+      if (!this.state.submissions.some((e) => e.seat === seatIndex && e.phase === phase)) {
+        const fallback = this.module.timeoutFallbackStructured
+          ? this.module.timeoutFallbackStructured(this.def, seatIndex, this.state.subPhases?.[this.state.subPhaseIdx]?.name)
+          : this.module.timeoutFallback(this.def, seatIndex);
+        if (fallback === null) continue;
+        const normalized = typeof fallback === "number" ? { value: fallback } : fallback;
+        this.commit(seatIndex, normalized.value, normalized.payload);
       }
     }
     this.touch();
@@ -931,6 +958,32 @@ export class SdkRoom {
           atlasVersion: FLY_ATLAS.version,
         },
       };
+    }
+    if (this.def.template === "superpowerBilliards") {
+      const st = this.state.matchState as {
+        balls?: BilliardsBallView[];
+        abilityUses?: Record<number, Record<string, number>>;
+        alive?: boolean[];
+        lastStrikeSeat?: number | null;
+      } | null;
+      const abilityMap: Record<number, "return-soul" | "right-angle" | "phase-walk"> = {};
+      for (const ball of st?.balls ?? []) abilityMap[ball.ownerSeat] = ball.abilityId;
+      const currentSubPhase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+      return {
+        ...base,
+        lastReveal: this.state.lastReveal as BilliardsReveal | null,
+        history: this.state.history as BilliardsReveal[],
+        choices: null,
+        balls: (st?.balls ?? []).map((ball) => ({
+          id: ball.id, ownerSeat: ball.ownerSeat, x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy,
+          lives: ball.lives, pocketed: ball.pocketed, abilityId: ball.abilityId,
+        })) as BilliardsBallView[],
+        abilities: abilityMap,
+        aliveSeats: (st?.alive ?? []).map((alive, index) => (alive ? index : -1)).filter((index) => index >= 0),
+        activeStrikeSeat: st?.lastStrikeSeat ?? null,
+        subPhase: currentSubPhase === "strike" || currentSubPhase === "ability" ? currentSubPhase : null,
+        phaseSubmittedCount: this.state.submissions.filter((entry) => entry.phase === currentSubPhase).length,
+      } as BilliardsRoomView;
     }
     return base;
   }

@@ -21,7 +21,16 @@ export interface RoundEntry {
    * 可选：猜数/投票这类单值模板不用填。
    */
   payload?: unknown;
+  /** 分阶段模板当前子阶段；单阶段模板省略。 */
+  phase?: string;
 }
+
+export interface NormalizedSubmission {
+  value: number;
+  payload?: unknown;
+}
+
+export type SubmissionResult = number | NormalizedSubmission | null;
 
 export interface TemplateModule {
   template: GameTemplate;
@@ -45,8 +54,11 @@ export interface TemplateModule {
    * 非提交动作（如 start）返回 null。非法载荷抛 TRPCError(BAD_REQUEST)。
    */
   normalizeSubmission(def: GameDefinition, action: GameAction): number | null;
+  /** 结构化动作模板可提供 JSON 载荷；旧模板继续走 normalizeSubmission。 */
+  normalizeStructuredSubmission?(def: GameDefinition, action: GameAction): SubmissionResult;
   /** 超时未交的兜底提交值 */
   timeoutFallback(def: GameDefinition, seatIndex: number): number;
+  timeoutFallbackStructured?(def: GameDefinition, seatIndex: number, phaseName?: string): SubmissionResult;
   /**
    * echo-bot 决策（levelK 为 bot 人设层级，pollDuel 可忽略）。
    * phaseName 为当前子阶段名（仅 phasesForRound 模板会收到非空值，
@@ -63,6 +75,15 @@ export interface TemplateModule {
     /** 当前子阶段已经提交的动作；提案→表决等顺序博弈需要读取它。 */
     entries?: RoundEntry[],
   ): number;
+  botPickStructured?(
+    def: GameDefinition,
+    seatIndex: number,
+    levelK: number,
+    history: unknown[],
+    phaseName?: string,
+    matchState?: unknown,
+    entries?: RoundEntry[],
+  ): SubmissionResult;
   /**
    * 揭晓本轮：产出公开 reveal 对象 + 每座得分增量。
    *

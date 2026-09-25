@@ -21,6 +21,7 @@ import {
   numberGuessParamsSchema,
   pirateGoldParamsSchema,
   pollDuelParamsSchema,
+  superpowerBilliardsParamsSchema,
   resolveSeatPolicy,
 } from "@contracts/gameSdk";
 import { FLYTEASE_CORE_ID, FLYTEASE_DEFAULT_PARAMS } from "@contracts/flyTease";
@@ -37,6 +38,7 @@ import { numberGuessModule } from "./numberGuess";
 import { pirateGoldModule } from "./pirateGold";
 import { pollDuelModule } from "./pollDuel";
 import { flyTeaseModule } from "./flyTease";
+import { superpowerBilliardsModule } from "./superpowerBilliards";
 
 /* ------------------------------------------------------------------ */
 /* 官方定义（guess-core = v3 猜平均数默认参数；poll-duel-core = 红眼病官方版）*/
@@ -111,12 +113,25 @@ export const FLYTEASE_CORE: GameDefinition = {
   submitWindowSec: 45,
 };
 
+export const SUPERPOWER_BILLIARDS_CORE: GameDefinition = {
+  id: "superpower-billiards-core",
+  name: "终焉·巫蛊娃娃异能桌球",
+  template: "superpowerBilliards",
+  seats: 6,
+  isOfficial: true,
+  params: { rounds: 8, balls: 6, pockets: 4, lives: 2, pocketPenalty: 8, hitScore: 15, comboBonus: 10 },
+  entryFee: { suit: "spade", amount: 0 },
+  rewards: { winner: 80, runnerUp: 40, participation: 10 },
+  submitWindowSec: 45,
+};
+
 export const OFFICIAL_GAMES: GameDefinition[] = [
   GUESS_CORE,
   GUESS_MILLE_CORE,
   POLL_DUEL_CORE,
   PIRATE_GOLD_CORE,
   FLYTEASE_CORE,
+  SUPERPOWER_BILLIARDS_CORE,
 ];
 
 const officialMap = new Map(OFFICIAL_GAMES.map((d) => [d.id, d]));
@@ -126,6 +141,7 @@ const TEMPLATE_MODULES: Record<GameDefinition["template"], TemplateModule> = {
   pollDuel: pollDuelModule,
   pirateGold: pirateGoldModule,
   flyTease: flyTeaseModule,
+  superpowerBilliards: superpowerBilliardsModule,
 };
 
 export function moduleFor(def: GameDefinition): TemplateModule {
@@ -182,6 +198,11 @@ function rowToDefinition(row: GameDefRow): GameDefinition | null {
     const params = flyTeaseParamsSchema.safeParse(parseJsonColumn(row.params));
     if (!params.success) return null;
     return { ...base, template: "flyTease", params: params.data };
+  }
+  if (row.template === "superpowerBilliards") {
+    const params = superpowerBilliardsParamsSchema.safeParse(parseJsonColumn(row.params));
+    if (!params.success) return null;
+    return { ...base, template: "superpowerBilliards", params: params.data };
   }
   return null;
 }

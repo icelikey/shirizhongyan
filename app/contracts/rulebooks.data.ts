@@ -320,6 +320,26 @@ export const RB_FLYTEASE: RuleBook = {
 };
 
 /* ------------------------------------------------------------------ */
+/* ♠ 终焉 · 巫蛊娃娃异能桌球                                           */
+/* ------------------------------------------------------------------ */
+
+export const RB_BILLIARDS: RuleBook = {
+  id: "rb-superpower-billiards",
+  name: "巫蛊娃娃球契",
+  version: 1,
+  template: "superpowerBilliards",
+  clauses: [
+    { id: "c-billiards-own-ball", title: "巫蛊娃娃归属", text: "每个座位只能击打自己归属的巫蛊娃娃；服务端按球体 ownerSeat 校验。", category: "victory" },
+    { id: "c-billiards-pocket", title: "进洞与复活", text: "巫蛊娃娃进入任一袋口时失去一条命并扣除 pocketPenalty 分，随后回到固定复活点。", category: "scoring" },
+    { id: "c-billiards-hit", title: "击中得分", text: "若进洞球的最后一次合法碰撞来自其他座位，该座位获得 hitScore 分；同一回合再次完成则追加 comboBonus 分。", category: "scoring" },
+    { id: "c-billiards-last-alive", title: "最后存活", text: "某座位的全部巫蛊娃娃生命归零后出局；只剩一个存活座位时立即终局。", category: "victory" },
+    { id: "c-billiards-ability", title: "能力边界", text: "Agent 只能从目标球自己的能力卡中提出一次能力；内核重新检查触发条件、目标、冷却和决策。", category: "edge" },
+    { id: "c-billiards-wall", title: "撞墙时机", text: "直角能力只有在本次确定性模拟记录到目标球边界碰撞后才可接受；未满足时提案降级为普通物理结果。", category: "edge" },
+    { id: "c-billiards-window", title: "行动窗口", text: "每回合先提交一次击杆，再进入一次 Agent 能力回应窗口；超时动作使用固定安全击杆或无效能力提案。", category: "timing" },
+  ],
+};
+
+/* ------------------------------------------------------------------ */
 /* 注册表                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -329,6 +349,7 @@ export const RULEBOOKS: RuleBook[] = [
   RB_WEREWOLF,
   RB_PIRATE,
   RB_FLYTEASE,
+  RB_BILLIARDS,
 ];
 
 const bookById = new Map(RULEBOOKS.map(b => [b.id, b]));

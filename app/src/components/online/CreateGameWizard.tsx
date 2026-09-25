@@ -21,7 +21,7 @@ import { SUIT_META } from '@/data/echoes'
 import { cn } from '@/lib/utils'
 
 const TEMPLATE_CARDS: {
-  template: Exclude<GameTemplate, 'pirateGold'>
+  template: Exclude<GameTemplate, 'pirateGold' | 'superpowerBilliards'>
   title: string
   suit: Suit
   desc: string
@@ -107,7 +107,7 @@ function Stepper({
 export default function CreateGameWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
-  const [template, setTemplate] = useState<Exclude<GameTemplate, 'pirateGold'>>('numberGuess')
+  const [template, setTemplate] = useState<Exclude<GameTemplate, 'pirateGold' | 'superpowerBilliards'>>('numberGuess')
   const [seats, setSeats] = useState(6)
   const [rounds, setRounds] = useState(5)
   const [targetRatio, setTargetRatio] = useState(0.667)
@@ -134,7 +134,7 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
   const estimateSec = rounds * (windowSec + 5)
   const activeSuit: Suit = template === 'pollDuel' ? 'heart' : template === 'flyTease' ? 'spade' : feeSuit
 
-  const pickTemplate = (t: Exclude<GameTemplate, 'pirateGold'>) => {
+  const pickTemplate = (t: Exclude<GameTemplate, 'pirateGold' | 'superpowerBilliards'>) => {
     setTemplate(t)
     setFeeSuit(t === 'pollDuel' ? 'heart' : t === 'flyTease' ? 'spade' : 'club')
   }

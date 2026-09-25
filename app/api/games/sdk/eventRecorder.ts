@@ -104,8 +104,8 @@ export class EventRecorder {
    * 一次玩家动作。
    * kind 为动作原语（submit / choose / play …），value 为数值载荷。
    */
-  action(seat: number, kind: string, value: number | null): void {
-    this.push({ t: "action", seat, kind, value } as never);
+  action(seat: number, kind: string, value: number | null, payload?: unknown): void {
+    this.push({ t: "action", seat, kind, value, ...(payload === undefined ? {} : { payload }) } as never);
   }
 
   /** 异能使用（H1–H5 五钩子） */
