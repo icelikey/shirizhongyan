@@ -9,8 +9,10 @@ FROM dependencies AS build
 COPY . .
 ARG VITE_KIMI_AUTH_URL=https://auth.kimi.com
 ARG VITE_APP_ID=tdg-cloud
+ARG VITE_BASE_PATH=/
 ENV VITE_KIMI_AUTH_URL=$VITE_KIMI_AUTH_URL
 ENV VITE_APP_ID=$VITE_APP_ID
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 RUN pnpm build
 
 FROM node:20-bookworm-slim AS runtime

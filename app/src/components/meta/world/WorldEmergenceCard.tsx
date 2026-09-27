@@ -47,7 +47,7 @@ export default function WorldEmergenceCard() {
     let active = true
     const load = async () => {
       try {
-        const response = await fetch('/world/v1/world/state', { headers: { accept: 'application/json' } })
+        const response = await fetch(`${import.meta.env.BASE_URL}world/v1/world/state`, { headers: { accept: 'application/json' } })
         if (!response.ok) throw new Error('world state unavailable')
         const payload = await response.json() as { world?: WorldState }
         if (active && payload.world) {

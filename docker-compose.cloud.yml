@@ -21,6 +21,10 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
+      args:
+        VITE_APP_ID: ${APP_ID:-tdg-cloud}
+        VITE_KIMI_AUTH_URL: ${KIMI_AUTH_URL:-https://auth.kimi.com}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     restart: unless-stopped
     depends_on:
       mysql:

@@ -80,7 +80,7 @@ export default function AgentReport() {
       return
     }
     let cancelled = false
-    fetch(`/world/v1/agents/${encodeURIComponent(agentId)}/report?token=${encodeURIComponent(token)}`)
+    fetch(`${import.meta.env.BASE_URL}world/v1/agents/${encodeURIComponent(agentId)}/report?token=${encodeURIComponent(token)}`)
       .then(async (response) => {
         const payload = await response.json() as ReportPayload & { error?: { message?: string } }
         if (!response.ok) throw new Error(payload.error?.message || '日报暂时无法读取')

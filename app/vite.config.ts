@@ -5,8 +5,11 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { inspectAttr } from 'plugin-inspect-react-code'
 
+const publicBase = (process.env.VITE_BASE_PATH?.trim() || "/").replace(/\/+$/, "/")
+
 // https://vite.dev/config/
 export default defineConfig({
+  base: publicBase,
   plugins: [
     // Keep the TDG-WP HTTP gateway reachable in dev mode as well as in the
     // production server. Only the browser's page assets should bypass Hono.

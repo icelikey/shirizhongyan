@@ -33,8 +33,12 @@ import AgentReport from '@/pages/AgentReport'
 import SuperpowerBilliardsOnline from '@/pages/SuperpowerBilliardsOnline'
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL === '/'
+    ? undefined
+    : import.meta.env.BASE_URL.replace(/\/$/, '')
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <CursorGlow />
       <Toaster
         position="top-center"

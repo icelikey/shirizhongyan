@@ -10,7 +10,7 @@ export default function ShareQrCard() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    const url = new URL('/game/entry', window.location.origin)
+    const url = new URL(`${import.meta.env.BASE_URL}game/entry`, window.location.origin)
     url.searchParams.set('from', 'qr')
     setTarget(url.toString())
   }, [])
