@@ -1,13 +1,13 @@
 /**
- * 椭圆六座牌桌布局（两对局页共用）。
- * 0 号座（真人）固定 6 点位（底部中央），1–5 号座沿椭圆逆时针均布。
+ * 椭圆牌桌布局（六人猜数与十二人狼人杀共用）。
+ * 0 号座（真人）固定在底部，其他座位沿椭圆逆时针均布。
  * 中心区域渲染 children（浑天仪 / 烛火舞台等）。
  */
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 export interface SeatEllipseProps {
-  /** 6 个座位节点（index = 逻辑座号 0–5） */
+  /** 座位节点（index = 逻辑座号；支持 6 或 12 人） */
   seats: ReactNode[]
   /** 桌面中央内容 */
   children?: ReactNode
@@ -16,8 +16,8 @@ export interface SeatEllipseProps {
   className?: string
 }
 
-/** 六座角度（度）：0 号 90°（底部），逆时针每 60° 一座 */
-const SEAT_ANGLE = [90, 30, -30, -90, -150, 150]
+/** 六座或十二座角度（度）：0 号 90°（底部），沿椭圆逆时针均布。 */
+const SEAT_ANGLE = [90, 60, 30, 0, -30, -60, -90, -120, -150, 180, 150, 120]
 /** 椭圆半径（%） */
 const RX = 46
 const RY = 44

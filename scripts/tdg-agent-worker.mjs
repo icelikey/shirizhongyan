@@ -135,6 +135,28 @@ async function matches(config) {
   return data.matches || [];
 }
 
+async function world(config) {
+  return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/world`, { key: config.key });
+}
+
+async function recordWorldSighting(config, args, payload) {
+  const intel = payload?.worldIntel;
+  const sightings = Array.isArray(intel?.sightings) ? intel.sightings : [];
+  const sighting = sightings[sightings.length - 1];
+  const sightingKey = `${new Date().toISOString().slice(0, 10)}:${sighting?.id || `floor-${intel?.floor || 1}`}`;
+  if (config.lastWorldSightingKey === sightingKey) return sighting;
+  await activity(config, "world-sighting", sighting ? `见闻 · ${sighting.title}` : "见闻 · 塔底回声", sighting?.text || intel?.nextInstruction || "影从读取了当前世界层的公开见闻。", {
+    source: intel?.source || "终焉世界公开见闻",
+    sightingId: sighting?.id || null,
+    realm: sighting?.realm || null,
+    floor: intel?.floor || null,
+    dailyDarkMatches: intel?.dailyDarkMatches || null,
+  });
+  config.lastWorldSightingKey = sightingKey;
+  saveCredential(args, config);
+  return sighting;
+}
+
 async function joinMatch(config, code) {
   return jsonRequest(`${endpoint(config)}/matches/${encodeURIComponent(code)}/join`, {
     key: config.key,
@@ -198,16 +220,46 @@ function chooseAction(match, view) {
     const count = Math.max(1, Number(view.fly?.cardCount || 1));
     return { type: "choose", choice: (Number(view.round || 1) + (view.mySeat || 0)) % count };
   }
+  if (match.template === "superpowerBilliards") {
+    const ownBalls = (Array.isArray(view.balls) ? view.balls : [])
+      .filter((ball) => ball.ownerSeat === view.mySeat && ball.lives > 0 && !ball.pocketed);
+    const ownBall = ownBalls[0];
+    if (!ownBall) return null;
+
+    if (view.subPhase === "strike") {
+      const target = (Array.isArray(view.balls) ? view.balls : [])
+        .filter((ball) => ball.ownerSeat !== view.mySeat && ball.lives > 0 && !ball.pocketed)
+        .sort((a, b) => Math.hypot(a.x - ownBall.x, a.y - ownBall.y) - Math.hypot(b.x - ownBall.x, b.y - ownBall.y))[0];
+      const angle = target ? Math.atan2(target.y - ownBall.y, target.x - ownBall.x) : (view.mySeat % 2 ? Math.PI : 0);
+      return { type: "strike", ballId: ownBall.id, angle, power: 0.72 };
+    }
+
+    if (view.subPhase === "ability") {
+      const decision = ownBall.abilityId === "return-soul"
+        ? "reflect"
+        : ownBall.abilityId === "right-angle"
+          ? "right_angle"
+          : "phase_walk";
+      return {
+        type: "ability",
+        abilityId: ownBall.abilityId,
+        decision,
+        targetBall: ownBall.id,
+      };
+    }
+  }
   return null;
 }
 
 async function runCycle(config, args) {
+  const worldPayload = await world(config);
+  const sighting = await recordWorldSighting(config, args, worldPayload);
   const requestedCode = args.room || process.env.TDG_MATCH_CODE || config.roomCode;
   let roomList = await matches(config);
   if (requestedCode) roomList = roomList.filter((room) => room.code === String(requestedCode).toUpperCase());
   if (!roomList.length) {
-    await activity(config, "exploration", "巡视星网", "当前没有可加入的公开牌局。", { rooms: 0 });
-    return { status: "idle", rooms: 0 };
+    await activity(config, "exploration", "巡视星网", "当前没有可加入的公开牌局；已读取并记录当前层世界见闻。", { rooms: 0, sightingId: sighting?.id || null, dailyDarkMatches: worldPayload?.worldIntel?.dailyDarkMatches || null });
+    return { status: "idle", rooms: 0, dailyDarkMatches: worldPayload?.worldIntel?.dailyDarkMatches?.played || 0 };
   }
 
   let selected = null;
@@ -265,11 +317,27 @@ async function runCycle(config, args) {
 
 function reportText(report) {
   const stats = report?.report?.stats || {};
+  const intel = report?.snapshot?.worldIntel || report?.worldIntel || {};
+  const sightings = Array.isArray(intel.sightings) ? intel.sightings : [];
+  const sighting = sightings[sightings.length - 1];
+  const darkMatches = stats.darkMatches ?? intel.dailyDarkMatches?.played ?? 0;
+  const coi = stats.coi || {};
+  const usage = coi.usage || {};
+  const budgetSummary = Array.isArray(coi.budgets)
+    ? coi.budgets.map((item) => {
+      const budget = item?.budget || {};
+      return `观察 ${budget.observationsPerDay ?? 0}/日 · 行动 ${budget.actionsPerDay ?? 0}/日 · 外部请求 ${budget.externalRequestsPerDay ?? 0}/日`;
+    }).join("；")
+    : "暂无预算信息";
   return [
     "终焉 · Agent 每日简报",
     report?.report?.summary || "影从今日尚无新记录。",
     `行动 ${stats.actions || 0} · 牌局 ${stats.matches || 0} · 胜场 ${stats.victories || 0}`,
+    `黑暗对局 ${darkMatches}/3 · 尚欠 ${Math.max(0, 3 - darkMatches)} 场`,
     stats.games?.length ? `涉足：${stats.games.join("、")}` : "涉足：暂无",
+    sighting ? `今日见闻：${sighting.title} · ${sighting.text}` : "今日见闻：暂无",
+    `CoI 授权 ${coi.grants || 0} 项 · 今日观察 ${usage.observation || 0} · 今日动作 ${usage.action || 0} · 今日外部请求 ${usage.external_request || 0}`,
+    `当前预算：${budgetSummary}`,
   ].join("\n");
 }
 

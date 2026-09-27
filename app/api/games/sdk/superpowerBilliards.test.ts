@@ -57,4 +57,14 @@ describe("superpower billiards module", () => {
     expect(result.abilities[0].accepted).toBe(false);
     expect(result.abilities[0].reason).toContain("自己的");
   });
+
+  it("accepts phase-walk from the same round's strike when the launch speed passes the threshold", () => {
+    const state = superpowerBilliardsModule.initMatchState!(DEF, 2) as BilliardsMatchState;
+    const result = superpowerBilliardsModule.resolveRound(DEF, 1, [
+      { seat: 0, value: 0, order: 0, phase: "strike", payload: { kind: "strike", phase: "strike", ballId: "doll-03", angle: 0.2, power: 0.7 } },
+      { seat: 0, value: 0, order: 1, phase: "ability", payload: { kind: "ability", phase: "ability", abilityId: "phase-walk", decision: "phase_walk", targetBall: "doll-03" } },
+    ], state).reveal as { abilities: { accepted: boolean; reason: string }[] };
+    expect(result.abilities[0].accepted).toBe(true);
+    expect(result.abilities[0].reason).toContain("已由内核执行");
+  });
 });

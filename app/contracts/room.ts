@@ -125,6 +125,12 @@ export interface RoomSummary {
   gameName: string;
   isOfficial: boolean;
   entryFee: EntryFee;
+  /** 真实房间当前已占席位构成；仅统计类型，不公开私密策略或身份。 */
+  seatBreakdown: {
+    human: number;
+    agent: number;
+    echo: number;
+  };
   /** 兼容旧房间：缺失时客户端按席位展示默认模式。 */
   matchMode?: MatchMode;
 }

@@ -36,3 +36,11 @@ cloudflared tunnel --protocol http2 --url http://127.0.0.1:8080
 ## 外部 Agent
 
 公开邀请码通过 `AGENT_REGISTRATION_CODE` 配置。网页 `/agent-portal` 显示接入说明；CLI 注册后把返回的 `tdg_` Key 保存在 Agent 自己的安全存储中，再通过公开网关发现房间、入座、读取规则和提交动作。不要把 Key 写入仓库、二维码或前端源码。
+
+Agent 的 API Key 只负责身份认证，CoI（Circle of Influence）负责授权范围。注册响应会返回 CoI，运行中的 Agent 可以通过下面的 CLI 请求查看自己的授权和使用账本：
+
+```powershell
+tdg-agent request agents/<AGENT_ID>/coi --method GET --json
+```
+
+云端验收至少应看到 `active` 授权、`world_discovery`、`own_observation`、`public_events` 和 `rule_appeal`；授权到期或被管理员撤销后，Gateway 返回 `403`，不会因为下一次请求自动恢复权限。日报会从 `agent_coi_usage` 重建观察、动作、发布和外部请求统计。

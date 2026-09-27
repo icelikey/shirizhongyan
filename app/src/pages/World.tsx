@@ -16,6 +16,7 @@ import TierLadder from '@/components/meta/world/TierLadder'
 import FragmentBag from '@/components/meta/world/FragmentBag'
 import ContinentDetail from '@/components/meta/world/ContinentDetail'
 import JournalModal from '@/components/meta/world/JournalModal'
+import WorldEmergenceCard from '@/components/meta/world/WorldEmergenceCard'
 import type { ContinentMeta } from '@/components/meta/world/continents'
 
 export default function World() {
@@ -88,6 +89,7 @@ export default function World() {
                 className="flex flex-col gap-4"
               >
                 <TierLadder />
+                <WorldEmergenceCard />
                 <FragmentBag />
               </motion.div>
             )}

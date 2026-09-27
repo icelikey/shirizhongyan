@@ -18,6 +18,7 @@ import CompanionPortraitCard from '@/components/meta/agent/CompanionPortraitCard
 import StyleGrid from '@/components/meta/agent/StyleGrid'
 import RecordPanel from '@/components/meta/agent/RecordPanel'
 import MemoryBox from '@/components/meta/agent/MemoryBox'
+import WorldCycleCard from '@/components/meta/world/WorldCycleCard'
 import DelegatePanel from '@/components/meta/agent/DelegatePanel'
 import EchoGalleryCard from '@/components/meta/agent/EchoGalleryCard'
 import EchoDetailModal from '@/components/meta/agent/EchoDetailModal'
@@ -81,6 +82,7 @@ export default function Agent() {
             <StyleGrid />
             <RecordPanel />
             <MemoryBox />
+            <WorldCycleCard />
             <DelegatePanel onChange={setDelegateOn} />
 
             {/* 我的 Agent Keys · Agent Gateway 门户入口 */}

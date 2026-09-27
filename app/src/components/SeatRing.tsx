@@ -25,7 +25,7 @@ export interface SeatRingProps {
   status?: SeatStatus
   /** 当前行动座位（外圈旋转金光） */
   active?: boolean
-  /** 花色光晕（狼人杀=spade / 猜平均数=club） */
+  /** 花色光晕（狼人杀=spade / 众念锚定=club） */
   suit?: Suit
   /** 是否本人座位 */
   isSelf?: boolean

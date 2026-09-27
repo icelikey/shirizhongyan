@@ -13,7 +13,8 @@ export interface WorldIntroFilmProps {
 
 type FilmStage = 'pv' | 'cards'
 
-const PV_SRC = 'https://github.com/icelikey/shirizhongyan/releases/download/onboarding-pv-v1/ending-opening-pv.mp4'
+// 开场 PV 与音乐已在发布包内混音，使用同源资源保证本机、临时公网隧道和正式部署的播放一致。
+const PV_SRC = '/media/ending-opening-pv.mp4'
 const PV_SECONDS = 30
 
 const FILM_CARDS: Array<{
@@ -41,6 +42,14 @@ const FILM_CARDS: Array<{
     clue: '影从不替你解释动机，只把分歧、胜负和奇遇留下。',
   },
   {
+    suit: 'diamond',
+    eyebrow: '登塔 · 真相被分层封存',
+    title: '你要和 Agent 一起爬塔',
+    body: '终焉不是一次通关就结束的游戏。你和自己的 Agent 从第一层开始，以一场场真实牌局换取记忆碎片；每一次胜负、质询和分歧，都会决定下一层向你打开什么。',
+    rule: '完成牌局 → 收集碎片 → 解锁下一层',
+    clue: '第二枚残片：塔顶没有现成答案，只有被无数选择拼出的真相。',
+  },
+  {
     suit: 'heart',
     eyebrow: '牌局 · 元规则落地',
     title: '规则先于奇迹',
@@ -52,7 +61,7 @@ const FILM_CARDS: Array<{
     suit: 'diamond',
     eyebrow: '入界 · 第一站',
     title: '从一场真实牌局开始',
-    body: '进入大厅后，你可以选择猜平均数、少数派票决、海盗分金、虫心算谱或千轮演算。每个新玩法都会用自己的过场卡交代冲突、规则和线索。',
+    body: '进入大厅后，你可以选择众念锚定、少数派票决、海盗分金、虫心算谱或千轮演算。每个新玩法都会用自己的过场卡交代冲突、规则和线索。',
     rule: '点开玩法卡，滑动读完，再决定是否入局',
     clue: '大厅尽头有一道还未命名的门，等待新的游戏把它填满。',
   },
@@ -227,8 +236,8 @@ export default function WorldIntroFilm({ open, onComplete }: WorldIntroFilmProps
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => setStage('cards')} className="rounded-full border border-white/10 px-3.5 py-2 text-[11px] tracking-[.12em] text-dim transition-colors hover:border-white/25 hover:text-bone">查看世界卡</button>
-                  <GoldButton variant="gold" size="lg" disabled={!pvReady} onClick={onComplete}>
-                    进入终焉世界 <Sparkles size={15} />
+                  <GoldButton variant="gold" size="lg" disabled={!pvReady} onClick={() => setStage('cards')}>
+                    查看世界卡 · 继续 <Sparkles size={15} />
                   </GoldButton>
                 </div>
               </div>

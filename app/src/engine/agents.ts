@@ -84,7 +84,7 @@ export function thinkDelay(rng: Rng, params?: AgentParams): Promise<number> {
 }
 
 /* ---------------------------------------------------------------------------
- * 猜平均数决策：level-k 推理 + 人设噪声 + 历史自适应
+ * 众念锚定决策：level-k 推理 + 人设噪声 + 历史自适应
  * ------------------------------------------------------------------------- */
 
 /** 一轮的历史摘要（引擎传入，用于自适应调层） */
@@ -167,7 +167,7 @@ export interface AgentBrain {
   readonly params: AgentParams
   /** 模拟思考延迟（0.8–2.2s） */
   think(rng: Rng): Promise<number>
-  /** 猜平均数出数 */
+  /** 众念锚定出数 */
   pickGuessNumber(history: readonly GuessHistorySummary[], rng: Rng): number
 }
 

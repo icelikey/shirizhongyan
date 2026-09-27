@@ -61,7 +61,7 @@ export const CONTINENTS: ContinentMeta[] = [
     theme: '计算与概率之地',
     image: '/continent-club.png',
     homeGame: 'guess',
-    homeLabel: '猜平均数主场',
+    homeLabel: '众念锚定主场',
     locked: false,
     cx: 290,
     cy: 750,

@@ -47,7 +47,7 @@ export function SectionHead({ numeral, title, color = '#E3C27C', sub }: SectionH
 const CONTINENT_LORE: Record<Suit, string> = {
   spade: '谎言生光之地。黑桃巨月低垂，月影狼人杀的故乡。',
   heart: '心理与谈判的赤色丘陵。万盏灯笼不熄，雾锁未开。',
-  club: '万物可数的算庭。算珠悬于极光，猜平均数的发源地。',
+  club: '万物可数的算庭。算珠悬于极光，众念锚定的发源地。',
   diamond: '万物有价的矿脉大陆。金河凝琥珀，封埠未开。',
 }
 
@@ -163,7 +163,7 @@ interface EcoRow {
 const ECO_ROWS: EcoRow[] = [
   { suit: 'spade', source: '月影狼人杀', ticket: '15 ♠', build: true, memory: false, lore: true },
   { suit: 'heart', source: '影从养成 · 活动', ticket: '—', build: false, memory: true, lore: true },
-  { suit: 'club', source: '猜平均数', ticket: '10 ♣', build: true, memory: false, lore: true },
+  { suit: 'club', source: '众念锚定', ticket: '10 ♣', build: true, memory: false, lore: true },
   { suit: 'diamond', source: '金壤竞逐（未开）', ticket: '—', build: false, memory: false, lore: true },
 ]
 

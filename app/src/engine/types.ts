@@ -32,8 +32,8 @@ export interface Seat {
  * - waiting   等待室（影从补满落座）
  * - countdown 开局 3-2-1
  * - deal      狼人杀身份发放（翻牌演出）
- * - submit    猜平均数·出数阶段
- * - reveal    猜平均数·浑天仪均值揭示
+ * - submit    众念锚定·出数阶段
+ * - reveal    众念锚定·浑天仪均值揭示
  * - nightWolf / nightSeer / nightWitch  夜晚三段
  * - dawn      清晨死讯
  * - daySpeech 白天逐人发言
@@ -68,7 +68,7 @@ export interface LogItem {
 export interface AwaitingInput {
   /** 输入类型 */
   kind:
-    | 'guessNumber'   // 猜平均数：提交数字
+    | 'guessNumber'   // 众念锚定：提交数字
     | 'wolfKill'      // 狼人：落刀目标
     | 'seerCheck'     // 预言家：验人目标
     | 'witchAction'   // 女巫：救/毒决策

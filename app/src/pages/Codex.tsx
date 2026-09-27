@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 const SECTIONS = [
   { id: 'world', numeral: '壹', title: '世界是什么', color: '#E3C27C' },
   { id: 'werewolf', numeral: '贰', title: '月影狼人杀', color: '#8B93F8' },
-  { id: 'guess', numeral: '叁', title: '猜平均数', color: '#4ECB9C' },
+  { id: 'guess', numeral: '叁', title: '众念锚定', color: '#4ECB9C' },
   { id: 'echoes', numeral: '肆', title: '影从是什么', color: '#EE6A72' },
   { id: 'economy', numeral: '伍', title: '碎片与经济', color: '#F2A93B' },
   { id: 'ranks', numeral: '陆', title: '生肖与位阶', color: '#9B7FE8' },
@@ -215,9 +215,9 @@ export default function Codex() {
             </div>
           </section>
 
-          {/* 叁 · 猜平均数 */}
+          {/* 叁 · 众念锚定 */}
           <section id="guess" className="scroll-mt-24">
-            <SectionHead numeral="叁" title="猜平均数" color="#4ECB9C" sub="♣ 青野 · 计算与概率 · 6 人局" />
+            <SectionHead numeral="叁" title="众念锚定" color="#4ECB9C" sub="♣ 青野 · 计算与概率 · 6 人局" />
             <GuessSteps />
             <h3 className="codex-reveal font-serifsc font-semibold text-[18px] text-bone mt-10 mb-2">你在第几层？</h3>
             <p className="codex-reveal text-[13px] text-dim leading-relaxed mb-6">

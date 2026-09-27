@@ -7,6 +7,8 @@ import {
   hashAgentKey,
   hashReportToken,
 } from "./agentKeys";
+import { createWorldState } from "@contracts/worldCycle";
+import { ensureDefaultCoi, publicCoiGrant } from "./agentCoi";
 
 export interface PublicAgentRegistration {
   agentId: number;
@@ -14,6 +16,7 @@ export interface PublicAgentRegistration {
   name: string;
   key: string;
   reportToken: string;
+  coi: ReturnType<typeof publicCoiGrant>;
 }
 
 /**
@@ -33,8 +36,11 @@ export async function registerPublicAgent(
   const keyHash = hashAgentKey(key);
   const reportTokenHash = hashReportToken(reportToken);
   const prefix = key.slice(0, 8);
+  const starterEchoes = ["baize", "eshou", "xuanji", "qingnang", "zhuyin", "ajiu", "shouzhuo", "baixiao"] as const;
+  const companionEchoId = starterEchoes[randomBytes(1)[0] % starterEchoes.length];
+  const world = createWorldState(Date.now(), companionEchoId);
 
-  return getDb().transaction(async (tx) => {
+  const result = await getDb().transaction(async (tx) => {
     const [user] = await tx
       .insert(schema.users)
       .values({ unionId, name: displayName, role: "user" })
@@ -44,6 +50,14 @@ export async function registerPublicAgent(
     await tx.insert(schema.travelerProfiles).values({
       userId,
       nickname: displayName.slice(0, 32),
+      companionJson: {
+        echoId: companionEchoId,
+        customName: companionEchoId,
+        style: "balanced",
+        memorySlots: 3,
+        bond: 1,
+      },
+      recordsJson: { world },
     });
 
     const [agent] = await tx
@@ -53,4 +67,6 @@ export async function registerPublicAgent(
 
     return { agentId: agent.id, userId, name: displayName, key, reportToken };
   });
+  const coi = await ensureDefaultCoi(result.agentId);
+  return { ...result, coi: publicCoiGrant(coi) };
 }

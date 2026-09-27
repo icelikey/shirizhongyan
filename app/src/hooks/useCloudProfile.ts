@@ -18,6 +18,7 @@ import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/store/profile'
 import type { Companion, EchoMemory, GameId, GameRecord, ProfileState } from '@/store/profile'
+import { normalizeWorldState, type WorldCycleState } from '@contracts/worldCycle'
 import type { Suit } from '@/data/echoes'
 import type { Tier } from '@/data/tiers'
 
@@ -51,7 +52,7 @@ function toPayload(s: ProfileState) {
     tier: s.tier,
     zodiacJson: { ...s.zodiac, winsToward: s.winsTowardZodiac },
     companionJson: s.companion,
-    recordsJson: { ...s.records, mvps: s.mvps },
+    recordsJson: { ...s.records, mvps: s.mvps, world: s.world },
     echoMemoriesJson: s.echoMemories,
     unlockedLoreJson: s.unlockedLore,
   }
@@ -132,6 +133,17 @@ function parseEchoMemories(v: unknown, fallback: ProfileState['echoMemories']): 
   return out
 }
 
+function parseWorld(v: unknown, fallback: WorldCycleState): WorldCycleState {
+  const merged = isObj(v)
+    ? {
+        ...fallback,
+        ...v,
+        ability: { ...fallback.ability, ...(isObj(v.ability) ? v.ability : {}) },
+      }
+    : fallback
+  return normalizeWorldState(merged, Date.now(), fallback.ability.sourceEchoId)
+}
+
 /** 云端为准合并进本地（昵称保留本地仪式名，不动 session） */
 function applyCloud(row: CloudRow) {
   const local = useProfile.getState()
@@ -165,6 +177,7 @@ function applyCloud(row: CloudRow) {
     unlockedLore: Array.isArray(row.unlockedLoreJson)
       ? row.unlockedLoreJson.filter((n): n is number => typeof n === 'number')
       : local.unlockedLore,
+    world: parseWorld(rec.world, local.world),
   })
 }
 

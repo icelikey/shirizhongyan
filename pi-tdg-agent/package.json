@@ -1,0 +1,16 @@
+{
+  "name": "endgame-pi-tdg-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pi Agent tools for the 终焉 TDG-WP Gateway",
+  "engines": { "node": ">=22.19.0" },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/client.mjs && node --check src/tools.mjs && node --check src/pi-agent.mjs && node --check src/loop.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.87.1",
+    "typebox": "1.3.27"
+  }
+}

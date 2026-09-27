@@ -388,7 +388,7 @@ export function PlayerDrawer({ entry, revealed, memories, onClose }: PlayerDrawe
                 {(
                   [
                     { id: 'werewolf', label: '♠ 月影狼人杀', color: '#8B93F8' },
-                    { id: 'guess', label: '♣ 猜平均数', color: '#4ECB9C' },
+                    { id: 'guess', label: '♣ 众念锚定', color: '#4ECB9C' },
                   ] as const
                 ).map((g) => {
                   const s = entry.stats[g.id]

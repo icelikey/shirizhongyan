@@ -17,7 +17,7 @@ const SIZES = {
 const SUIT_USAGE: Record<Suit, string> = {
   spade: '玄渊碎片 · 狼人杀门票 / 建房 / 解锁残章',
   heart: '丹丘碎片 · 影从记忆槽 / 解锁残章',
-  club: '青野碎片 · 猜平均数门票 / 建房 / 解锁残章',
+  club: '青野碎片 · 众念锚定门票 / 建房 / 解锁残章',
   diamond: '金壤碎片 · 竞逐入场 / 解锁残章',
 }
 

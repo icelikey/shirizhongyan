@@ -16,7 +16,11 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:ensure-agent-reports": "node scripts/ensure-agent-reports.mjs",
-    "db:seed": "tsx db/seed.ts"
+    "db:ensure-agent-coi": "node scripts/ensure-agent-coi.mjs",
+    "db:ensure-world-emergence": "node scripts/ensure-world-emergence.mjs",
+    "db:seed": "tsx db/seed.ts",
+    "accept:live-agent-billiards": "tsx scripts/accept-live-agent-billiards.mts",
+    "accept:live-agent-cli": "node scripts/accept-live-agent-cli.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",

@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 const GAME_TABS: { id: GameTab; label: string }[] = [
   { id: 'overall', label: '总天梯' },
   { id: 'werewolf', label: '♠ 狼人杀' },
-  { id: 'guess', label: '♣ 猜平均数' },
+  { id: 'guess', label: '♣ 众念锚定' },
 ]
 
 type Filter = 'blind' | Identity

@@ -14,7 +14,7 @@ import {
 } from "./world/judges";
 import { insertRuling } from "./queries/rulings";
 import { grantCard } from "./queries/playerCards";
-import { createRouter, authedQuery, publicQuery } from "./middleware";
+import { createRouter, adminQuery, authedQuery, publicQuery } from "./middleware";
 import {
   createAgentKey,
   findActiveAgentKey,
@@ -22,11 +22,20 @@ import {
   revokeAgentKey,
   touchAgentKey,
 } from "./queries/agentKeys";
+import { actionScopeForGameAction } from "@contracts/worldCoi";
+import { requireCoi, revokeAgentCoi } from "./queries/agentCoi";
 import { getSdkRoom, listRoomSummaries } from "./games/sdk/registry";
 import { findRoomByCode } from "./queries/rooms";
 import { gameActionSchema } from "./roomRouter";
 import { env } from "./lib/env";
 import { registerPublicAgent } from "./queries/agentRegistration";
+import { findProfileByUserId } from "./queries/profiles";
+import {
+  buildAgentMemoryContext,
+  createWorldState,
+  reconcileWorldState,
+  type WorldCycleState,
+} from "@contracts/worldCycle";
 
 const codeSchema = z
   .string()
@@ -76,6 +85,13 @@ async function requireRoom(code: string) {
     throw new TRPCError({ code: "NOT_FOUND", message: "房间不存在" });
   }
   return room;
+}
+
+async function worldContextForAgent(userId: number) {
+  const profile = await findProfileByUserId(userId);
+  const records = profile?.recordsJson as { world?: unknown } | null | undefined;
+  const stored = records?.world as WorldCycleState | null | undefined;
+  return buildAgentMemoryContext(reconcileWorldState(stored ?? createWorldState()));
 }
 
 /**
@@ -257,6 +273,19 @@ export const agentRouter = createRouter({
       return { ok: true };
     }),
 
+  /** 管理员撤销 Agent 的 CoI；撤销后不会因下一次请求自动补发。 */
+  revokeCoi: adminQuery
+    .input(z.object({
+      agentId: z.number().int().positive(),
+      grantId: z.string().trim().min(1).max(96),
+      reason: z.string().trim().min(1).max(256).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const ok = await revokeAgentCoi(input.agentId, input.grantId, input.reason);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "有效 CoI 授权不存在" });
+      return { ok: true };
+    }),
+
   /** 外部 Agent 入座：分配 agent 席，返回与 key 绑定的 seatToken */
   gatewayJoin: publicQuery
     .input(z.object({ key: z.string().optional(), code: codeSchema }))
@@ -267,19 +296,21 @@ export const agentRouter = createRouter({
         input.key,
       );
       const room = await requireRoom(input.code);
+      await requireCoi({ agentKeyId: key.id, gameId: room.def.id, matchId: room.code, action: "join_match" });
       const joined = await room.joinAsAgent({ id: key.id, name: key.name });
-      return { ...joined, agentId: key.id };
+      return { ...joined, agentId: key.id, worldContext: await worldContextForAgent(key.userId) };
     }),
 
   /** 可见房间列表（key 鉴权） */
   gatewayRooms: publicQuery
     .input(z.object({ key: z.string().optional() }).optional())
     .query(async ({ ctx, input }) => {
-      await requireAgentKey(
+      const key = await requireAgentKey(
         ctx.req.headers.get("x-api-key") ??
           ctx.req.headers.get("authorization"),
         input?.key,
       );
+      await requireCoi({ agentKeyId: key.id, read: "world_discovery" });
       return listRoomSummaries();
     }),
 
@@ -293,6 +324,7 @@ export const agentRouter = createRouter({
         input.key,
       );
       const room = await requireRoom(input.code);
+      await requireCoi({ agentKeyId: key.id, gameId: room.def.id, matchId: room.code, read: "own_observation" });
       const state = room.getState();
       const seat = state.seats.find(
         (s) => s?.kind === "external-agent" && s.agentKeyId === key.id,
@@ -303,7 +335,10 @@ export const agentRouter = createRouter({
           message: "该 Agent 未在此房间入座（先调用 gatewayJoin）",
         });
       }
-      return room.view(seat.seatToken);
+      return {
+        ...room.view(seat.seatToken),
+        worldContext: await worldContextForAgent(key.userId),
+      };
     }),
 
   /** 提交动作；更新 lastUsedAt */
@@ -322,6 +357,12 @@ export const agentRouter = createRouter({
         input.key,
       );
       const room = await requireRoom(input.code);
+      await requireCoi({
+        agentKeyId: key.id,
+        gameId: room.def.id,
+        matchId: room.code,
+        action: actionScopeForGameAction(input.action),
+      });
       const state = room.getState();
       const seat = state.seats.find(
         (s) => s?.kind === "external-agent" && s.agentKeyId === key.id,
@@ -345,12 +386,13 @@ export const agentRouter = createRouter({
   gatewayRulebook: publicQuery
     .input(z.object({ key: z.string().optional(), code: codeSchema }))
     .query(async ({ ctx, input }) => {
-      await requireAgentKey(
+      const key = await requireAgentKey(
         ctx.req.headers.get("x-api-key") ??
           ctx.req.headers.get("authorization"),
         input.key,
       );
       const room = await requireRoom(input.code);
+      await requireCoi({ agentKeyId: key.id, gameId: room.def.id, matchId: room.code, read: "public_events" });
       const book = ruleBookForTemplate(room.def.template);
       if (!book) {
         throw new TRPCError({
@@ -396,6 +438,8 @@ export const agentRouter = createRouter({
           ctx.req.headers.get("authorization"),
         input.key,
       );
+      const room = await requireRoom(input.code);
+      await requireCoi({ agentKeyId: key.id, gameId: room.def.id, matchId: room.code, action: "rule_appeal" });
       return appealForAgent({
         key,
         code: input.code,

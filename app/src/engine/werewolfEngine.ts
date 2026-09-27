@@ -2,7 +2,7 @@
  * ============================================================================
  * 月影狼人杀引擎（src/engine/werewolfEngine.ts）· ♠ 玄渊圆桌
  * ----------------------------------------------------------------------------
- * 6 人简化局：狼人 ×2、预言家 ×1、女巫 ×1、平民 ×2。
+ * 12 人标准演示局：狼人 ×4、预言家 ×1、女巫 ×1、平民 ×6。
  * 流程：发牌（翻牌演出）→ 夜晚（狼刀 → 预言验 → 女巫救/毒，可同救同毒）
  *       → 清晨死讯 → 白天逐人发言（顺序轮换）→ 投票放逐（平票无人出局）
  *       → 遗言 → 下一夜。
@@ -286,7 +286,7 @@ export class WerewolfEngine {
     return this.state.seats[seat].name
   }
 
-  /** 展示号位（1–6） */
+  /** 展示号位（1–12） */
   static displaySeat(seat: number): number {
     return seat + 1
   }
@@ -375,7 +375,11 @@ export class WerewolfEngine {
   }
 
   private assignRoles() {
-    const roles = this.rng.shuffle<Role>(['werewolf', 'werewolf', 'seer', 'witch', 'villager', 'villager'])
+    const roles = this.rng.shuffle<Role>([
+      'werewolf', 'werewolf', 'werewolf', 'werewolf',
+      'seer', 'witch',
+      'villager', 'villager', 'villager', 'villager', 'villager', 'villager',
+    ])
     const seats = this.state.seats.map((s, i) => ({ ...s, role: roles[i] }))
     /* 基础嫌疑取平（0.25）：让发言/事件产生的信息差决定票型，而非初始噪声 */
     this.suspicion = seats.map(() => 0.25)

@@ -32,7 +32,7 @@ export const SCENE_ASSETS: Record<string, SceneAsset> = {
     label: "白泽 · 观星台",
     status: "planned",
     tripoPrompt: "东方山海经异兽白泽，青白玉质骨甲，额生星纹，悬浮于古老观星台，暗金与靛蓝，游戏资产，完整三视图，干净背景",
-    gameplayUse: "猜平均数揭晓时的星盘裁判特效",
+    gameplayUse: "众念锚定揭晓时的星盘裁判特效",
   },
   eshou: {
     id: "beast-eshou",

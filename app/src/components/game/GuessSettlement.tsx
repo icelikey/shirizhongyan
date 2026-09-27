@@ -1,5 +1,5 @@
 /**
- * 猜平均数终局结算演出（全屏 Overlay，design game-guess.md「终局结算演出」）。
+ * 众念锚定终局结算演出（全屏 Overlay，design game-guess.md「终局结算演出」）。
  * 前三名登坛 + 完整名次表 + 影从评语 + 操作按钮。
  * 碎片 RewardFly 由页面层触发（此处仅展示数额）。
  */

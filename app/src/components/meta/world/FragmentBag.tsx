@@ -13,7 +13,7 @@ import SuitIcon from '@/components/SuitIcon'
 const USAGE: Record<Suit, string> = {
   spade: '狼人杀门票 · 建房 · 残章',
   heart: '影从记忆槽 · 残章',
-  club: '猜平均数门票 · 建房 · 残章',
+  club: '众念锚定门票 · 建房 · 残章',
   diamond: '竞逐入场 · 残章封存',
 }
 

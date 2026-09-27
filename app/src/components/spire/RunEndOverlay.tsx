@@ -4,9 +4,12 @@
  * - GameOverOverlay：坠塔（endCombat win=false → phase gameover）：死亡结算。
  * 两者都以「返回门厅」结束（abandonRun 后由页面跳转）。
  */
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Skull, Sunrise } from 'lucide-react'
+import { BrainCircuit, Skull, Sunrise } from 'lucide-react'
 import { useSpire } from '@/store/spire'
+import { useProfile } from '@/store/profile'
+import { memoryCapacity, WORLD_MEMORY_CARDS } from '@contracts/worldCycle'
 import GoldButton from '@/components/GoldButton'
 import SuitIcon from '@/components/SuitIcon'
 import { FLOOR_NAMES } from '@/components/spire/SpireTopBar'
@@ -87,6 +90,20 @@ export function GameOverOverlay({ onLeave }: { onLeave: () => void }) {
   const kills = useSpire((s) => s.kills)
   const deck = useSpire((s) => s.deck)
   const relics = useSpire((s) => s.relics)
+  const world = useProfile((s) => s.world)
+  const restoreWorldFromDeath = useProfile((s) => s.restoreWorldFromDeath)
+  const [selected, setSelected] = useState<string[]>([])
+  const capacity = memoryCapacity(world)
+
+  useEffect(() => {
+    setSelected(world.pendingDeathSelection.slice(0, capacity))
+  }, [world.pendingDeathSelection, capacity])
+
+  const toggleMemory = (id: string) => {
+    setSelected((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : current.length < capacity ? [...current, id] : current)
+  }
 
   return (
     <motion.div
@@ -121,9 +138,20 @@ export function GameOverOverlay({ onLeave }: { onLeave: () => void }) {
             </div>
           ))}
         </div>
-        <p className="text-[11px] tracking-wider text-faint">死亡惩罚：本局牌组、遗物与金币散入碎境；门票不退。</p>
-        <GoldButton size="lg" variant="danger" onClick={onLeave} className="w-full">
-          返回门厅
+        <p className="text-[11px] tracking-wider text-faint">死亡惩罚：本局牌组、遗物与金币散入碎境；门票不退。生命积分归零，回到第一层。</p>
+        {world.status === 'dead' && world.pendingDeathSelection.length > 0 && (
+          <div className="w-full rounded-xl border border-suit-diamond/25 bg-suit-diamond/[.05] p-4 text-left">
+            <div className="flex items-center gap-2 text-[12px] text-suit-diamond"><BrainCircuit size={14} /> 选择带回轮回的记忆（最多 {capacity} 张 · 异能额外容量 +{world.ability.memorySlotsBonus}）</div>
+            <div className="mt-3 grid gap-2">
+              {WORLD_MEMORY_CARDS.filter((card) => world.pendingDeathSelection.includes(card.id)).map((card) => {
+                const active = selected.includes(card.id)
+                return <button key={card.id} type="button" onClick={() => toggleMemory(card.id)} className={`rounded-lg border px-3 py-2 text-left transition-colors ${active ? 'border-suit-diamond/60 bg-suit-diamond/10' : 'border-white/[.08] bg-black/10'}`}><div className="flex items-center justify-between gap-2"><span className="text-[12px] text-bone">{card.title}</span><span className="text-[9px] text-faint">{active ? '带回' : '放下'}</span></div><p className="mt-1 text-[10px] leading-4 text-dim">{card.summary}</p></button>
+              })}
+            </div>
+          </div>
+        )}
+        <GoldButton size="lg" variant="danger" onClick={() => { if (world.status === 'dead') restoreWorldFromDeath(selected); onLeave() }} className="w-full">
+          {world.status === 'dead' ? '带回记忆 · 回到底层' : '返回门厅'}
         </GoldButton>
       </div>
     </motion.div>

@@ -2,7 +2,7 @@
  * 规则图鉴 · 核心可视化（codex.md）。本文件组件树只用 GSAP，不用 framer-motion。
  * - RoleGallery     狼人杀角色卡画廊（悬停 3D 翻转看技能）
  * - WerewolfCycle   昼夜流程环形图解（描线生长 + 光点巡游 + 节点注解）
- * - GuessSteps      猜平均数四步步骤条 + 公式图解
+ * - GuessSteps      众念锚定四步步骤条 + 公式图解
  * - LevelKStairs    level-k 思维层级下沉阶梯（50→33→22→15→10）
  * - ZodiacWheel     12 生肖轮回盘
  * - TierLadder      天地玄黄位阶阶梯（金光点亮至玩家当前位阶）

@@ -108,8 +108,8 @@ export default function OnlineLobbySection() {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2.5">
           <Satellite size={17} className="text-suit-club" />
-          <h2 className="font-serifsc font-semibold text-[18px] text-bone tracking-[.08em]">联机大厅</h2>
-          <span className="text-[11px] tracking-[.2em] text-faint hidden sm:inline">真实联机房 · 云端入座 · 10s 轮询</span>
+          <h2 className="font-serifsc font-semibold text-[18px] text-bone tracking-[.08em]">真实联机大厅</h2>
+          <span className="text-[11px] tracking-[.2em] text-faint hidden sm:inline">服务端 room.list · 云端入座 · 10s 轮询</span>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -192,7 +192,7 @@ export default function OnlineLobbySection() {
         <p className="text-[12px] text-faint py-3">星网接驳中…</p>
       ) : rooms.length === 0 ? (
         <p className="text-[12px] text-faint py-3 leading-relaxed">
-          星网上暂无联机房。开一间算庭，等旅人与外来 Agent 同桌落子。
+          当前没有真实联机房。点击“创建联机房”后，这里的房码和席位会来自服务端，不是大厅预览数据。
         </p>
       ) : (
         <div className="flex flex-col gap-2">
@@ -233,6 +233,9 @@ export default function OnlineLobbySection() {
                     <MaskIcon src="/icon-mask.svg" size={11} color="#9B7FE8" /> Agent 在席
                   </span>
                 )}
+                <span className="hidden lg:inline text-[10px] tracking-wider text-dim">
+                  真人 {r.seatBreakdown.human} · Agent {r.seatBreakdown.agent} · 影从 {r.seatBreakdown.echo}
+                </span>
                 <span className="font-mono text-[12px] text-dim shrink-0">
                   {r.seatsTaken}/{r.seatsTotal} 席
                 </span>

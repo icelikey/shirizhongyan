@@ -24,7 +24,31 @@ type ReportPayload = {
       tier: string
       fragments: Record<string, number>
       companion?: { customName?: string; bond?: number } | null
+      world?: {
+        cycle: number
+        day: number
+        floor: number
+        lifeScore: number
+        status: string
+        dailyGames?: { played: number; required: number; remaining: number }
+        crisis?: { title: string; threshold: number }
+        ability?: { name: string; level: number; description: string }
+        memoryCards?: Array<{ id: string; title: string; kind: string; realm: string; summary: string }>
+        backpack?: { mapFragments?: Array<{ id: string; title: string; realm: string; clue: string }>; noteScrolls?: Array<{ id: string; title: string; realm: string; text: string }>; triggeredClueIds?: string[] }
+      }
     } | null
+    world?: {
+      cycle: number
+      day: number
+      floor: number
+      lifeScore: number
+      status: string
+      dailyGames?: { played: number; required: number; remaining: number }
+      crisis?: { title: string; threshold: number }
+      ability?: { name: string; level: number; description: string }
+      memoryCards?: Array<{ id: string; title: string; kind: string; realm: string; summary: string }>
+      backpack?: { mapFragments?: Array<{ id: string; title: string; realm: string; clue: string }>; noteScrolls?: Array<{ id: string; title: string; realm: string; text: string }>; triggeredClueIds?: string[] }
+    }
     cards?: Array<{ cardId: string; kind: string; count: number; source: string }>
     activities?: Array<{ id: number; kind: string; title: string; detail?: string | null; occurredAt: string }>
   }
@@ -72,6 +96,9 @@ export default function AgentReport() {
   const stats = data?.report?.stats || {}
   const snapshot = data?.snapshot
   const profile = snapshot?.profile
+  const world = snapshot?.world || profile?.world
+  const mapFragments = world?.backpack?.mapFragments || []
+  const noteScrolls = world?.backpack?.noteScrolls || []
 
   return (
     <main className="min-h-screen bg-ink px-5 py-8 text-bone sm:px-8 sm:py-12">
@@ -143,11 +170,42 @@ export default function AgentReport() {
                       <div className="flex items-center justify-between"><span>当前位阶</span><span className="text-gold-200">{profile.tier}</span></div>
                       <div className="flex items-center justify-between"><span>契约影从</span><span className="text-suit-diamond">{profile.companion?.customName || profile.nickname}</span></div>
                       <div className="flex items-center justify-between"><span>羁绊</span><span className="text-suit-club">Lv.{profile.companion?.bond || 0}</span></div>
+                      {world && <>
+                        <div className="flex items-center justify-between"><span>世界进度</span><span className="text-suit-diamond">第 {world.cycle} 轮 · 第 {world.day} 日</span></div>
+                        <div className="flex items-center justify-between"><span>塔层 / 生命</span><span className="text-cinnabar-hi">{world.floor} 层 · {world.lifeScore}</span></div>
+                        <div className="flex items-center justify-between"><span>今日牌局</span><span className="text-suit-club">{world.dailyGames?.played || 0}/{world.dailyGames?.required || 3}</span></div>
+                        <div className="flex items-center justify-between"><span>开局异能</span><span className="text-suit-spade">{world.ability?.name || '未载入'} · Lv.{world.ability?.level || 1}</span></div>
+                      </>}
                       <div className="mt-2 grid grid-cols-4 gap-2">
                         {Object.entries(profile.fragments || {}).map(([suit, value]) => <div key={suit} className="rounded-lg border border-white/[.07] bg-black/15 p-2 text-center"><div className="font-cinzel text-[16px] text-bone">{value}</div><div className="mt-1 text-[9px] text-faint">{suit}</div></div>)}
                       </div>
                     </div>
                   ) : <p className="mt-4 text-[12px] text-faint">档案尚未同步。</p>}
+                </div>
+                <div className="panel-bg rounded-2xl p-6">
+                  <h2 className="font-serifsc text-[20px] text-bone">Agent 记忆载荷</h2>
+                  <p className="mt-1 text-[11px] text-faint">每次观测会带入当前已加载的世界记忆与技能指令</p>
+                  <div className="mt-4 flex flex-col gap-2">
+                    {(world?.memoryCards || []).map((card) => <div key={card.id} className="rounded-xl border border-[rgba(227,194,124,.15)] bg-gold-300/[.04] px-3 py-2"><div className="flex items-center justify-between gap-2"><span className="text-[12px] text-bone">{card.title}</span><span className="text-[9px] text-faint">{card.realm}</span></div><p className="mt-1 text-[10px] leading-4 text-dim">{card.summary}</p></div>)}
+                    {!world?.memoryCards?.length && <p className="text-[12px] text-faint">尚未加载记忆卡。</p>}
+                  </div>
+                </div>
+                <div className="panel-bg rounded-2xl p-6">
+                  <h2 className="font-serifsc text-[20px] text-bone">线索背包</h2>
+                  <p className="mt-1 text-[11px] text-faint">地图碎片与笔记残卷会随楼层和地点触发，并进入 Agent 下一次观测。</p>
+                  <div className="mt-4 grid gap-3">
+                    <div>
+                      <p className="text-[11px] text-suit-diamond">地图碎片 · {mapFragments.length}</p>
+                      {mapFragments.map((fragment) => <div key={fragment.id} className="mt-2 rounded-lg border border-white/[.07] bg-black/15 p-2"><p className="text-[11px] text-bone">{fragment.title}</p><p className="mt-1 text-[10px] leading-4 text-dim">{fragment.clue}</p></div>)}
+                      {!mapFragments.length && <p className="mt-2 text-[10px] text-faint">尚未发现地图碎片。</p>}
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-suit-club">笔记残卷 · {noteScrolls.length}</p>
+                      {noteScrolls.map((note) => <div key={note.id} className="mt-2 rounded-lg border border-white/[.07] bg-black/15 p-2"><p className="text-[11px] text-bone">{note.title}</p><p className="mt-1 text-[10px] leading-4 text-dim">{note.text}</p></div>)}
+                      {!noteScrolls.length && <p className="mt-2 text-[10px] text-faint">尚未发现笔记残卷。</p>}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[10px] text-faint">已触发地点线索 · {world?.backpack?.triggeredClueIds?.length || 0}</p>
                 </div>
                 <div className="panel-bg rounded-2xl p-6">
                   <h2 className="font-serifsc text-[20px] text-bone">获得卡牌</h2>

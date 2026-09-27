@@ -288,6 +288,7 @@ export const superpowerBilliardsModule: TemplateModule = {
       const entry = entries.find((candidate) => candidate.payload === ability);
       const seat = entry?.seat ?? -1;
       const target = st.balls.find((ball) => ball.id === ability.targetBall);
+      const targetStrike = strikes.find((strike) => strike.ballId === ability.targetBall);
       const uses = seat >= 0 ? (st.abilityUses[seat]?.[ability.abilityId] ?? 0) : 1;
       let accepted = false;
       let reason = "能力提案不符合当前触发条件";
@@ -305,7 +306,12 @@ export const superpowerBilliardsModule: TemplateModule = {
         target.vx = -target.vy;
         target.vy = vx;
         accepted = true;
-      } else if (ability.abilityId === "phase-walk" && Math.hypot(target.vx, target.vy) >= SPEED_THRESHOLD && ability.decision === "phase_walk") {
+      } else if (
+        ability.abilityId === "phase-walk" &&
+        targetStrike &&
+        targetStrike.power * 4.8 >= SPEED_THRESHOLD &&
+        ability.decision === "phase_walk"
+      ) {
         target.x = Math.max(BALL_R + 0.5, Math.min(TABLE_W - BALL_R - 0.5, target.x + target.vx * 2));
         target.y = Math.max(BALL_R + 0.5, Math.min(TABLE_H - BALL_R - 0.5, target.y + target.vy * 2));
         accepted = true;

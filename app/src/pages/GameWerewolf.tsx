@@ -58,10 +58,11 @@ const EMPTY_STATE: WolfState = {
 function buildSeats(nickname: string, companionId: string | undefined, gameNo: number, roomId: string): Seat[] {
   const rng = new Rng(hashSeed(`wolf#${roomId}#${gameNo}#seats`))
   const pool = ECHOES.filter((e) => e.id !== companionId)
-  const picked = rng.shuffle(pool).slice(0, 5)
+  const picked = rng.shuffle(pool)
+  const aiSeats = Array.from({ length: 11 }, (_, i) => picked[i % picked.length])
   return [
     { seat: 0, kind: 'human', name: nickname },
-    ...picked.map((e, i) => ({ seat: i + 1, kind: 'echo' as const, name: e.name, echoId: e.id })),
+    ...aiSeats.map((e, i) => ({ seat: i + 1, kind: 'echo' as const, name: i < picked.length ? e.name : `${e.name}·${Math.floor(i / picked.length) + 1}`, echoId: e.id })),
   ]
 }
 
@@ -388,7 +389,7 @@ export default function GameWerewolf() {
             第 {state.day} 天 · {PHASE_LABEL[state.phase] ?? ''}
           </span>
         }
-        pool={WOLF_TICKET * 6}
+        pool={WOLF_TICKET * 12}
         onExit={() => setExitModal(true)}
         extra={
           <label className="hidden sm:flex items-center gap-2 cursor-pointer select-none mr-2" title="委托契约影从全程代打（于下一环节生效）">
@@ -707,7 +708,7 @@ function DealShow({ role, phaseEndsAt }: { role: Role; phaseEndsAt: number | nul
       {stage === 'shuffle' ? (
         /* 六张牌背洗混 */
         <div className="flex gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 12 }).map((_, i) => (
             <motion.div
               key={i}
               animate={{ x: [0, (i % 2 === 0 ? 26 : -26), (i % 3 === 0 ? -18 : 18), 0], rotate: [0, 4, -3, 0] }}
@@ -734,7 +735,7 @@ function DealShow({ role, phaseEndsAt }: { role: Role; phaseEndsAt: number | nul
           >
             <span className="font-mashan text-[40px]" style={{ color: meta.camp === 'wolf' ? '#F0655A' : '#4ECB9C' }}>{meta.name}</span>
             <span className="text-[13px] text-dim tracking-[.2em]">{meta.motto}</span>
-            <span className="text-[11px] text-faint mt-1">你的身份已加密下发 · 牌局即将开始</span>
+          <span className="text-[11px] text-faint mt-1">你的身份已加密下发 · 十二席牌局即将开始</span>
           </motion.div>
         </motion.div>
       )}

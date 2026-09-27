@@ -32,6 +32,14 @@ import {
   rejectCommandReceipt,
   reserveCommandReceipt,
 } from "./queries/commandReceipts";
+import { WORLD_EMERGENCE_VERSION, WORLD_DIRECTIONS } from "@contracts/worldEmergence";
+import { getPublicWorldSnapshot, getPublicWorldState } from "./queries/worldEmergence";
+import { proposeWorldMerge, worldSnapshotSchema } from "@contracts/worldEmergence";
+import { publicSkillCatalog } from "@contracts/skills";
+import { publicWorldGovernance } from "@contracts/worldGovernance";
+import { actionScopeForGameAction } from "@contracts/worldCoi";
+import { listAgentCoi, coiUsageSummary, requireCoi } from "./queries/agentCoi";
+import { getAgentWorldContext } from "./queries/agentWorld";
 
 /** TDG-WP v0.1 的 HTTP/JSON 适配层；网页内部 tRPC 入口另行保留。 */
 export const worldGateway = new Hono();
@@ -53,16 +61,33 @@ class GatewayError extends Error {
 
 function descriptor(c: Context) {
   const origin = publicOrigin(c);
+  const worldId = process.env.TDG_WORLD_ID?.trim() || "tdg-world";
   return {
     protocolVersion: PROTOCOL_VERSION,
-    worldId: "tdg-world",
+    worldId,
     name: "终焉 · Distributed Intelligence World",
     status: "proposal-backed-local-runtime",
+    worldModel: {
+      kind: "server-is-a-world",
+      emergenceVersion: WORLD_EMERGENCE_VERSION,
+      directions: WORLD_DIRECTIONS,
+      publicState: "aggregated-only",
+      federation: "snapshot-proposal",
+      note: "对局秘密留在房间；世界层只接收已结算、可审计的公开贡献。",
+    },
+    governance: publicWorldGovernance(),
     endpoints: {
       discovery: `${origin}/.well-known/tdg-world.json`,
       registerAgent: `${origin}/world/v1/agents`,
       agentActivity: `${origin}/world/v1/agents/:agentId/activity`,
       agentReport: `${origin}/world/v1/agents/:agentId/report`,
+      worldIntel: `${origin}/world/v1/agents/:agentId/world`,
+      agentCoi: `${origin}/world/v1/agents/:agentId/coi`,
+      worldState: `${origin}/world/v1/world/state`,
+      worldSnapshot: `${origin}/world/v1/world/snapshot`,
+      governance: `${origin}/world/v1/governance`,
+      federationProposal: `${origin}/world/v1/federation/proposals`,
+      skills: `${origin}/world/v1/skills`,
       games: `${origin}/world/v1/games`,
       matches: `${origin}/world/v1/matches`,
     },
@@ -78,7 +103,19 @@ function descriptor(c: Context) {
       a2a: "adapter-planned",
       persistentWorker: true,
       dailyReports: true,
+      worldCycle: true,
+      dailyGameQuota: 3,
+      dailyDarkMatchQuota: {
+        required: 3,
+        counts: "completed server-settled matches",
+        enforcement: "uncompleted games become life-score time debt at day boundary",
+      },
+      worldIntel: true,
+      memoryCards: true,
+      officialSkills: true,
+      abilityContext: true,
       reportChannels: ["feishu", "wecom"],
+      coi: true,
       sse: false,
     },
     supportedGames: OFFICIAL_GAMES.map((game) => ({
@@ -158,6 +195,10 @@ async function requireRoom(code: string) {
   return room;
 }
 
+async function worldContextForUser(userId: number) {
+  return (await getAgentWorldContext(userId)).worldContext;
+}
+
 async function agentSeat(c: Context) {
   const key = await requireAgent(c);
   const room = await requireRoom(codeFromPath(c));
@@ -219,8 +260,74 @@ const activitySchema = z.object({
   occurredAt: z.string().datetime().optional(),
 });
 
+const federationProposalSchema = z.object({
+  leftSnapshot: worldSnapshotSchema,
+  rightSnapshot: worldSnapshotSchema,
+});
+
 worldGateway.get("/.well-known/tdg-world.json", (c) => c.json(descriptor(c)));
 worldGateway.get("/world/v1", (c) => c.json(descriptor(c)));
+
+/** 服务器世界的公开聚合状态；不返回房间秘密和玩家私有记忆。 */
+worldGateway.get("/world/v1/world/state", async (c) => {
+  try {
+    const state = await getPublicWorldState(c.req.query("worldId"));
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      public: true,
+      world: state,
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/** 跨服务器交换的公开快照；不包含房间秘密、个人记忆或 Agent 凭证。 */
+worldGateway.get("/world/v1/world/snapshot", async (c) => {
+  try {
+    const snapshot = await getPublicWorldSnapshot(c.req.query("worldId"));
+    if (!snapshot) throw new TRPCError({ code: "NOT_FOUND", message: "该世界尚未形成公开纪元快照" });
+    return c.json({ protocolVersion: PROTOCOL_VERSION, snapshot });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/** 官方 Skill 目录是公开的；真正的使用仍需经过 Agent 身份、阶段和规则内核。 */
+/** 天道 Agent 的公开治理边界；不包含玩家秘密、凭证或未发布的剧情答案。 */
+worldGateway.get("/world/v1/governance", (c) => c.json({
+  protocolVersion: PROTOCOL_VERSION,
+  governance: publicWorldGovernance(),
+}));
+
+worldGateway.get("/world/v1/skills", (c) => c.json({
+  protocolVersion: PROTOCOL_VERSION,
+  version: "1.0",
+  skills: publicSkillCatalog(),
+  boundary: "skills_may_change_information_planning_budget_route_or_explanation; never_settle_results",
+}));
+
+/**
+ * 由已注册 Agent 代为发起的公开接轨提案。
+ * 服务端只比较两个公开快照，不自动合并玩家、房间或隐私数据。
+ */
+worldGateway.post("/world/v1/federation/proposals", async (c) => {
+  try {
+    const key = await requireAgent(c);
+    const input = federationProposalSchema.parse(await jsonBody(c));
+    const proposal = proposeWorldMerge(input.leftSnapshot, input.rightSnapshot);
+    void recordAgentActivity({
+      agentKeyId: key.id,
+      kind: "federation",
+      title: `世界接轨提案 · ${proposal.leftWorldId} ↔ ${proposal.rightWorldId}`,
+      detail: proposal.status === "compatible" ? "公开快照通过兼容性检查，等待世界审批。" : "公开快照存在冲突，提案保持阻塞。",
+      payload: { mergeId: proposal.mergeId, status: proposal.status, conflicts: proposal.conflicts },
+    }).catch(() => undefined);
+    return c.json({ protocolVersion: PROTOCOL_VERSION, proposal });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
 
 worldGateway.post("/world/v1/agents", async (c) => {
   try {
@@ -238,6 +345,7 @@ worldGateway.post("/world/v1/agents", async (c) => {
         reportToken: result.reportToken,
         reportUrl: `${origin}/agent-report/${result.agentId}?token=${encodeURIComponent(result.reportToken)}`,
       },
+      coi: result.coi,
     }, 201);
   } catch (error) {
     return errorResponse(c, error);
@@ -261,7 +369,8 @@ worldGateway.get("/world/v1/games", (c) => c.json({
 
 worldGateway.get("/world/v1/matches", async (c) => {
   try {
-    await requireAgent(c);
+    const key = await requireAgent(c);
+    await requireCoi({ agentKeyId: key.id, read: "world_discovery" });
     return c.json({ protocolVersion: PROTOCOL_VERSION, matches: listRoomSummaries() });
   } catch (error) {
     return errorResponse(c, error);
@@ -272,7 +381,14 @@ worldGateway.post("/world/v1/matches/:code/join", async (c) => {
   try {
     const key = await requireAgent(c);
     const room = await requireRoom(codeFromPath(c));
-    const joined = await room.joinAsAgent({ id: key.id, name: key.name });
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      action: "join_match",
+    });
+    const joined = await room.joinAsAgent({ id: key.id, userId: key.userId, name: key.name });
+    const world = await getAgentWorldContext(key.userId);
     void recordAgentActivity({
       agentKeyId: key.id,
       kind: "match",
@@ -290,6 +406,8 @@ worldGateway.post("/world/v1/matches/:code/join", async (c) => {
       match: { code: joined.code, seatIndex: joined.seatIndex },
       binding: bindingFor(room.code, key.id, joined.seatIndex),
       observation: room.view(joined.seatToken),
+      worldContext: world.worldContext,
+      worldIntel: world.worldIntel,
     });
   } catch (error) {
     return errorResponse(c, error);
@@ -341,6 +459,7 @@ worldGateway.post("/world/v1/agents/:agentId/activity", async (c) => {
 worldGateway.get("/world/v1/agents/:agentId/report", async (c) => {
   try {
     const { key } = await reportAgent(c);
+    await requireCoi({ agentKeyId: key.id, publish: "daily_report" });
     const reportDate = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
     const report = await buildDailyReport(key.id, reportDate);
     const snapshot = await getAgentReportSnapshot(key.id, reportDate);
@@ -355,9 +474,25 @@ worldGateway.get("/world/v1/agents/:agentId/report", async (c) => {
   }
 });
 
+/** Agent 没有入局时也可读取当前世界层的公开见闻与暗局配额。 */
+worldGateway.get("/world/v1/agents/:agentId/world", async (c) => {
+  try {
+    const { key } = await reportAgent(c);
+    await requireCoi({ agentKeyId: key.id, read: "own_report" });
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      readOnly: true,
+      ...(await getAgentWorldContext(key.userId)),
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
 worldGateway.post("/world/v1/agents/:agentId/daily", async (c) => {
   try {
     const { key } = await reportAgent(c);
+    await requireCoi({ agentKeyId: key.id, publish: "daily_report" });
     const reportDate = c.req.query("date") ?? new Date().toISOString().slice(0, 10);
     const report = await buildDailyReport(key.id, reportDate);
     return c.json({ protocolVersion: PROTOCOL_VERSION, report });
@@ -369,8 +504,25 @@ worldGateway.post("/world/v1/agents/:agentId/daily", async (c) => {
 worldGateway.get("/world/v1/agents/:agentId/activities", async (c) => {
   try {
     const { key } = await reportAgent(c);
+    await requireCoi({ agentKeyId: key.id, read: "own_report" });
     const limit = Number(c.req.query("limit") ?? 60);
     return c.json({ protocolVersion: PROTOCOL_VERSION, activities: await listAgentActivities(key.id, limit) });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/** CoI 授权和使用摘要；只返回当前 Agent 自己的影响域，不暴露其他 Agent。 */
+worldGateway.get("/world/v1/agents/:agentId/coi", async (c) => {
+  try {
+    const { key } = await reportAgent(c);
+    await requireCoi({ agentKeyId: key.id, read: "own_report" });
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      agentId: key.id,
+      grants: await listAgentCoi(key.id),
+      usage: await coiUsageSummary(key.id),
+    });
   } catch (error) {
     return errorResponse(c, error);
   }
@@ -379,11 +531,20 @@ worldGateway.get("/world/v1/agents/:agentId/activities", async (c) => {
 worldGateway.get("/world/v1/matches/:code/observation", async (c) => {
   try {
     const { key, room, seat } = await agentSeat(c);
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      read: "own_observation",
+    });
+    const world = await getAgentWorldContext(key.userId);
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       binding: bindingFor(room.code, key.id, seat.index),
       contextRef: contextFor(room),
       observation: room.view(seat.seatToken!),
+      worldContext: world.worldContext,
+      worldIntel: world.worldIntel,
     });
   } catch (error) {
     return errorResponse(c, error);
@@ -392,7 +553,13 @@ worldGateway.get("/world/v1/matches/:code/observation", async (c) => {
 
 worldGateway.get("/world/v1/matches/:code/rulebook", async (c) => {
   try {
-    const { room } = await agentSeat(c);
+    const { key, room } = await agentSeat(c);
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      read: "public_events",
+    });
     const book = ruleBookForTemplate(room.def.template);
     if (!book) {
       throw new TRPCError({
@@ -424,6 +591,13 @@ worldGateway.post("/world/v1/matches/:code/appeals", async (c) => {
   try {
     const key = await requireAgent(c);
     const code = codeFromPath(c);
+    const room = await requireRoom(code);
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      action: "rule_appeal",
+    });
     const input = appealSchema.parse(await jsonBody(c));
     const result = await appealForAgent({ key, code, ...input });
     return c.json({ protocolVersion: PROTOCOL_VERSION, ...result });
@@ -437,6 +611,12 @@ worldGateway.post("/world/v1/matches/:code/commands", async (c) => {
     const { key, room, seat } = await agentSeat(c);
     const envelope = commandSchema.parse(await jsonBody(c));
     const action = gameActionSchema.parse(envelope.action);
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      action: actionScopeForGameAction(action),
+    });
     const scopeId = `match-${room.code.toLowerCase()}`;
     const expectedBinding = bindingFor(room.code, key.id, seat.index);
     if (envelope.bindingId && envelope.bindingId !== expectedBinding.bindingId) {

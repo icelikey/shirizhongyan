@@ -36,7 +36,7 @@ export type MetaGame = 'werewolf' | 'guess'
 export const gameRoute = (game: MetaGame): string => `/game/${game}/${Date.now()}`
 
 /**
- * 影从邀战对应的游戏：♠ 玄渊 → 狼人杀；♣ 青野 → 猜平均数；
+ * 影从邀战对应的游戏：♠ 玄渊 → 狼人杀；♣ 青野 → 众念锚定；
  * ♥ 丹丘（心理）→ 狼人杀；♦ 金壤大陆未开启 → null（禁用邀战）。
  */
 export const gameForEcho = (echo: Echo): MetaGame | null => {
@@ -48,7 +48,7 @@ export const gameForEcho = (echo: Echo): MetaGame | null => {
 
 export const GAME_META: Record<MetaGame, { name: string; suit: Suit; ticketMin: number; ticketMax: number }> = {
   werewolf: { name: '月影狼人杀', suit: 'spade', ticketMin: 10, ticketMax: 30 },
-  guess: { name: '猜平均数', suit: 'club', ticketMin: 5, ticketMax: 20 },
+  guess: { name: '众念锚定', suit: 'club', ticketMin: 5, ticketMax: 20 },
 }
 
 /* ── 影从四维假数据（攻击性 / 欺骗 / 计算 / 心理，0-100） ─────────────── */
@@ -98,7 +98,7 @@ export const ECHO_RIVAL_SEED: Record<string, RivalStat> = {
 export const ECHO_NOTE_SEED: Record<string, string[]> = {
   baize: ['第 2 日 · 狼人杀对座，TA 第三轮点破你的悍跳。', '第 4 日 · 你再遇白泽，险胜半票。'],
   eshou: ['第 3 日 · 讹兽悍跳预言家，你被带节奏出局。', '第 5 日 · 你识破了 TA 的倒钩。'],
-  xuanji: ['第 2 日 · 猜平均数败于璇玑，差 0.7。', '第 4 日 · TA 的第三层思维碾压全场。'],
+  xuanji: ['第 2 日 · 众念锚定败于璇玑，差 0.7。', '第 4 日 · TA 的第三层思维碾压全场。'],
   qingnang: ['第 3 日 · 青囊与你结盟两轮，末轮拆盟。', '第 6 日 · TA 替你解了一次围。'],
   zhuyin: ['第 5 日 · 烛阴在资源局压你一头。'],
   ajiu: ['第 2 日 · 阿九凭直觉放逐了你。', '第 5 日 · 你骗过了 TA 一次，TA 记到现在。'],

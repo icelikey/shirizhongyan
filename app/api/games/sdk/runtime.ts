@@ -39,6 +39,8 @@ import {
   validateSeatComposition,
 } from "@contracts/gameSdk";
 import { awardGameResult } from "../../queries/profiles";
+import { recordAgentGameResult } from "../../queries/agentWorld";
+import { recordAgentActivity } from "../../queries/agentActivity";
 import { incrementGameDefPlays } from "../../queries/gameDefs";
 import { persistRoomState } from "../../queries/rooms";
 import { insertMatchLog } from "../../queries/matchLogs";
@@ -48,6 +50,7 @@ import { ruleBookForTemplate } from "@contracts/rulebooks.data";
 import { EventRecorder, newMatchSeed } from "./eventRecorder";
 import type { RoundEntry, TemplateModule } from "./templates";
 import { FLY_ATLAS } from "./flybrain/atlas.generated";
+import { recordMatchWorldContributions } from "../../queries/worldEmergence";
 
 export const REVEAL_MS = 5_000;
 /** v4 SDK 房间快照标记（v3 旧快照无此字段 → 不恢复） */
@@ -275,7 +278,7 @@ export class SdkRoom {
     });
   }
 
-  async joinAsAgent(key: { id: number; name: string }) {
+  async joinAsAgent(key: { id: number; userId?: number | null; name: string }) {
     return this.enqueue(() => {
       // 外部 Agent 的 join 是幂等的：断线重连、CLI 重启或进程恢复时，
       // 使用同一 API Key 返回原座位，不重复占席，也不要求房间仍在 waiting。
@@ -301,7 +304,7 @@ export class SdkRoom {
         name: key.name,
         kind: "external-agent",
         seatToken: newSeatToken(),
-        userId: null,
+        userId: key.userId ?? null,
         agentKeyId: key.id,
         score: 0,
       };
@@ -730,6 +733,12 @@ export class SdkRoom {
       });
       this.state.matchLogId = logId;
       this.touch();
+      await recordMatchWorldContributions({
+        def: this.def,
+        matchLogId: logId,
+        seats: this.state.seats,
+        rankings: this.state.rankings ?? [],
+      });
     } catch (err) {
       console.error(`[sdkRoom] ${this.code} 事件流落库失败`, err);
       return; // 落库失败则不发卡：卡牌应可溯源到具体一局
@@ -789,7 +798,8 @@ export class SdkRoom {
 
   /**
    * finished 后仅结算一次：authed 人类席位按 def.rewards 名次奖励 −
-   * def.entryFee.amount 门票的净值入 traveler_profiles（花色 = entryFee.suit）。
+   * def.entryFee.amount 门票的净值入 traveler_profiles（花色 = entryFee.suit）；
+   * 外部 Agent 同时推进自己的世界周期，完成一场可审计的黑暗对局。
    * 事务/幂等模式沿用 v3（settled 标记 + GREATEST 非负兜底）。
    */
   private async settleRewards() {
@@ -799,7 +809,7 @@ export class SdkRoom {
     const { rewards, entryFee } = this.def;
     const jobs: Promise<unknown>[] = [];
     for (const seat of this.state.seats) {
-      if (!seat || seat.kind !== "human" || seat.userId == null) continue;
+      if (!seat || seat.userId == null) continue;
       const rank = rankings.indexOf(seat.index);
       const reward =
         rank === 0
@@ -808,16 +818,38 @@ export class SdkRoom {
             ? rewards.runnerUp
             : rewards.participation;
       const delta = reward - entryFee.amount;
-      jobs.push(
-        awardGameResult(seat.userId, {
-          suit: entryFee.suit,
-          delta,
-          won: rank === 0,
-          recordKey: this.module.recordKey,
-        }).catch((err) =>
-          console.error(`[sdkRoom] settle ${this.code} failed`, err),
-        ),
-      );
+      if (seat.kind === "human") {
+        jobs.push(
+          awardGameResult(seat.userId, {
+            suit: entryFee.suit,
+            delta,
+            won: rank === 0,
+            recordKey: this.module.recordKey,
+          }).catch((err) => console.error(`[sdkRoom] settle ${this.code} failed`, err)),
+        );
+      }
+      if (seat.kind === "external-agent" && seat.agentKeyId != null) {
+        const result = rank === 0 ? "win" : "loss";
+        jobs.push(
+          recordAgentGameResult({ userId: seat.userId, result })
+            .then((world) => recordAgentActivity({
+              agentKeyId: seat.agentKeyId!,
+              kind: result === "win" ? "victory" : "match",
+              title: `黑暗对局完成 · ${this.def.name}`,
+              detail: result === "win" ? "影从赢下本场对局，世界周期获得推进。" : "影从完成本场对局，失败被记录为可携带的经验。",
+              payload: {
+                code: this.code,
+                gameName: this.def.name,
+                template: this.def.template,
+                darkMatch: true,
+                result,
+                rank: rank + 1,
+                dailyDarkMatches: world?.playedToday ?? null,
+              },
+            }))
+            .catch((err) => console.error(`[sdkRoom] agent world settle ${this.code} failed`, err)),
+        );
+      }
     }
     await Promise.all(jobs);
   }

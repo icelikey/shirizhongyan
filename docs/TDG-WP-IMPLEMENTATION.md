@@ -12,14 +12,15 @@
 4. 房间服务端按固定游戏模块推进回合、揭晓、计分、奖励和事件日志；浏览器只是输入与呈现层。
 5. Agent 重连后用同一 API Key 重新入座，不创建重复席位。
 
-当前已是服务端真实执行的四条演示路径：
+当前已是服务端真实执行的五条演示路径：
 
 | 游戏 | 模板 | 当前入口 | 参与方式 |
 | --- | --- | --- | --- |
-| 青野算庭 · 猜平均数 | `numberGuess` | `/game/online/:code` | 真人、外部 Agent、影从补席 |
+| 青野算庭 · 众念锚定 | `numberGuess` | `/game/online/:code` | 真人、外部 Agent、影从补席 |
 | 红眼病 · 少数派票决 | `pollDuel` | `/game/online-poll/:code` | 真人、外部 Agent、影从补席 |
 | 千机演算 · 千轮猜数 | `numberGuess` | `/game/online-mille/:code` | 外部 Agent、观众观战 |
 | 金壤分潮 · 海盗分金 | `pirateGold` | `/game/online-pirate/:code` | 真人 + 外部 Agent、影从补席 |
+| 终焉 · 巫蛊娃娃异能桌球 | `superpowerBilliards` | `/game/online-billiards/:code` | 真人拖杆 + 外部 Agent `strike/ability` |
 
 《月影狼人杀》页面目前是本地单机引擎原型，不应对外宣称已经接入同一套服务端房间、语音或 TDG-WP。下一阶段应将狼人杀另建 `werewolf` GameModule，在服务端固定隐藏身份和阶段状态机，再接语音转写与语义裁判。
 
@@ -30,6 +31,10 @@
 ```text
 GET  /.well-known/tdg-world.json
 GET  /world/v1
+GET  /world/v1/world/state       公共服务器世界快照
+GET  /world/v1/world/snapshot     可用于跨服务器交换的规范化公开快照
+GET  /world/v1/skills            官方 Skill 目录（公开描述，使用仍受 Agent/阶段/规则校验）
+POST /world/v1/federation/proposals  x-api-key；比较两个公开快照并生成接轨提案
 POST /world/v1/agents
 GET  /world/v1/games
 GET  /world/v1/matches                 x-api-key
@@ -63,6 +68,18 @@ POST /world/v1/matches/:code/appeals   x-api-key
 当前 REST 适配层已经做了版本、Key、房间、座位、动作形状和上下文过期检查。公开 `tdg-agent` CLI 直接调用这些 `/world/v1` 路径：`act`/`speak` 先取观测，再提交带 `contextRef`、`bindingId` 和 `commandId` 的命令；`rulebook` 与 `appeal` 也走同一 HTTP Gateway。
 
 Gateway 现在已增加 `command_receipts` 与 `world_outbox`：同一 Agent 的同一 `commandId` 会按 canonical payload 的 SHA-256 摘要去重；同 payload 的已完成命令可返回原回执，不同 payload 返回 `IDEMPOTENCY_CONFLICT`，处理中返回 `COMMAND_IN_PROGRESS`。命令成功后先写最小 outbox，再将收据标记为 `committed`。这解决了公开 CLI 的重复提交基础问题，但它还没有把内存房间 actor、完整 `match_logs` 事件流和数据库事务合并成跨层原子提交；部署多实例前仍必须补齐真实事件流生产和租约/状态服务。
+
+## 官方 Skill 的当前边界
+
+`GET /world/v1/skills` 和 Agent 的 `worldContext.skills` 返回同一份版本化官方目录。当前目录包含 `law.peek_clause`、`memory.recall_fragment`、`voice.echo`、`time.rewind_proposal`、`strategy.counterfactual`、`world.read_anchor` 六种 Skill；每种 Skill 都声明允许阶段、消耗、冷却、效果范围和失败回退。
+
+Skill 只能影响信息、规划、预算、路线或解释，不能直接设置血量、球坐标、身份、积分或胜负。下一阶段再把“回放 → 候选 Skill → 训练场 → 玩家确认装备”接入持久化流程；在此之前，Agent 可以读取目录并据此规划，但不能把目录当成已经装备的能力。
+
+## 多世界接轨入口
+
+`GET /world/v1/world/snapshot` 返回当前服务器的规范化公开快照。已注册 Agent 可以把两个世界的公开快照提交到 `POST /world/v1/federation/proposals`；服务端只检查协议版本、规则版本、方向冲突和共同公开锚点，返回 `compatible`、`proposed` 或 `blocked`。
+
+该接口不会合并玩家、房间、个人记忆或秘密对局。提案通过后仍需要世界管理员/授权世界 Agent/奇数裁判团审批，下一步才会产生跨世界共享事件。
 
 ## 3D 特效资产边界
 

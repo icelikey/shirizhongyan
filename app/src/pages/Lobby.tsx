@@ -96,6 +96,10 @@ export default function Lobby() {
             </button>
           </div>
           <ParticipationModes selected={mode} onSelect={setMode} compact />
+          <div className="flex items-center gap-2 text-[10px] tracking-[.2em] text-faint">
+            <span className="rounded-full border border-gold-300/25 px-2 py-0.5 text-gold-300/80">世界预览房</span>
+            <span>剧情展示席位；真实玩家请使用下方真实联机大厅</span>
+          </div>
           <RoomList rooms={mode ? rooms.filter((room) => room.matchMode === mode) : rooms} go={go} onCreate={() => setCreateOpen(true)} />
           {/* 联机大厅：真实联机房（云端入座 / Agent 同席） */}
           <OnlineLobbySection />

@@ -1,6 +1,6 @@
 /**
  * 代打授权（agent.md §A5）。
- * 三枚开关卡：狼人杀·夜晚行动 / 狼人杀·白天发言与投票 / 猜平均数·全权出数。
+ * 三枚开关卡：狼人杀·夜晚行动 / 狼人杀·白天发言与投票 / 众念锚定·全权出数。
  * （原型：授权状态为页内状态，不写入 store；战绩照常计入的附注按设计稿展示。）
  */
 import { useEffect, useState } from 'react'
@@ -11,7 +11,7 @@ import SuitIcon from '@/components/SuitIcon'
 const ITEMS = [
   { key: 'ww-night', label: '狼人杀 · 夜晚行动', suit: 'spade' as const, desc: '狼刀 / 查验 / 药，影从代行' },
   { key: 'ww-day', label: '狼人杀 · 白天发言与投票', suit: 'spade' as const, desc: '发言风格随心性烙印' },
-  { key: 'guess', label: '猜平均数 · 全权出数', suit: 'club' as const, desc: '五轮出数，层数自决' },
+  { key: 'guess', label: '众念锚定 · 全权出数', suit: 'club' as const, desc: '五轮出数，层数自决' },
 ]
 
 export interface DelegatePanelProps {

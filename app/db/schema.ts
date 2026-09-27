@@ -94,6 +94,67 @@ export type AgentKey = typeof agentKeys.$inferSelect;
 export type InsertAgentKey = typeof agentKeys.$inferInsert;
 
 /* ---------------------------------------------------------------------------
+ * ②.1 agent_coi_grants —— Agent 的 CoI 影响域授权
+ *     身份 Key 只证明“是谁”；CoI 才决定“能看什么、能做什么、能影响什么”。
+ * ------------------------------------------------------------------------- */
+export const agentCoiGrants = mysqlTable(
+  "agent_coi_grants",
+  {
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    agentKeyId: bigint("agentKeyId", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => agentKeys.id, { onDelete: "cascade" }),
+    grantId: varchar("grantId", { length: 96 }).notNull(),
+    worldId: varchar("worldId", { length: 64 }).notNull(),
+    epoch: int("epoch").notNull().default(1),
+    scopeJson: json("scopeJson").notNull(),
+    readScopesJson: json("readScopesJson").notNull(),
+    actionScopesJson: json("actionScopesJson").notNull(),
+    publishScopesJson: json("publishScopesJson").notNull(),
+    budgetJson: json("budgetJson").notNull(),
+    status: mysqlEnum("status", ["active", "revoked", "expired"]).notNull().default("active"),
+    expiresAt: datetime("expiresAt").notNull(),
+    revokedAt: datetime("revokedAt"),
+    revokeReason: text("revokeReason"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    grantIdIdx: uniqueIndex("agent_coi_grants_grant_id_idx").on(table.grantId),
+    agentStatusIdx: index("agent_coi_grants_agent_status_idx").on(table.agentKeyId, table.status),
+    expiryIdx: index("agent_coi_grants_expiry_idx").on(table.status, table.expiresAt),
+  }),
+);
+
+export type AgentCoiGrantRow = typeof agentCoiGrants.$inferSelect;
+export type InsertAgentCoiGrantRow = typeof agentCoiGrants.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ②.2 agent_coi_usage —— CoI 使用账本，日报和预算都从这里重建
+ * ------------------------------------------------------------------------- */
+export const agentCoiUsage = mysqlTable(
+  "agent_coi_usage",
+  {
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    grantId: bigint("grantId", { mode: "number", unsigned: true })
+      .notNull()
+      .references(() => agentCoiGrants.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 32 }).notNull(),
+    scopeId: varchar("scopeId", { length: 160 }),
+    amount: int("amount").notNull().default(1),
+    payloadJson: json("payloadJson"),
+    occurredAt: datetime("occurredAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    grantOccurredIdx: index("agent_coi_usage_grant_occurred_idx").on(table.grantId, table.occurredAt),
+    kindIdx: index("agent_coi_usage_kind_idx").on(table.kind),
+  }),
+);
+
+export type AgentCoiUsageRow = typeof agentCoiUsage.$inferSelect;
+export type InsertAgentCoiUsageRow = typeof agentCoiUsage.$inferInsert;
+
+/* ---------------------------------------------------------------------------
  * ③ agent_activities —— Agent 的长期活动流
  *     入座、观测、行动、奇遇与 Worker 自主判断都写入这里。它是日报、
  *     Agent 档案和外部通知的共同事实来源，不把运行状态藏在 Worker 日志里。
@@ -354,7 +415,88 @@ export type WorldOutboxRow = typeof worldOutbox.$inferSelect;
 export type InsertWorldOutboxRow = typeof worldOutbox.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑩ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
+ * ⑨ world_contributions —— 已结算对局进入服务器世界层的公开贡献
+ *    只记录可审计的最小事实，不写秘密身份、完整对话或 API Key。
+ *    contributionKey 是服务端生成的幂等键；同一参与者同一游戏同一对局
+ *    只能贡献一次，避免 CLI 重试或房间恢复造成刷票。
+ * ------------------------------------------------------------------------- */
+export const worldContributions = mysqlTable(
+  "world_contributions",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    contributionKey: varchar("contributionKey", { length: 192 }).notNull(),
+    eventId: varchar("eventId", { length: 192 }).notNull(),
+    worldId: varchar("worldId", { length: 64 }).notNull(),
+    epoch: int("epoch").notNull(),
+    participantRef: varchar("participantRef", { length: 128 }).notNull(),
+    participantKind: varchar("participantKind", { length: 16 }).notNull(),
+    gameId: varchar("gameId", { length: 64 }).notNull(),
+    direction: varchar("direction", { length: 16 }).notNull(),
+    weight: int("weight").notNull().default(1),
+    evidenceRefs: json("evidenceRefs").notNull(),
+    clueId: varchar("clueId", { length: 96 }),
+    committedAt: datetime("committedAt").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    contributionKeyIdx: uniqueIndex("world_contributions_key_idx").on(
+      table.contributionKey,
+    ),
+    eventIdIdx: uniqueIndex("world_contributions_event_idx").on(table.eventId),
+    worldEpochIdx: index("world_contributions_world_epoch_idx").on(
+      table.worldId,
+      table.epoch,
+    ),
+    participantGameIdx: index("world_contributions_participant_game_idx").on(
+      table.worldId,
+      table.epoch,
+      table.participantRef,
+      table.gameId,
+    ),
+  }),
+);
+
+export type WorldContributionRow = typeof worldContributions.$inferSelect;
+export type InsertWorldContributionRow = typeof worldContributions.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ⑩ world_epochs —— 服务器世界纪元快照
+ *    snapshotJson 保存 WorldEpochSnapshot；checksum 对应公开快照内容，
+ *    供跨服务器接轨和后续链上存证使用。实时玩法不读取区块链。
+ * ------------------------------------------------------------------------- */
+export const worldEpochs = mysqlTable(
+  "world_epochs",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    worldId: varchar("worldId", { length: 64 }).notNull(),
+    epoch: int("epoch").notNull(),
+    ruleVersion: varchar("ruleVersion", { length: 64 }).notNull(),
+    direction: varchar("direction", { length: 16 }),
+    snapshotJson: json("snapshotJson").notNull(),
+    checksum: varchar("checksum", { length: 64 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    worldEpochUniqueIdx: uniqueIndex("world_epochs_world_epoch_idx").on(
+      table.worldId,
+      table.epoch,
+    ),
+    latestIdx: index("world_epochs_latest_idx").on(
+      table.worldId,
+      table.epoch,
+    ),
+  }),
+);
+
+export type WorldEpochRow = typeof worldEpochs.$inferSelect;
+export type InsertWorldEpochRow = typeof worldEpochs.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ⑪ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
  *    卡牌不参与对局胜负计算，只决定能解开什么 / 进入哪里 / 引用什么条款。
  *    同一张卡可重复获得（count），重复份可用于交易。
  * ------------------------------------------------------------------------- */
@@ -388,7 +530,7 @@ export type PlayerCardRow = typeof playerCards.$inferSelect;
 export type InsertPlayerCardRow = typeof playerCards.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑪ rulings —— 判例：规则质询被 J1 裁判团采纳后沉淀
+ * ⑫ rulings —— 判例：规则质询被 J1 裁判团采纳后沉淀
  *    判例不改判已结算的胜负（否则回放不可复现），只影响本局后续与
  *    未来使用同一 RuleBook 的对局。世界的规则由 AI 的博弈真实地演化。
  * ------------------------------------------------------------------------- */

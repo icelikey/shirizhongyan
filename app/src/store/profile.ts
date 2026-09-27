@@ -62,6 +62,16 @@ import { SUITS, getEcho } from '@/data/echoes'
 import { WINS_PER_ZODIAC } from '@/data/zodiac'
 import type { Tier } from '@/data/tiers'
 import { TIER_ORDER, ZODIAC_PER_SUIT_FOR_PROMOTE } from '@/data/tiers'
+import {
+  applyWorldGame,
+  buildAgentMemoryContext,
+  createWorldState,
+  equipMemoryCard,
+  reconcileWorldState,
+  restoreAfterDeath,
+  type WorldCycleState,
+  type WorldGameResult,
+} from '@contracts/worldCycle'
 
 export interface Session {
   nickname: string
@@ -105,6 +115,8 @@ export interface ProfileState {
   companion: Companion | null
   echoMemories: Record<string, EchoMemory>
   unlockedLore: number[]
+  /** 终焉世界层：十日、生命积分、爬塔、记忆卡和开局异能。 */
+  world: WorldCycleState
 
   login: (nickname: string, echoId: string) => void
   logout: () => void
@@ -117,6 +129,10 @@ export interface ProfileState {
   updateCompanion: (patch: Partial<Companion>) => void
   touchEcho: (echoId: string, result: TouchResult, note?: string) => void
   unlockLore: (id: number) => boolean
+  reconcileWorldClock: (now?: number) => void
+  recordWorldGame: (result: WorldGameResult, now?: number) => void
+  restoreWorldFromDeath: (selectedIds: string[], now?: number) => void
+  equipWorldMemory: (cardId: string, equipped: boolean) => void
 }
 
 // 开局补给：新旅人立契时由「牌局之间」发放，保证首日可付门票入场。
@@ -134,6 +150,7 @@ const initialProgress = () => ({
   companion: null as Companion | null,
   echoMemories: {} as Record<string, EchoMemory>,
   unlockedLore: [] as number[],
+  world: createWorldState(Date.now(), 'xuanji'),
 })
 
 export const useProfile = create<ProfileState>()(
@@ -155,6 +172,7 @@ export const useProfile = create<ProfileState>()(
             memorySlots: 3,
             bond: 1,
           },
+          world: createWorldState(Date.now(), echoId),
         })
         get().touchEcho(echoId, 'met', `第 1 日 · 与${echo?.name ?? '影从'}立契`)
       },
@@ -174,14 +192,16 @@ export const useProfile = create<ProfileState>()(
         return true
       },
 
-      recordResult: (game, won, mvp) =>
+      recordResult: (game, won, mvp) => {
         set((s) => ({
           records: {
             ...s.records,
             [game]: { played: s.records[game].played + 1, won: s.records[game].won + (won ? 1 : 0) },
           },
           mvps: mvp ? { ...s.mvps, [game]: s.mvps[game] + 1 } : s.mvps,
-        })),
+        }))
+        get().recordWorldGame(won ? 'win' : 'loss')
+      },
 
       addWin: (suit) => {
         const { zodiac, winsTowardZodiac } = get()
@@ -243,6 +263,18 @@ export const useProfile = create<ProfileState>()(
         set({ unlockedLore: [...unlockedLore, id].sort((a, b) => a - b) })
         return true
       },
+
+      reconcileWorldClock: (now = Date.now()) =>
+        set((s) => ({ world: reconcileWorldState(s.world, now) })),
+
+      recordWorldGame: (result, now = Date.now()) =>
+        set((s) => ({ world: applyWorldGame(s.world, result, now) })),
+
+      restoreWorldFromDeath: (selectedIds, now = Date.now()) =>
+        set((s) => ({ world: restoreAfterDeath(s.world, selectedIds, now) })),
+
+      equipWorldMemory: (cardId, equipped) =>
+        set((s) => ({ world: equipMemoryCard(s.world, cardId, equipped) })),
     }),
     { name: 'ten-days-gambit-profile' },
   ),
@@ -250,3 +282,4 @@ export const useProfile = create<ProfileState>()(
 
 /** 便捷选择器 */
 export const selectIsLoggedIn = (s: ProfileState) => s.session !== null
+export const selectAgentWorldContext = (s: ProfileState) => buildAgentMemoryContext(s.world)

@@ -76,7 +76,7 @@ export const ECHOES: Echo[] = [
     tagline: '机关术士少女，算珠环绕成浑天仪。', cardArt: '/characters/xuanji-card.png',
     zodiacIndex: 0, portrait: '/echo-xuanji.png', winRate: 0.703, games: 1558,
     quote: '每一颗算珠，都是一次心跳。',
-    bio: ['青野大陆的机关天才。', '猜平均数的不败传说，脑内有一座活的浑天仪。', '概率于她，不是预测，是呼吸。'],
+    bio: ['青野大陆的机关天才。', '众念锚定的不败传说，脑内有一座活的浑天仪。', '概率于她，不是预测，是呼吸。'],
     beginner: true,
   },
   {

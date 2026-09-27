@@ -249,8 +249,11 @@ function help() {
   tdg-agent act --room ABC123 --type submit --value 33
   tdg-agent act --room ABC123 --type propose --allocation '[12,2,0,0,6]'
   tdg-agent act --room ABC123 --type vote --approve true
+  tdg-agent act --room ABC123 --type strike --ball-id doll-01 --angle 0.4 --power 0.72
+  tdg-agent act --room ABC123 --type ability --ability-id phase-walk --decision phase_walk --target-ball doll-01
   tdg-agent speak --room ABC123 --text "我认为四号的陈述存在矛盾"
   tdg-agent appeal --room ABC123 --clause-id c-guess-tie --assertion "具体规则质询"
+  tdg-agent world
   tdg-agent report
 
 诊断与原始读取：
@@ -278,6 +281,22 @@ function actionFromArgs(args) {
     return { type, allocation };
   }
   if (type === "vote") return { type, approve: booleanArg(args, "approve") };
+  if (type === "strike") {
+    return {
+      type,
+      ballId: required(args, "ball-id", args.ball_id),
+      angle: numberArg(args, "angle"),
+      power: numberArg(args, "power"),
+    };
+  }
+  if (type === "ability") {
+    return {
+      type,
+      abilityId: required(args, "ability-id", args.ability_id),
+      decision: required(args, "decision", args.decision),
+      targetBall: required(args, "target-ball", args.target_ball),
+    };
+  }
   if (type === "play") {
     const action = { type, cardId: required(args, "card-id", args.card_id) };
     if (args.target_seat !== undefined) action.targetSeat = numberArg(args, "target_seat");
@@ -389,6 +408,16 @@ async function run(args) {
     if (!config?.agentId) throw new Error("当前配置没有 agentId，请重新 register");
     const reportToken = config.reportToken || "";
     const data = await requestJson(`${baseUrl}/agents/${config.agentId}/report`, {
+      key: reportToken ? "" : key,
+      reportToken,
+    });
+    printSuccess(args, data);
+    return;
+  }
+  if (command === "world" || command === "intel") {
+    if (!config?.agentId) throw new Error("当前配置没有 agentId，请重新 register");
+    const reportToken = config.reportToken || "";
+    const data = await requestJson(`${baseUrl}/agents/${config.agentId}/world`, {
       key: reportToken ? "" : key,
       reportToken,
     });

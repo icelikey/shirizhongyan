@@ -72,7 +72,7 @@ export default function RecordPanel() {
             </div>
           </div>
           <div className="rounded-[10px] border border-[rgba(78,203,156,.25)] bg-[rgba(78,203,156,.06)] p-3">
-            <div className="text-[11px] tracking-[.15em] text-suit-club">♣ 猜平均数</div>
+            <div className="text-[11px] tracking-[.15em] text-suit-club">♣ 众念锚定</div>
             <div className="mt-1.5 font-mono text-[12px] text-dim">
               {gg.won} 胜 / {gg.played - gg.won} 负 / 最佳偏差 Δ0.3
             </div>

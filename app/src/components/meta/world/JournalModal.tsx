@@ -49,7 +49,7 @@ export default function JournalModal({ open, onClose }: JournalModalProps) {
               <span className="font-mono text-gold-300">{records.werewolf.won}</span>
             </p>
             <p className="text-dim">
-              猜平均数 <span className="font-mono text-bone">{records.guess.played}</span> 局 · 胜{' '}
+              众念锚定 <span className="font-mono text-bone">{records.guess.played}</span> 局 · 胜{' '}
               <span className="font-mono text-gold-300">{records.guess.won}</span>
             </p>
           </div>

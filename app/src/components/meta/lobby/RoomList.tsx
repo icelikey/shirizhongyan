@@ -25,7 +25,7 @@ type TabKey = 'all' | 'werewolf' | 'guess'
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'werewolf', label: '♠ 狼人杀' },
-  { key: 'guess', label: '♣ 猜平均数' },
+  { key: 'guess', label: '♣ 众念锚定' },
 ]
 
 /** 爬塔假房（game==='spire'，S2 扩展）展示元信息兜底 */
@@ -160,7 +160,7 @@ export default function RoomList({ rooms, go, onCreate }: RoomListProps) {
                   >
                     <SuitIcon suit={meta.suit} size={26} glow />
                     <span className="text-[9px] tracking-[.15em]">
-                      {room.game === 'werewolf' ? '狼人杀' : room.game === 'guess' ? '猜平均数' : '碎境爬塔'}
+                      {room.game === 'werewolf' ? '狼人杀' : room.game === 'guess' ? '众念锚定' : '碎境爬塔'}
                     </span>
                   </span>
 

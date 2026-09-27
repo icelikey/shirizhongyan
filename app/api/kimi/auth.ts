@@ -23,7 +23,7 @@ async function exchangeAuthCode(
     client_secret: env.appSecret,
   });
 
-  const resp = await fetch(`${env.kimiAuthUrl}/api/oauth/token`, {
+  const resp = await fetch(new URL("/api/oauth/token", kimiAuthBaseUrl()), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
@@ -37,14 +37,39 @@ async function exchangeAuthCode(
   return resp.json() as Promise<TokenResponse>;
 }
 
-const jwks = jose.createRemoteJWKSet(
-  new URL(`${env.kimiAuthUrl}/api/.well-known/jwks.json`),
-);
+/**
+ * OAuth 不是 Agent Gateway 和本地演示的启动前提。
+ * 按需创建 JWKS，避免缺少 OAuth 配置时连 /api/health 都无法启动。
+ */
+function kimiAuthBaseUrl(): URL {
+  const raw = env.kimiAuthUrl.trim();
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("KIMI_AUTH_URL 必须是带 http:// 或 https:// 的完整 URL");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("KIMI_AUTH_URL 只支持 http:// 或 https://");
+  }
+  return url;
+}
+
+let jwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
+
+function kimiJwks() {
+  if (!jwks) {
+    jwks = jose.createRemoteJWKSet(
+      new URL("/api/.well-known/jwks.json", kimiAuthBaseUrl()),
+    );
+  }
+  return jwks;
+}
 
 async function verifyAccessToken(
   accessToken: string,
 ): Promise<{ userId: string; clientId: string }> {
-  const { payload } = await jose.jwtVerify(accessToken, jwks);
+  const { payload } = await jose.jwtVerify(accessToken, kimiJwks());
   const userId = payload.user_id as string;
   const clientId = payload.client_id as string;
   if (!userId) {

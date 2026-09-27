@@ -41,11 +41,11 @@ import { flyTeaseModule } from "./flyTease";
 import { superpowerBilliardsModule } from "./superpowerBilliards";
 
 /* ------------------------------------------------------------------ */
-/* 官方定义（guess-core = v3 猜平均数默认参数；poll-duel-core = 红眼病官方版）*/
+/* 官方定义（guess-core = v3 众念锚定默认参数；poll-duel-core = 红眼病官方版）*/
 /* ------------------------------------------------------------------ */
 export const GUESS_CORE: GameDefinition = {
   id: "guess-core",
-  name: "青野算庭 · 猜平均数",
+  name: "青野算庭 · 众念锚定",
   template: "numberGuess",
   seats: 6,
   isOfficial: true,
@@ -347,21 +347,33 @@ export async function getSdkRoom(
 export function listRoomSummaries(): RoomSummary[] {
   return [...registry.values()]
     .filter((r) => r.status !== "finished")
-    .map((r) => ({
-      code: r.code,
-      roomName: r.roomName,
-      game: moduleFor(r.def).gameKind,
-      status: r.status,
-      seatsTotal: r.def.seats,
-      seatsTaken: r.seatsTaken(),
-      hasAgentSeat: r.hasAgentSeat(),
-      createdAt: r.createdAt,
-      defId: r.def.id,
-      template: r.def.template,
-      gameName: r.def.name,
-      isOfficial: r.def.isOfficial,
-      entryFee: r.def.entryFee,
-    }))
+    .map((r) => {
+      const seatBreakdown = r.getState().seats.reduce(
+        (counts, seat) => {
+          if (seat?.kind === "human") counts.human += 1;
+          if (seat?.kind === "external-agent") counts.agent += 1;
+          if (seat?.kind === "echo-bot") counts.echo += 1;
+          return counts;
+        },
+        { human: 0, agent: 0, echo: 0 },
+      );
+      return {
+        code: r.code,
+        roomName: r.roomName,
+        game: moduleFor(r.def).gameKind,
+        status: r.status,
+        seatsTotal: r.def.seats,
+        seatsTaken: r.seatsTaken(),
+        hasAgentSeat: r.hasAgentSeat(),
+        createdAt: r.createdAt,
+        defId: r.def.id,
+        template: r.def.template,
+        gameName: r.def.name,
+        isOfficial: r.def.isOfficial,
+        entryFee: r.def.entryFee,
+        seatBreakdown,
+      };
+    })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 

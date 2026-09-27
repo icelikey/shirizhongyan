@@ -141,6 +141,7 @@ export default function SpireCombat() {
     rewardedRef.current = true
     const bundle = rollRewards(rngFromSeed((Date.now() % 2147483647) | 1), s.nodeType, s.relics)
     const prof = useProfile.getState()
+    prof.recordWorldGame('win')
     prof.addFragments('diamond', bundle.fragments)
     if (bundle.isBoss) prof.addWin('diamond')
     later(reducedMotion ? 200 : 800, () => setReward(bundle))
@@ -150,6 +151,7 @@ export default function SpireCombat() {
     if (defeatedRef.current) return
     defeatedRef.current = true
     const sp = useSpire.getState()
+    useProfile.getState().recordWorldGame('loss')
     sp.endCombat({ win: false, hp: 0, gold: 0, kills: s.kills })
     sp.endRun(false)
     later(reducedMotion ? 200 : 900, () => setDefeated(true))

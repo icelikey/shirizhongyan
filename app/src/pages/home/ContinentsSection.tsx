@@ -16,7 +16,7 @@ import { gsap, useGSAP } from '@/lib/gsap'
 const CONTINENTS: { suit: Suit; image: string; desc: string; badge: string; anchor: string }[] = [
   { suit: 'spade', image: '/continent-spade.png', desc: '博弈与欺骗之地', badge: '狼人杀主场', anchor: 'werewolf' },
   { suit: 'heart', image: '/continent-heart.png', desc: '心理与谈判之地', badge: '残章·谈判', anchor: '' },
-  { suit: 'club', image: '/continent-club.png', desc: '计算与概率之地', badge: '猜平均数主场', anchor: 'guess' },
+  { suit: 'club', image: '/continent-club.png', desc: '计算与概率之地', badge: '众念锚定主场', anchor: 'guess' },
   { suit: 'diamond', image: '/continent-diamond.png', desc: '资源与竞逐之地', badge: '即将开启', anchor: '' },
 ]
 

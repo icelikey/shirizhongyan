@@ -85,7 +85,10 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
     if (sessionStorage.getItem(storageKey) !== '1') setOpen(true)
   }, [storageKey])
 
+  const canEnter = index === spec.cards.length - 1
+
   const close = () => {
+    if (!canEnter) return
     sessionStorage.setItem(storageKey, '1')
     setOpen(false)
     setIndex(0)
@@ -112,7 +115,7 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={close}
+            onClick={() => canEnter && close()}
           >
             <motion.div
               role="dialog"
@@ -127,9 +130,11 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
             >
               <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[rgba(155,127,232,.14)] blur-3xl" />
               <div className="pointer-events-none absolute -bottom-20 -left-14 h-44 w-44 rounded-full bg-[rgba(227,194,124,.12)] blur-3xl" />
-              <button type="button" onClick={close} className="absolute right-4 top-4 rounded-full p-2 text-faint transition-colors hover:bg-white/5 hover:text-bone" aria-label="关闭玩法卡">
-                <X size={17} />
-              </button>
+              {canEnter && (
+                <button type="button" onClick={close} className="absolute right-4 top-4 rounded-full p-2 text-faint transition-colors hover:bg-white/5 hover:text-bone" aria-label="关闭玩法卡">
+                  <X size={17} />
+                </button>
+              )}
 
               <div className="relative mb-6 flex items-start gap-3 pr-8">
                 <span className="mt-1 flex h-10 w-10 shrink-0 rotate-3 items-center justify-center rounded-xl border border-[rgba(227,194,124,.30)] bg-[rgba(227,194,124,.08)] text-gold-200">
@@ -185,6 +190,10 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
                           </div>
                         )}
                       </div>
+                      <div className="mt-2 rounded-xl border border-suit-spade/20 bg-suit-spade/[.06] px-4 py-3 text-[11px] leading-relaxed tracking-[.06em] text-dim">
+                        <span className="mb-1 block text-[9px] tracking-[.22em] text-suit-spade/75">爬塔目标</span>
+                        你和自己的 Agent 从第一层共同入场，以真实牌局换取线索碎片，逐层打开通往世界真相的门。
+                      </div>
                     </div>
                   </motion.div>
                 </AnimatePresence>
@@ -201,7 +210,7 @@ export default function GameIntroCards({ suit, spec: override }: { suit: Suit; s
                   {index < spec.cards.length - 1 ? (
                     <GoldButton variant="gold" size="sm" onClick={() => setIndex((value) => value + 1)}>继续 <ChevronRight size={14} /></GoldButton>
                   ) : (
-                    <GoldButton variant="suit" suit={suit} size="sm" onClick={close}>进入牌局 <Sparkles size={14} /></GoldButton>
+                    <GoldButton variant="suit" suit={suit} size="sm" onClick={close}>已读完 · 进入牌局 <Sparkles size={14} /></GoldButton>
                   )}
                 </div>
               </div>
