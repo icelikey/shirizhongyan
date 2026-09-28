@@ -132,9 +132,13 @@ function publicOrigin(c: Context): string {
   const url = new URL(c.req.url);
   const forwardedProto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
   const forwardedHost = c.req.header("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedPrefix = c.req.header("x-forwarded-prefix")?.split(",")[0]?.trim();
   if (forwardedProto === "http" || forwardedProto === "https") url.protocol = `${forwardedProto}:`;
   if (forwardedHost) url.host = forwardedHost;
-  return url.origin;
+  const prefix = forwardedPrefix && forwardedPrefix !== "/"
+    ? `/${forwardedPrefix.replace(/^\/+|\/+$/g, "")}`
+    : "";
+  return `${url.origin}${prefix}`;
 }
 
 function errorStatus(code: string): 400 | 401 | 403 | 404 | 409 | 429 | 500 {

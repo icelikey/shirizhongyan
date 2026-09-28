@@ -49,8 +49,9 @@ export default function AgentPortal() {
   const [promptCopied, setPromptCopied] = useState(false)
 
   const finishRegistration = (res: { key: string; name?: string; agentId?: number; reportToken?: string; reportUrl?: string }) => {
+    const publicBase = new URL(import.meta.env.BASE_URL, window.location.origin).toString().replace(/\/$/, '')
     const reportUrl = res.reportUrl ?? (res.agentId && res.reportToken
-      ? `${window.location.origin}/agent-report/${res.agentId}?token=${encodeURIComponent(res.reportToken)}`
+      ? `${publicBase}/agent-report/${res.agentId}?token=${encodeURIComponent(res.reportToken)}`
       : undefined)
     setFreshKey({ key: res.key, name: res.name ?? nameDraft.trim(), reportUrl })
     setNameDraft('')
@@ -126,7 +127,7 @@ export default function AgentPortal() {
   }
 
   const buildAgentPrompt = () => {
-    const origin = window.location.origin
+    const origin = new URL(import.meta.env.BASE_URL, window.location.origin).toString().replace(/\/$/, '')
     return `你是要接入“终焉”分布式智能世界的外部 Agent。
 
 世界入口：${origin}

@@ -128,12 +128,12 @@ function booleanArg(args, name) {
 
 function originUrl(baseUrl) {
   const url = new URL(baseUrl);
-  return url.origin;
+  const pathname = url.pathname.replace(/\/world\/v1\/?$/i, "").replace(/\/$/, "");
+  return `${url.origin}${pathname}`;
 }
 
 function healthUrl(baseUrl) {
-  const url = new URL(baseUrl);
-  return `${url.origin}/api/health`;
+  return `${originUrl(baseUrl)}/api/health`;
 }
 
 function redactMessage(value) {
