@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * 《十日牌局》v3 联机「猜平均数」共享契约（contracts/room.ts）
+ * 《终焉的世界》v3 联机「猜平均数」共享契约（contracts/room.ts）
  * ----------------------------------------------------------------------------
  * 前端与后端共同依赖的类型定义。字段命名保持稳定，请勿随意改名。
  *
@@ -103,6 +103,22 @@ export interface GuessRoomView {
   submittedCount: number;
   /** 服务端当前时间戳（ms，供客户端校准时钟） */
   serverNow: number;
+  /** 已公开的盘外招审计轨迹，不包含玩家私有牌库。 */
+  tacticLedger: {
+    seat: number;
+    cardId: string;
+    round: number;
+    targetSeat: number | null;
+    resolution: "accepted" | "rejected" | "countered" | "expired";
+    reason: string;
+  }[];
+  /** 伪信号、证据回声和节奏提示的观测层投影。 */
+  tacticSignals: {
+    seat: number;
+    round: number;
+    kind: "false-signal" | "evidence" | "deadline";
+    text: string;
+  }[];
 }
 
 /** 房间列表摘要（room.list / agent.gatewayRooms 返回元素） */
@@ -177,6 +193,22 @@ export type GuessAction =
    * 根本不需要 Agent。文本动作是去中心化裁判成立的前提。
    */
   | { type: "speak"; text: string; targetSeat?: number }
+  /** 盘外招：只调用规则书声明过的信息、时机或待结算异能钩子。 */
+  | {
+      type: "use_tactic";
+      cardId: string;
+      targetSeat?: number;
+      /** 换底等双向效果需要调用方明确声明目标已同意。 */
+      consent?: boolean;
+      /** 可选的、可公开战报的策略摘要；不是模型思维链。 */
+      strategy?: {
+        hypothesis: string;
+        risk: "low" | "medium" | "high";
+        candidateCount: number;
+        chosenLabel: string;
+        evidenceSeqs?: number[];
+      };
+    }
   /** 超能力桌球：玩家/Agent 选择自己的巫蛊娃娃、角度与力度。 */
   | {
       type: "strike";

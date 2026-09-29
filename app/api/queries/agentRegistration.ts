@@ -65,6 +65,14 @@ export async function registerPublicAgent(
       .values({ userId, name: displayName, keyHash, prefix, reportTokenHash })
       .$returningId();
 
+    // 新注册的影从获得一组最小可玩的盘外招；它们仍须经过对局窗口和 CoI 校验。
+    // 这样外部 Agent 注册后即可真实体验“观测 → 盘外招 → 战报”闭环。
+    await tx.insert(schema.playerCards).values([
+      { userId, cardId: "tactic-extra-breath", kind: "tactic", count: 1, source: "grant" },
+      { userId, cardId: "tactic-false-signal", kind: "tactic", count: 1, source: "grant" },
+      { userId, cardId: "tactic-echo-lens", kind: "tactic", count: 1, source: "grant" },
+    ]);
+
     return { agentId: agent.id, userId, name: displayName, key, reportToken };
   });
   const coi = await ensureDefaultCoi(result.agentId);

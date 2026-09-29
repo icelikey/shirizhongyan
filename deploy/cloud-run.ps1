@@ -26,7 +26,7 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 
 gcloud artifacts repositories describe $Repository --location=$Region 2>$null
 if ($LASTEXITCODE -ne 0) {
-  gcloud artifacts repositories create $Repository --repository-format=docker --location=$Region --description="Ten Days Gambit images" | Out-Host
+  gcloud artifacts repositories create $Repository --repository-format=docker --location=$Region --description="Endgame World images" | Out-Host
 }
 
 $image = "$Region-docker.pkg.dev/$ProjectId/$Repository/$ServiceName`:$ImageTag"

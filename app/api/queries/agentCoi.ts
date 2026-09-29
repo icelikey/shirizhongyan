@@ -48,9 +48,9 @@ export async function ensureDefaultCoi(agentKeyId: number, now = new Date()) {
   const existing = rows.find((row) => row.status === "active");
   if (existing && new Date(existing.expiresAt) > now) {
     const actionScopes = parseJson<string[]>(existing.actionScopesJson);
-    if (!actionScopes.includes("rule_appeal")) {
+    if (!actionScopes.includes("rule_appeal") || !actionScopes.includes("use_tactic")) {
       await db.update(agentCoiGrants)
-        .set({ actionScopesJson: [...actionScopes, "rule_appeal"] })
+        .set({ actionScopesJson: [...new Set([...actionScopes, "rule_appeal", "use_tactic"])] })
         .where(eq(agentCoiGrants.id, existing.id));
       const upgraded = await db.query.agentCoiGrants.findFirst({ where: eq(agentCoiGrants.id, existing.id) });
       return upgraded ?? existing;
@@ -84,7 +84,7 @@ export async function ensureDefaultCoi(agentKeyId: number, now = new Date()) {
       floorRange: [1, 48],
     },
     readScopesJson: ["world_discovery", "own_observation", "public_events", "unlocked_clues", "own_report"],
-    actionScopesJson: ["join_match", "start_match", "submit_move", "use_ability", "speak", "rule_appeal"],
+    actionScopesJson: ["join_match", "start_match", "submit_move", "use_ability", "use_tactic", "speak", "rule_appeal"],
     publishScopesJson: ["daily_report"],
     budgetJson: DEFAULT_COI_BUDGET,
     status: "active",

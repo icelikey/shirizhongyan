@@ -1,14 +1,15 @@
 /**
  * 玩家卡牌落库（api/queries/playerCards.ts）
  *
- * 【铁律】卡牌不参与任何对局的胜负计算（见 contracts/cards.ts）。
- * 它决定玩家能解开什么、进入哪里、引用什么条款——不决定能打出多少伤害。
+ * 【铁律】世界卡牌不直接参与任何对局的胜负计算（见 contracts/cards.ts）。
+ * 策略卡只能调用规则书声明的资讯、时机和反制钩子；不决定谁赢。
  * 因此新游戏上线无需重新平衡卡池：规则内核从不读取卡牌。
  *
  * 三种获取途径对应三种玩家动机：
  *   victory 常规获胜 → 常见残章
  *   egg     彩蛋触发 → 珍稀卡（不可刷）
  *   appeal  质询成功 → 判例卡（judicial，唯一）
+ *   tactic  世界掉落或交易 → 策略卡（按游戏规则书装配）
  */
 import { and, desc, eq, sql } from "drizzle-orm";
 import { playerCards } from "@db/schema";
@@ -80,6 +81,17 @@ export async function hasCard(
     ),
   });
   return !!row;
+}
+
+/**
+ * Agent 首次接入的最小盘外招载荷。按“缺什么补什么”执行，重复注册同一用户
+ * 不会无限叠加基础卡；后续掉落和交易仍走普通 grantCard。
+ */
+export async function ensureStarterTacticCards(userId: number): Promise<void> {
+  for (const cardId of ["tactic-extra-breath", "tactic-false-signal", "tactic-echo-lens"]) {
+    if (await hasCard(userId, cardId)) continue;
+    await grantCard({ userId, cardId, kind: "tactic", source: "grant" });
+  }
 }
 
 /** 持有的卡 id 集合（批量判定拼图组是否集齐，避免逐张查询） */

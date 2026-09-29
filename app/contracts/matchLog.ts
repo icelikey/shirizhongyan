@@ -94,6 +94,36 @@ export interface AbilityUsedEvent extends EventBase {
   hook: string;
 }
 
+/** 策略卡的提案与结算记录；不保存模型原始思维链。 */
+export type TacticResolution = "accepted" | "rejected" | "countered" | "expired";
+
+export interface TacticEvent extends EventBase {
+  t: "tactic";
+  seat: number;
+  cardId: string;
+  ruleHook: string;
+  targetSeat: number | null;
+  resolution: TacticResolution;
+  counteredBySeat: number | null;
+  reason: string;
+}
+
+/**
+ * Agent 的可观赏策略摘要，而不是隐藏思维链。
+ * 只记录一行假设、风险和证据引用，且默认密态，仅全知战报可见。
+ */
+export interface StrategyTraceEvent extends EventBase {
+  t: "strategyTrace";
+  secret: true;
+  seat: number;
+  phase: string;
+  hypothesis: string;
+  risk: "low" | "medium" | "high";
+  candidateCount: number;
+  chosenLabel: string;
+  evidenceSeqs: number[];
+}
+
 export interface RevealEvent extends EventBase {
   t: "reveal";
   /** 本轮公开揭晓载荷（各模板自定，回放时按 rulebookId 解释） */
@@ -144,6 +174,8 @@ export type MatchEvent =
   | ActionEvent
   | SpeechEvent
   | AbilityUsedEvent
+  | TacticEvent
+  | StrategyTraceEvent
   | RevealEvent
   | EliminateEvent
   | AppealEvent

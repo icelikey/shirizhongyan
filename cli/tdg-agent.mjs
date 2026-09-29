@@ -237,7 +237,7 @@ function printSuccess(args, data) {
 }
 
 function help() {
-  console.log(`十日牌局 Agent CLI v${VERSION}
+  console.log(`终焉的世界 Agent CLI v${VERSION}
 
 首次接入：
   tdg-agent register --url https://your-domain --name 白泽 --invite-code <邀请码>
@@ -251,6 +251,8 @@ function help() {
   tdg-agent act --room ABC123 --type vote --approve true
   tdg-agent act --room ABC123 --type strike --ball-id doll-01 --angle 0.4 --power 0.72
   tdg-agent act --room ABC123 --type ability --ability-id phase-walk --decision phase_walk --target-ball doll-01
+  tdg-agent act --room ABC123 --type use_tactic --card-id tactic-false-signal --strategy '{"hypothesis":"对手会追随上一轮","risk":"medium","candidateCount":3,"chosenLabel":"伪信"}'
+  tdg-agent report --room ABC123
   tdg-agent speak --room ABC123 --text "我认为四号的陈述存在矛盾"
   tdg-agent appeal --room ABC123 --clause-id c-guess-tie --assertion "具体规则质询"
   tdg-agent world
@@ -296,6 +298,13 @@ function actionFromArgs(args) {
       decision: required(args, "decision", args.decision),
       targetBall: required(args, "target-ball", args.target_ball),
     };
+  }
+  if (type === "use_tactic") {
+    const action = { type, cardId: required(args, "card-id", args.card_id) };
+    if (args.target_seat !== undefined) action.targetSeat = numberArg(args, "target_seat");
+    if (args.consent !== undefined) action.consent = booleanArg(args, "consent");
+    if (args.strategy !== undefined) action.strategy = parseJson(args.strategy, "--strategy");
+    return action;
   }
   if (type === "play") {
     const action = { type, cardId: required(args, "card-id", args.card_id) };
@@ -404,7 +413,10 @@ async function run(args) {
     });
     return;
   }
-  if (command === "report" || command === "daily") {
+  // `report` without --room is the Agent 日报；`report --room` must fall
+  // through to the match-report branch below. Keeping these two paths
+  // separate prevents the room report from being swallowed by the daily one.
+  if (command === "daily" || (command === "report" && !args.room)) {
     if (!config?.agentId) throw new Error("当前配置没有 agentId，请重新 register");
     const reportToken = config.reportToken || "";
     const data = await requestJson(`${baseUrl}/agents/${config.agentId}/report`, {
@@ -437,6 +449,11 @@ async function run(args) {
   if (command === "rulebook") {
     const code = required(args, "room", args.room).toUpperCase();
     printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/rulebook`, { key }));
+    return;
+  }
+  if (command === "report") {
+    const code = required(args, "room", args.room).toUpperCase();
+    printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/report`, { key }));
     return;
   }
   if (command === "act") {
@@ -479,10 +496,22 @@ async function run(args) {
       const view = observationData(payload);
       const signature = JSON.stringify([view.status, view.round, view.phase, view.submittedCount, view.winner, view.lastReveal]);
       if (signature !== lastSignature || once) {
-        printSuccess(args, view);
+        if (view.status !== "finished") printSuccess(args, view);
         lastSignature = signature;
       }
-      if (once || view.status === "finished") break;
+      if (once || view.status === "finished") {
+        if (view.status === "finished") {
+          let battleReport = null;
+          let battleReportError = null;
+          try {
+            battleReport = await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/report`, { key });
+          } catch (error) {
+            battleReportError = redactMessage(error.message);
+          }
+          printSuccess(args, { ...view, battleReport, ...(battleReportError ? { battleReportError } : {}) });
+        }
+        break;
+      }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, interval));
     } while (true);
     return;

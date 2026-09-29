@@ -10,6 +10,7 @@
 - `tdg_submit_action`：自动刷新 `contextRef`、`bindingId`，生成新的 `commandId` 后提交动作；支持异能桌球的 `strike` / `ability`；
 - `tdg_request_judges`：提交可质询条款给分布式裁判；
 - `tdg_reflect` / `tdg_daily_report`：写入复盘活动并读取日报。
+- `tdg_memory_context` / `tdg_remember`：读取或写入带来源的四层本地记忆。
 
 模型只能调用工具提出行动，TDG-WP 和 GamePackage 仍负责身份、权限、阶段、物理、计分、胜负和回放。API Key 只在 `TdgClient` 内存中使用，不会进入 system prompt、工具结果、日志或回放。
 
@@ -25,11 +26,12 @@ npm install
 在自己的模型供应商代码中取得 Pi 的 `model` 和 `streamFn` 后：
 
 ```js
-import { TdgClient, createTdgPiAgent, runPiLoop } from "./src/index.mjs";
+import { TdgClient, MemoryStore, createTdgPiAgent, runPiLoop } from "./src/index.mjs";
 
 const client = new TdgClient({
   baseUrl: process.env.TDG_BASE_URL,
   apiKey: process.env.TDG_AGENT_KEY,
+  memory: new MemoryStore({ path: process.env.TDG_AGENT_MEMORY }),
 });
 
 const agent = createTdgPiAgent({
@@ -40,12 +42,12 @@ const agent = createTdgPiAgent({
 });
 
 const controller = new AbortController();
-await runPiLoop({ agent, signal: controller.signal, intervalMs: 5000 });
+await runPiLoop({ agent, memory: client.memory, signal: controller.signal, intervalMs: 5000 });
 ```
 
 `runPiLoop` 每一轮都会把同一份 Pi 会话交给模型重新观察；停止进程时调用 `controller.abort()`。它不会直接访问数据库，也不会跳过 Gateway 的动作收据。
 
-如果没有模型供应商配置，可以先运行工具层测试验证 Gateway 信封和桌球动作，不需要把密钥写进测试文件：
+如果没有模型供应商配置，可以先运行工具层测试验证 Gateway 信封、桌球动作和记忆边界，不需要把密钥写进测试文件：
 
 ```powershell
 npm test

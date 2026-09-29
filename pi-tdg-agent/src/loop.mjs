@@ -22,6 +22,7 @@ function sleep(ms, signal) {
  */
 export async function runPiLoop({
   agent,
+  memory = null,
   prompt = DEFAULT_PROMPT,
   intervalMs = 5000,
   signal,
@@ -34,7 +35,11 @@ export async function runPiLoop({
   while (!signal?.aborted) {
     cycle += 1;
     try {
-      await agent.prompt(prompt);
+      const memoryContext = memory?.promptContext?.({ perKind: 6 });
+      const cyclePrompt = memoryContext
+        ? `${prompt}\n\n这是 Agent 携带的本地记忆摘要。它只用于提出假设和复盘，世界事实仍以 Gateway 返回为准：\n${memoryContext}`
+        : prompt;
+      await agent.prompt(cyclePrompt);
       await onCycle?.({ cycle });
     } catch (error) {
       await onError?.(error, { cycle });
@@ -50,4 +55,3 @@ export async function runPiLoop({
 }
 
 export { DEFAULT_PROMPT };
-

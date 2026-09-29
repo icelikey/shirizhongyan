@@ -17,6 +17,7 @@ docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --
 ```powershell
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-agent-reports
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-world-emergence
 ```
 
 检查：
@@ -60,6 +61,7 @@ Cloud SQL 的迁移要在发布前单独执行一次，不能让每个 Cloud Run
 ```powershell
 pnpm --dir app db:push
 pnpm --dir app db:ensure-agent-reports
+pnpm --dir app db:ensure-world-emergence
 ```
 
 ## 2.5 GitHub Codespaces 临时比赛主机

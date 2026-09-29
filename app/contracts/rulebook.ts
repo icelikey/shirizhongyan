@@ -84,6 +84,8 @@ export interface RuleBook {
   version: number;
   /** 关联的游戏模板（一个模板可有多本规则书：官方版 / 判例演化版） */
   template: string;
+  /** 该规则书明确开放的盘外招钩子；卡牌兼容性不能替代规则白名单。 */
+  tacticHooks?: string[];
   clauses: Clause[];
 }
 

@@ -13,7 +13,7 @@ import {
   AppealRejectedError,
 } from "./world/judges";
 import { insertRuling } from "./queries/rulings";
-import { grantCard } from "./queries/playerCards";
+import { ensureStarterTacticCards, grantCard } from "./queries/playerCards";
 import { createRouter, adminQuery, authedQuery, publicQuery } from "./middleware";
 import {
   createAgentKey,
@@ -23,6 +23,7 @@ import {
   touchAgentKey,
 } from "./queries/agentKeys";
 import { actionScopeForGameAction } from "@contracts/worldCoi";
+import { publicTacticCardCatalog } from "@contracts/tacticCards";
 import { requireCoi, revokeAgentCoi } from "./queries/agentCoi";
 import { getSdkRoom, listRoomSummaries } from "./games/sdk/registry";
 import { findRoomByCode } from "./queries/rooms";
@@ -247,6 +248,7 @@ export const agentRouter = createRouter({
     .input(z.object({ name: z.string().min(1).max(64) }))
     .mutation(async ({ ctx, input }) => {
       const { id, key, reportToken } = await createAgentKey(ctx.user.id, input.name.trim());
+      await ensureStarterTacticCards(ctx.user.id);
       return { key, reportToken, agentId: id };
     }),
 
@@ -338,6 +340,7 @@ export const agentRouter = createRouter({
       return {
         ...room.view(seat.seatToken),
         worldContext: await worldContextForAgent(key.userId),
+        tacticCards: publicTacticCardCatalog(room.def.template),
       };
     }),
 

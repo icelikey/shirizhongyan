@@ -48,7 +48,7 @@ module.exports = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        /* ===== 十日牌局 design tokens (design.md §2) ===== */
+        /* ===== 终焉的世界 design tokens (design.md §2) ===== */
         abyss: "#07060B",
         ink: "#0C0A13",
         panel: "#14101C",

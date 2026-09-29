@@ -505,6 +505,7 @@ export default function GuessOnline() {
         <OnlineFinishedPanel
           open={finishedOpen && status === 'finished'}
           view={view}
+          reportCode={CODE}
           onClose={() => setFinishedOpen(false)}
           onExit={() => navigate('/lobby')}
         />

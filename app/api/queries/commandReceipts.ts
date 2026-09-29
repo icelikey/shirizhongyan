@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { asc, eq, and } from "drizzle-orm";
+import { asc, eq, and, or, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { commandReceipts, worldOutbox } from "@db/schema";
 import { getDb } from "./connection";
@@ -147,26 +147,114 @@ export async function rejectCommandReceipt(input: {
     .where(eq(commandReceipts.id, input.receiptId));
 }
 
-/** 最小 outbox 消费接口；消费者应以 eventId 做自身幂等键。 */
-export async function findPendingWorldOutbox(limit = 50) {
-  return getDb()
+/**
+ * 领取一批世界事件。
+ *
+ * `processing + leaseUntil` 让进程崩溃后事件可以自动回收；真正的幂等边界
+ * 仍然是 eventId/contributionKey 的唯一键，租约只负责降低重复执行概率。
+ */
+export async function claimWorldOutboxBatch(input: {
+  workerId: string;
+  limit?: number;
+  leaseMs?: number;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const leaseSeconds = Math.max(1, Math.ceil(Math.max(1_000, input.leaseMs ?? 30_000) / 1_000));
+  const leaseUntil = new Date(now.getTime() + leaseSeconds * 1_000);
+  const due = or(
+    and(
+      or(eq(worldOutbox.status, "pending"), eq(worldOutbox.status, "failed")),
+      sql`${worldOutbox.availableAt} <= NOW()`,
+    ),
+    and(
+      eq(worldOutbox.status, "processing"),
+      sql`(${worldOutbox.leaseUntil} IS NULL OR ${worldOutbox.leaseUntil} <= NOW())`,
+    ),
+  );
+  const candidates = await getDb()
     .select()
     .from(worldOutbox)
-    .where(eq(worldOutbox.status, "pending"))
+    .where(due)
     .orderBy(asc(worldOutbox.availableAt), asc(worldOutbox.id))
-    .limit(limit);
+    .limit(Math.max(1, Math.min(100, input.limit ?? 20)));
+
+  const claimed = [];
+  for (const candidate of candidates) {
+    const result = await getDb()
+      .update(worldOutbox)
+      .set({
+        status: "processing",
+        workerId: input.workerId,
+        // 用数据库时钟写租约，避免 Node 进程与 MySQL 时区配置不一致。
+        leaseUntil: sql`DATE_ADD(NOW(), INTERVAL ${leaseSeconds} SECOND)`,
+        attempts: sql`${worldOutbox.attempts} + 1`,
+      })
+      .where(and(eq(worldOutbox.id, candidate.id), due));
+    const resultHeader = Array.isArray(result) ? result[0] : result;
+    const affectedRows = Number((resultHeader as { affectedRows?: number } | undefined)?.affectedRows ?? 0);
+    if (affectedRows !== 1) continue;
+    claimed.push({
+      ...candidate,
+      status: "processing" as const,
+      workerId: input.workerId,
+      leaseUntil,
+      attempts: candidate.attempts + 1,
+    });
+  }
+  return claimed;
 }
 
-export async function markWorldOutboxPublished(id: number) {
+export async function markWorldOutboxPublished(input: {
+  id: number;
+  workerId: string;
+  publishedAt?: Date;
+}) {
   await getDb()
     .update(worldOutbox)
-    .set({ status: "published", publishedAt: new Date() })
-    .where(eq(worldOutbox.id, id));
+    .set({
+      status: "published",
+      workerId: null,
+      leaseUntil: null,
+      publishedAt: input.publishedAt ? input.publishedAt : sql`NOW()`,
+      lastError: null,
+    })
+    .where(
+      and(
+        eq(worldOutbox.id, input.id),
+        eq(worldOutbox.status, "processing"),
+        eq(worldOutbox.workerId, input.workerId),
+      ),
+    );
 }
 
-export async function markWorldOutboxFailed(id: number, errorMessage: string) {
+export function worldOutboxRetryDelayMs(attempts: number): number {
+  const safeAttempts = Math.max(1, Math.min(10, Math.floor(attempts)));
+  return Math.min(15 * 60_000, 1_000 * 2 ** (safeAttempts - 1));
+}
+
+export async function markWorldOutboxFailed(input: {
+  id: number;
+  workerId: string;
+  attempts: number;
+  errorMessage: string;
+  now?: Date;
+}) {
+  const delaySeconds = Math.ceil(worldOutboxRetryDelayMs(input.attempts) / 1_000);
   await getDb()
     .update(worldOutbox)
-    .set({ status: "failed", attempts: 1, lastError: errorMessage })
-    .where(eq(worldOutbox.id, id));
+    .set({
+      status: "failed",
+      workerId: null,
+      leaseUntil: null,
+      availableAt: sql`DATE_ADD(NOW(), INTERVAL ${delaySeconds} SECOND)`,
+      lastError: input.errorMessage.slice(0, 4000),
+    })
+    .where(
+      and(
+        eq(worldOutbox.id, input.id),
+        eq(worldOutbox.status, "processing"),
+        eq(worldOutbox.workerId, input.workerId),
+      ),
+    );
 }

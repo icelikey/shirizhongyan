@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * 《十日牌局》v4 Game SDK 共享契约（contracts/gameSdk.ts）
+ * 《终焉的世界》v4 Game SDK 共享契约（contracts/gameSdk.ts）
  * ----------------------------------------------------------------------------
  * 把联机房间抽象为「游戏定义 GameDefinition + 模板执行器」：
  * 官方游戏与玩家自创（UGC）游戏走同一套契约，前后端共用本文件的
@@ -357,6 +357,11 @@ interface GameDefinitionBase {
   minHumanSeats?: number;
   /** mixed-required 时的最少 Agent 席数（默认 1） */
   minAgentSeats?: number;
+  /**
+   * 世界层贡献映射版本。UGC 未声明时按 template 的官方 v1 映射处理；
+   * 终局事件会把最终 mapperId 固化，避免后续规则升级改变历史世界。
+   */
+  worldContributionMapperId?: string;
 }
 
 /** 取定义的席位策略，未指定视为人机皆可（向后兼容旧房间与 UGC） */

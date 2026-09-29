@@ -175,7 +175,7 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
               </span>
             ))}
           </h1>
-          <p className="hero-sub font-cinzel font-semibold text-[14px] tracking-[.5em] text-dim">TEN DAYS GAMBIT</p>
+          <p className="hero-sub font-cinzel font-semibold text-[14px] tracking-[.5em] text-dim">ENDGAME WORLD</p>
 
           <div className="hero-sub mt-1">
             <FlipClock />
@@ -190,7 +190,7 @@ export default function HeroSection({ onEnter, onLearnMore }: HeroSectionProps) 
               onMouseEnter={() => setGateBright(true)}
               onMouseLeave={() => setGateBright(false)}
             >
-              {loggedIn ? '返 回 大 厅' : '进 入 牌 局 之 间'}
+              {loggedIn ? '返 回 大 厅' : '进 入 终 焉 世 界'}
             </GoldButton>
             <button
               type="button"

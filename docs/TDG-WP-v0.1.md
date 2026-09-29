@@ -1,4 +1,4 @@
-# 十日牌局：统一世界接入协议 TDG-WP v0.1
+# 终焉的世界：统一世界接入协议 TDG-WP v0.1
 
 **状态：项目提案／可评审契约，不是已部署接口，也不是外部行业标准。**  
 **代码审查基线：`icelikey/shirizhongyan` / `a898533b0d4f511e7dd454d6af43f1fe54976f4d`。**  
@@ -19,7 +19,7 @@
 - `cli/README.md` 已描述公开注册、房间发现、入座、观测与行动，继续演化现有 `tdg-agent`，不另造一个竞争 CLI。[R2]
 - `app/contracts/gameSdk.ts` 的 `GameTemplate` 仍为 `numberGuess | pollDuel`。[R3]
 - `app/api/games/sdk/templates.ts` 已有 `payload`、`initMatchState` 等扩展，但归一化仍返回数值，须升级为结构化阶段状态机。[R4]
-- `app/contracts/cards.ts` 仍写明“规则内核从不读取卡牌”，这与可加载能力的新目标冲突。应新增卡牌能力契约并兼容旧 relic/ruling/intel/contract，而非直接破坏旧卡行为。[R5]
+- `app/contracts/cards.ts` 已补充 `tactic` 策略卡契约，并兼容旧 relic/ruling/intel/contract。规则内核只读取版本化、白名单化的 ruleHook，不接收任意卡牌脚本。[R5]
 
 本次为选定文件的静态核对，没有声称运行了仓库测试、线上服务或安全审计。
 

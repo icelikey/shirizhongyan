@@ -339,6 +339,7 @@ export default function PirateGoldOnline() {
         <OnlineFinishedPanel
           open={finishedOpen && status === 'finished'}
           view={view}
+          reportCode={CODE}
           onClose={() => setFinishedOpen(false)}
           onExit={() => navigate('/lobby')}
           suit="diamond"

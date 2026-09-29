@@ -10,6 +10,7 @@ import { serveStaticFiles } from "./lib/vite";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
 import { worldGateway } from "./worldGateway";
+import { startWorldOutboxWorker } from "./world/worldOutboxWorker";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -33,6 +34,11 @@ export default app;
 
 if (env.isProduction) {
   serveStaticFiles(app);
+
+  // 世界事件与 API 同进程启动；多副本时通过数据库租约竞争消费。
+  if (process.env.TDG_WORLD_OUTBOX_WORKER !== "false") {
+    startWorldOutboxWorker();
+  }
 
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {

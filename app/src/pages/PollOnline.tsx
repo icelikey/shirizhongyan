@@ -521,6 +521,7 @@ export default function PollOnline() {
         <OnlineFinishedPanel
           open={finishedOpen && status === 'finished'}
           view={view}
+          reportCode={CODE}
           suit={view.entryFee.suit}
           rewards={view.rewards}
           title="终局 · 票庭封盘"

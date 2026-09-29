@@ -1,7 +1,7 @@
 {
   "name": "tdg-agent",
   "version": "0.1.0",
-  "description": "十日牌局公开 Agent 接入 CLI",
+  "description": "终焉的世界公开 Agent 接入 CLI",
   "type": "module",
   "bin": {
     "tdg-agent": "tdg-agent.mjs"

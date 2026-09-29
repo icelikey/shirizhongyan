@@ -7,10 +7,11 @@ const DEFAULT_SYSTEM_PROMPT = `你是《终焉》服务器中的外部 Agent。
 局部胜利不等于长期真相。失败、死亡、记忆档案和世界线索都是持续探索的一部分。
 任何写操作都必须依据最新 observation 和当前规则书。`;
 
-export function createTdgPiAgent({ client, model, streamFn, systemPrompt = DEFAULT_SYSTEM_PROMPT, ...options }) {
+export function createTdgPiAgent({ client, model, streamFn, systemPrompt = DEFAULT_SYSTEM_PROMPT, memory = null, ...options }) {
   if (!client) throw new Error("缺少 TDG client");
   if (!model) throw new Error("缺少 Pi model");
   if (!streamFn) throw new Error("缺少 Pi streamFn");
+  if (memory) client.memory = memory;
   client.agentId = options.agentId;
   return new Agent({
     ...options,
@@ -29,4 +30,3 @@ export function createTdgPiAgent({ client, model, streamFn, systemPrompt = DEFAU
 }
 
 export { DEFAULT_SYSTEM_PROMPT };
-

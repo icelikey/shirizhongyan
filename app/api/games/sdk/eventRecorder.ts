@@ -113,6 +113,51 @@ export class EventRecorder {
     this.push({ t: "abilityUsed", seat, abilityId, hook } as never);
   }
 
+  /** 盘外招提案与结算；只记审计摘要，不记模型隐藏思维链。 */
+  tactic(params: {
+    seat: number;
+    cardId: string;
+    ruleHook: string;
+    targetSeat: number | null;
+    resolution: "accepted" | "rejected" | "countered" | "expired";
+    counteredBySeat?: number | null;
+    reason: string;
+  }): void {
+    this.push({
+      t: "tactic",
+      seat: params.seat,
+      cardId: params.cardId,
+      ruleHook: params.ruleHook,
+      targetSeat: params.targetSeat,
+      resolution: params.resolution,
+      counteredBySeat: params.counteredBySeat ?? null,
+      reason: params.reason,
+    } as never);
+  }
+
+  /** Agent 主动提交的可观赏策略摘要；不是模型原始思维链。 */
+  strategyTrace(params: {
+    seat: number;
+    phase: string;
+    hypothesis: string;
+    risk: "low" | "medium" | "high";
+    candidateCount: number;
+    chosenLabel: string;
+    evidenceSeqs: number[];
+  }): void {
+    this.push({
+      t: "strategyTrace",
+      secret: true,
+      seat: params.seat,
+      phase: params.phase,
+      hypothesis: params.hypothesis,
+      risk: params.risk,
+      candidateCount: params.candidateCount,
+      chosenLabel: params.chosenLabel,
+      evidenceSeqs: params.evidenceSeqs,
+    } as never);
+  }
+
   /** 本轮揭晓。payload 由模板自定，回放时按 rulebookId 解释 */
   reveal(payload: unknown, winnerSeats: number[]): void {
     this.push({ t: "reveal", payload, winnerSeats } as never);

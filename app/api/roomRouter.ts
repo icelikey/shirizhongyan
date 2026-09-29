@@ -57,6 +57,19 @@ export const gameActionSchema = z.discriminatedUnion("type", [
     targetSeat: z.number().int().min(0).max(15).optional(),
   }),
   z.object({
+    type: z.literal("use_tactic"),
+    cardId: z.string().trim().min(1).max(48),
+    targetSeat: z.number().int().min(0).max(15).optional(),
+    consent: z.boolean().optional(),
+    strategy: z.object({
+      hypothesis: z.string().trim().min(1).max(160),
+      risk: z.enum(["low", "medium", "high"]),
+      candidateCount: z.number().int().min(1).max(256),
+      chosenLabel: z.string().trim().min(1).max(80),
+      evidenceSeqs: z.array(z.number().int().min(0).max(100000)).max(16).optional(),
+    }).optional(),
+  }),
+  z.object({
     type: z.literal("strike"),
     ballId: z.string().trim().min(1).max(24),
     angle: z.number().finite().min(-6.28319).max(6.28319),

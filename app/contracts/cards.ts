@@ -2,10 +2,11 @@
  * ============================================================================
  * 卡牌共享契约（contracts/cards.ts）
  * ----------------------------------------------------------------------------
- * 【铁律】卡牌不参与任何对局的胜负计算。它决定玩家能解开什么、进入哪里、
- * 引用什么条款 —— 不决定能打出多少伤害。
+ * 【铁律】世界卡牌不直接写入胜负函数。策略卡可以在规则书声明的窗口
+ * 改变信息、时机或尚未结算的异能状态，但不能制造伤害、积分或胜负结果。
  *
- * 因此新游戏（含 UGC）上线不需要重新平衡卡池：规则内核从不读取卡牌。
+ * 因此新游戏（含 UGC）只需声明兼容的 ruleHook，不需要把卡牌实现复制进
+ * 每一个游戏。规则内核读取的是版本化、白名单化的效果适配器。
  * 现有 src/engine/spire（构筑卡组）与 src/data/poker/affixes（词条）是
  * 战力卡，属塔外练习场，与本契约无关。
  *
@@ -14,9 +15,10 @@
  * - ruling   判例卡 · 规则质询被采纳后铸成，可引用判例
  * - intel    情报卡 · 对手策略档案（由 match_logs 真实统计生成）
  * - contract 契约卡 · 进入塔层 / 开房 / 挑战层主的资格凭证
+ * - tactic   策略卡 · 在规则书声明的窗口改变信息、时机或异能是否生效
  * ============================================================================
  */
-import type { Suit } from "./gameSdk";
+import type { GameTemplate, Suit } from "./gameSdk";
 
 /**
  * 位阶（天地玄黄）。与 src/data/tiers.ts 的 Tier 同义 —— 该文件在 src/ 下，
@@ -26,7 +28,7 @@ export type Tier = "huang" | "xuan" | "di" | "tian";
 
 export const TIER_ORDER: readonly Tier[] = ["huang", "xuan", "di", "tian"];
 
-export type CardKind = "relic" | "ruling" | "intel" | "contract";
+export type CardKind = "relic" | "ruling" | "intel" | "contract" | "tactic";
 
 /** 稀有度：常见（获胜掉落） / 珍稀（彩蛋） / judicial（质询铸成，唯一） */
 export type CardRarity = "common" | "rare" | "judicial";
@@ -54,6 +56,11 @@ export const CARD_KIND_META: Record<
     name: "契约",
     glyph: "契",
     desc: "进入塔层、开设房间、挑战层主的资格凭证。",
+  },
+  tactic: {
+    name: "策略",
+    glyph: "策",
+    desc: "在规则允许的窗口改变信息、时机或异能生效状态；不直接改写胜负。",
   },
 };
 
@@ -117,7 +124,69 @@ export interface ContractCard extends CardBase {
   consumable: boolean;
 }
 
-export type Card = RelicCard | RulingCard | IntelCard | ContractCard;
+/**
+ * 策略卡是“世界卡组”与具体游戏之间的适配层。
+ *
+ * 它只声明一个可审计的规则钩子，具体游戏必须在自己的 RuleBook 中声明
+ * 是否支持该钩子。策略卡不能携带任意脚本、数值伤害或直接结算结果。
+ */
+export type TacticGameScope =
+  | GameTemplate
+  | "beastRace"
+  | "werewolf"
+  | "debate"
+  | "all";
+
+export type TacticTiming =
+  | "before-submit"
+  | "after-submit"
+  | "before-reveal"
+  | "on-ability"
+  | "after-reveal";
+
+export type TacticEffect =
+  | "peek-private-commitment"
+  | "swap-private-commitment"
+  | "suppress-pending-ability"
+  | "extend-decision-window"
+  | "plant-false-signal"
+  | "restore-public-evidence";
+
+export type TacticTarget = "self" | "opponent" | "mutual" | "public-event";
+
+export interface TacticCard extends CardBase {
+  kind: "tactic";
+  compatibleGames: readonly TacticGameScope[];
+  timing: TacticTiming;
+  effect: TacticEffect;
+  target: TacticTarget;
+  /** 每局可消耗次数；真实消耗由房间运行时记录。 */
+  charges: number;
+  /** 同一策略卡再次使用前必须经过的轮数。 */
+  cooldown: number;
+  /** 是否允许被另一张反制卡取消。 */
+  counterable: boolean;
+  /** 绑定到 RuleBook 的稳定钩子名。 */
+  ruleHook: string;
+  effectText: string;
+  lore: string;
+}
+
+export type Card = RelicCard | RulingCard | IntelCard | ContractCard | TacticCard;
+
+/** 玩家按游戏装备的策略卡组，不等同于某一款游戏的临时手牌。 */
+export interface TacticLoadout {
+  game: TacticGameScope;
+  cardIds: readonly string[];
+  maxCards: number;
+  version: string;
+}
+
+export const TACTIC_LOADOUT_LIMITS = {
+  minCards: 3,
+  maxCards: 8,
+  maxCopiesPerEffect: 2,
+} as const;
 
 /* ------------------------------------------------------------------ */
 /* 拼图组 → 塔门口令                                                    */

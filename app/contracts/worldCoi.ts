@@ -13,6 +13,7 @@ export const COI_ACTION_SCOPES = [
   "start_match",
   "submit_move",
   "use_ability",
+  "use_tactic",
   "speak",
   "rule_appeal",
 ] as const;
@@ -68,6 +69,7 @@ export function actionScopeForGameAction(action: unknown): CoiActionScope {
     : "";
   if (type === "start") return "start_match";
   if (type === "ability") return "use_ability";
+  if (type === "use_tactic") return "use_tactic";
   if (type === "speak") return "speak";
   return "submit_move";
 }

@@ -398,6 +398,8 @@ export const worldOutbox = mysqlTable(
     attempts: int("attempts").notNull().default(0),
     availableAt: timestamp("availableAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
+    workerId: varchar("workerId", { length: 96 }),
+    leaseUntil: datetime("leaseUntil"),
     publishedAt: datetime("publishedAt"),
     lastError: text("lastError"),
   },
@@ -405,7 +407,8 @@ export const worldOutbox = mysqlTable(
     eventIdIdx: uniqueIndex("world_outbox_event_id_idx").on(table.eventId),
     pendingIdx: index("world_outbox_pending_idx").on(
       table.status,
-      table.availableAt
+      table.availableAt,
+      table.leaseUntil,
     ),
     scopeIdx: index("world_outbox_scope_idx").on(table.scopeId),
   })
@@ -496,8 +499,9 @@ export type WorldEpochRow = typeof worldEpochs.$inferSelect;
 export type InsertWorldEpochRow = typeof worldEpochs.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑪ player_cards —— 玩家持有的卡牌（四类见 contracts/cards.ts）
- *    卡牌不参与对局胜负计算，只决定能解开什么 / 进入哪里 / 引用什么条款。
+ * ⑪ player_cards —— 玩家持有的卡牌（见 contracts/cards.ts）
+ *    策略卡只在规则书声明的窗口改变信息、时机或异能状态，不直接
+ *    改写胜负函数；残章、判例、情报和契约仍按各自门禁规则使用。
  *    同一张卡可重复获得（count），重复份可用于交易。
  * ------------------------------------------------------------------------- */
 export const playerCards = mysqlTable(
@@ -509,9 +513,9 @@ export const playerCards = mysqlTable(
     userId: bigint("userId", { mode: "number", unsigned: true })
       .notNull()
       .references(() => users.id),
-    /** 卡牌 id（残章卡见 contracts/relics.ts；判例卡形如 'j_<rulingId>'） */
+    /** 卡牌 id（残章见 contracts/relics.ts；策略卡见 contracts/tacticCards.ts） */
     cardId: varchar("cardId", { length: 48 }).notNull(),
-    /** 'relic' | 'ruling' | 'intel' | 'contract' */
+    /** 'relic' | 'ruling' | 'intel' | 'contract' | 'tactic' */
     kind: varchar("kind", { length: 16 }).notNull(),
     count: int("count").notNull().default(1),
     /** CardSource：victory / egg / appeal / trade / grant */

@@ -41,7 +41,7 @@ def base(title, kicker):
     rect(slide, 0.55, 0.42, 0.08, 0.52, GOLD)
     textbox(slide, kicker.upper(), 0.82, 0.39, 8, 0.24, 10, GOLD, True, "Consolas")
     textbox(slide, title, 0.82, 0.72, 11.8, 0.55, 27, PAPER, True)
-    textbox(slide, f"终焉  /  TEN DAYS GAMBIT", 10.4, 0.45, 2.4, 0.24, 9, MUTED, False, "Consolas", PP_ALIGN.RIGHT)
+    textbox(slide, f"终焉的世界  /  ENDGAME WORLD", 10.4, 0.45, 2.4, 0.24, 9, MUTED, False, "Consolas", PP_ALIGN.RIGHT)
     return slide
 
 def bullet(slide, text, x, y, w, color=PAPER, size=18, accent=GOLD):

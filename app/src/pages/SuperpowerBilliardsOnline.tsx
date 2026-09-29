@@ -1,7 +1,7 @@
 /** 终焉·巫蛊娃娃异能桌球：规则内核状态的观战与可操作降级视图。 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Cloud, DoorOpen, Play, Sparkles, Target } from 'lucide-react'
+import { Cloud, DoorOpen, Eye, Play, Radio, Sparkles, Target } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
@@ -16,6 +16,16 @@ import { GAME_INTROS } from '@/data/gameIntros'
 import { cn } from '@/lib/utils'
 
 const ABILITY_LABEL: Record<BilliardsAbilityId, string> = { 'return-soul': '返魂', 'right-angle': '直角', 'phase-walk': '穿界' }
+const TACTIC_LABEL: Record<string, string> = {
+  'tactic-bottom-eye': '照底',
+  'tactic-echo-lens': '回声镜',
+  'tactic-bottom-exchange': '换底',
+  'tactic-false-signal': '伪信',
+  'tactic-silent-needle': '哑针',
+  'tactic-counterseal': '封脉',
+  'tactic-extra-breath': '借息',
+  'tactic-deadline-bell': '催命铃',
+}
 const DECISIONS: { value: BilliardsAbilityDecision; label: string }[] = [
   { value: 'reflect', label: '反弹' },
   { value: 'right_angle', label: '直角' },
@@ -120,10 +130,38 @@ export default function SuperpowerBilliardsOnline() {
             </section>
           )}
           {status === 'playing' && view?.phase === 'reveal' && view.lastReveal && <section className="panel-bg rounded-2xl p-4"><div className="mb-3 flex items-center justify-between"><h2 className="font-serifsc text-[17px] text-gold-100">第 {view.lastReveal.round} 回合 · 轨迹回放</h2><span className="text-[11px] text-faint">碰撞 {view.lastReveal.collisions.length} · 进洞 {view.lastReveal.pockets.length}</span></div><div className="grid gap-2 text-[11px] text-dim sm:grid-cols-2"><div className="rounded-xl border border-bone/10 p-3">{view.lastReveal.pockets.length ? view.lastReveal.pockets.map((pocket) => <p key={`${pocket.ballId}-${pocket.pocket}`}>{pocket.ballId} 进入 {pocket.pocket + 1} 号袋 · {pocket.bySeat === pocket.ownerSeat ? '自损' : `${pocket.bySeat + 1}号击中`} · {pocket.ownerSeat === pocket.bySeat ? `-${view?.rewards.participation}` : '得分'}</p>) : <p>本回合没有巫蛊娃娃进洞。</p>}</div><div className="rounded-xl border border-bone/10 p-3">{view.lastReveal.abilities.length ? view.lastReveal.abilities.map((ability, index) => <p key={`${ability.abilityId}-${index}`} className={ability.accepted ? 'text-suit-club' : 'text-suit-heart'}>{ABILITY_LABEL[ability.abilityId]} · {ability.accepted ? '已执行' : '已降级'} · {ability.reason}</p>) : <p>本回合没有能力回应。</p>}</div></div></section>}
-          {status === 'finished' && <div className="flex flex-1 items-center justify-center"><OnlineFinishedPanel open={finishedOpen} onClose={() => setFinishedOpen(false)} onExit={() => navigate('/lobby')} view={view as never} /></div>}
+          {(view?.tacticLedger?.length || view?.tacticSignals?.length) ? (
+            <section className="panel-bg rounded-2xl p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[12px] tracking-[.2em] text-suit-diamond"><Eye size={15} /> 盘外招观测层</div>
+                <span className="text-[10px] text-faint">只展示已发生的公开投影 · 不读取隐藏思维链</span>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <div className="rounded-xl border border-suit-diamond/15 bg-ink/35 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-[10px] tracking-[.18em] text-faint"><Radio size={13} className="text-suit-diamond" /> 策略卡轨迹</div>
+                  <div className="flex flex-col gap-2">
+                    {(view?.tacticLedger ?? []).slice(-8).reverse().map((entry, index) => {
+                      const actor = view?.seats.find((seat) => seat.index === entry.seat)?.name ?? `第 ${entry.seat + 1} 席`
+                      const target = entry.targetSeat == null ? '' : ` → ${view?.seats.find((seat) => seat.index === entry.targetSeat)?.name ?? `第 ${entry.targetSeat + 1} 席`}`
+                      return <div key={`${entry.round}-${entry.cardId}-${entry.seat}-${index}`} className="rounded-lg border border-white/[.07] bg-black/15 px-3 py-2 text-[11px]"><div className="flex items-center justify-between gap-2"><span className="text-bone">{actor} · {TACTIC_LABEL[entry.cardId] ?? entry.cardId}{target}</span><span className={entry.resolution === 'accepted' ? 'text-suit-club' : 'text-cinnabar-hi'}>{entry.resolution === 'accepted' ? '已生效' : '被拒绝'}</span></div><p className="mt-1 leading-5 text-dim">第 {entry.round} 回合 · {entry.reason}</p></div>
+                    })}
+                    {!view?.tacticLedger?.length && <p className="py-3 text-[11px] text-faint">本局尚未出现策略卡动作。</p>}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-[#9B7FE8]/20 bg-[#9B7FE8]/[.05] p-3">
+                  <div className="mb-2 text-[10px] tracking-[.18em] text-faint">公开信号</div>
+                  <div className="flex flex-col gap-2">
+                    {(view?.tacticSignals ?? []).slice(-8).reverse().map((signal, index) => <div key={`${signal.round}-${signal.kind}-${index}`} className="rounded-lg border border-white/[.07] bg-black/15 px-3 py-2 text-[11px]"><div className="flex items-center justify-between gap-2"><span className="text-[#d9d0ff]">第 {signal.round} 回合 · {signal.kind === 'false-signal' ? '伪信号' : signal.kind === 'deadline' ? '节奏信号' : '证据回声'}</span><span className="font-mono text-[10px] text-faint">席位 {signal.seat + 1}</span></div><p className="mt-1 leading-5 text-dim">{signal.text}</p></div>)}
+                    {!view?.tacticSignals?.length && <p className="py-3 text-[11px] text-faint">本局尚未产生公开信号。</p>}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-[10px] leading-5 text-faint">盘外招只能改变信息、时机或尚未结算的异能窗口；比分、物理轨迹与终局由规则内核决定，终局后会进入战报。</p>
+            </section>
+          ) : null}
+          {status === 'finished' && <div className="flex flex-1 items-center justify-center"><OnlineFinishedPanel open={finishedOpen} onClose={() => setFinishedOpen(false)} onExit={() => navigate('/lobby')} view={view as never} reportCode={CODE} /></div>}
         </main>
       </div>
     </div>
   )
 }
-

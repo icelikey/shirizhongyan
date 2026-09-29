@@ -27,6 +27,7 @@ export const RB_GUESS: RuleBook = {
   name: "青野算经",
   version: 1,
   template: "numberGuess",
+  tacticHooks: ["projection.peek_private_commitment", "commitment.swap_unrevealed", "projection.plant_false_signal", "timing.extend_decision_window", "evidence.restore_public_event"],
   clauses: [
     {
       id: "c-guess-target",
@@ -96,6 +97,7 @@ export const RB_POLL: RuleBook = {
   name: "众寡之辩",
   version: 1,
   template: "pollDuel",
+  tacticHooks: ["projection.peek_private_commitment", "commitment.swap_unrevealed", "projection.plant_false_signal", "timing.extend_decision_window", "evidence.restore_public_event"],
   clauses: [
     {
       id: "c-poll-minority",
@@ -147,6 +149,7 @@ export const RB_WEREWOLF: RuleBook = {
   name: "玄渊夜谳",
   version: 1,
   template: "werewolf",
+  tacticHooks: ["projection.peek_private_commitment", "projection.plant_false_signal", "ability.cancel_pending", "ability.cancel_pending_same_window", "timing.extend_decision_window", "evidence.restore_public_event"],
   clauses: [
     {
       id: "c-wolf-victory",
@@ -216,6 +219,7 @@ export const RB_PIRATE: RuleBook = {
   name: "金壤分潮",
   version: 1,
   template: "pirateGold",
+  tacticHooks: ["projection.peek_private_commitment", "commitment.swap_unrevealed", "timing.extend_decision_window", "evidence.restore_public_event"],
   clauses: [
     {
       id: "c-pirate-propose",
@@ -273,6 +277,7 @@ export const RB_FLYTEASE: RuleBook = {
   name: "虫心算谱",
   version: 1,
   template: "flyTease",
+  tacticHooks: ["projection.plant_false_signal", "timing.extend_decision_window", "evidence.restore_public_event"],
   clauses: [
     {
       id: "c-fly-hit",
@@ -328,6 +333,7 @@ export const RB_BILLIARDS: RuleBook = {
   name: "巫蛊娃娃球契",
   version: 1,
   template: "superpowerBilliards",
+  tacticHooks: ["ability.cancel_pending", "ability.cancel_pending_same_window", "timing.extend_decision_window", "evidence.restore_public_event"],
   clauses: [
     { id: "c-billiards-own-ball", title: "巫蛊娃娃归属", text: "每个座位只能击打自己归属的巫蛊娃娃；服务端按球体 ownerSeat 校验。", category: "victory" },
     { id: "c-billiards-pocket", title: "进洞与复活", text: "巫蛊娃娃进入任一袋口时失去一条命并扣除 pocketPenalty 分，随后回到固定复活点。", category: "scoring" },

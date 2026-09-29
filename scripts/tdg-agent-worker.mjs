@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { MemoryStore } from "../pi-tdg-agent/src/memory.mjs";
 
 const DEFAULT_INTERVAL_MS = 5000;
 const VERSION = "0.1.0";
@@ -49,6 +50,12 @@ function saveCredential(args, credential) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(credential, null, 2)}\n`, "utf8");
   return path;
+}
+
+function memoryPath(args) {
+  return resolve(
+    args.memory || process.env.TDG_AGENT_MEMORY || join(homedir(), ".tdg", "agent-memory.json"),
+  );
 }
 
 function required(value, label) {
@@ -139,18 +146,28 @@ async function world(config) {
   return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/world`, { key: config.key });
 }
 
-async function recordWorldSighting(config, args, payload) {
+async function recordWorldSighting(config, args, payload, memory) {
   const intel = payload?.worldIntel;
   const sightings = Array.isArray(intel?.sightings) ? intel.sightings : [];
   const sighting = sightings[sightings.length - 1];
   const sightingKey = `${new Date().toISOString().slice(0, 10)}:${sighting?.id || `floor-${intel?.floor || 1}`}`;
-  if (config.lastWorldSightingKey === sightingKey) return sighting;
+  if (config.lastWorldSightingKey === sightingKey || memory.hasEvent(sightingKey)) return sighting;
+  const detail = sighting?.text || intel?.nextInstruction || "影从读取了当前世界层的公开见闻。";
   await activity(config, "world-sighting", sighting ? `见闻 · ${sighting.title}` : "见闻 · 塔底回声", sighting?.text || intel?.nextInstruction || "影从读取了当前世界层的公开见闻。", {
     source: intel?.source || "终焉世界公开见闻",
     sightingId: sighting?.id || null,
     realm: sighting?.realm || null,
     floor: intel?.floor || null,
     dailyDarkMatches: intel?.dailyDarkMatches || null,
+  });
+  memory.remember({
+    kind: "semantic",
+    content: detail,
+    source: intel?.source || "终焉世界公开见闻",
+    eventId: sightingKey,
+    confidence: sighting ? 0.85 : 0.55,
+    visibility: "public",
+    tags: ["world-sighting", `floor:${intel?.floor || 1}`],
   });
   config.lastWorldSightingKey = sightingKey;
   saveCredential(args, config);
@@ -251,9 +268,9 @@ function chooseAction(match, view) {
   return null;
 }
 
-async function runCycle(config, args) {
+async function runCycle(config, args, memory) {
   const worldPayload = await world(config);
-  const sighting = await recordWorldSighting(config, args, worldPayload);
+  const sighting = await recordWorldSighting(config, args, worldPayload, memory);
   const requestedCode = args.room || process.env.TDG_MATCH_CODE || config.roomCode;
   let roomList = await matches(config);
   if (requestedCode) roomList = roomList.filter((room) => room.code === String(requestedCode).toUpperCase());
@@ -288,6 +305,15 @@ async function runCycle(config, args) {
   const action = chooseAction(selected, view);
   if (action) {
     const response = await act(config, selected.code, current, action);
+    memory.remember({
+      kind: "working",
+      content: `在 ${selected.gameName || selected.roomName} 提交 ${action.type} 动作；当前回合 ${view.round || 1}。`,
+      source: "worker.strategy",
+      eventId: `command:${selected.code}:${view.contextRef || view.round || Date.now()}`,
+      confidence: 0.6,
+      visibility: "private",
+      tags: ["strategy", selected.template || "unknown"],
+    });
     await activity(config, "strategy", `${selected.gameName || selected.roomName} · 自主决策`, `Worker 提交了 ${action.type} 动作。`, {
       code: selected.code,
       gameName: selected.gameName || selected.roomName,
@@ -298,6 +324,15 @@ async function runCycle(config, args) {
     const next = viewOf(response);
     if (next.status === "finished") {
       const won = next.winner === view.mySeat || next.rankings?.[0]?.seat === view.mySeat;
+      memory.remember({
+        kind: "episodic",
+        content: `在 ${selected.gameName || selected.roomName} 完成一局，结果为${won ? "胜出" : "未胜"}。`,
+        source: "gateway.match.settled",
+        eventId: `match:${selected.code}:${next.matchId || next.finishedAt || Date.now()}`,
+        confidence: 1,
+        visibility: "private",
+        tags: ["match", selected.template || "unknown", won ? "victory" : "loss"],
+      });
       await activity(config, won ? "victory" : "settlement", won ? "牌局胜出" : "牌局结算", `在 ${selected.gameName || selected.roomName} 完成一局。`, { code: selected.code, gameName: selected.gameName, won });
       config.roomCode = null;
       config.seatIndex = null;
@@ -341,11 +376,20 @@ function reportText(report) {
   ].join("\n");
 }
 
-async function sendDailyReport(config) {
+async function sendDailyReport(config, memory) {
   const webhook = process.env.TDG_REPORT_WEBHOOK_URL;
   if (!webhook) return;
   const report = await jsonRequest(`${endpoint(config)}/agents/${config.agentId}/report`, { key: config.key });
   const text = reportText(report);
+  memory.remember({
+    kind: "working",
+    content: `今日简报已生成：${report?.report?.summary || "暂无新记录"}`,
+    source: "gateway.agent.report",
+    eventId: `daily-report:${new Date().toISOString().slice(0, 10)}`,
+    confidence: 1,
+    visibility: "private",
+    tags: ["daily-report"],
+  });
   const channel = String(process.env.TDG_REPORT_CHANNEL || "feishu").toLowerCase();
   const body = channel === "wecom"
     ? { msgtype: "text", text: { content: text } }
@@ -357,7 +401,7 @@ async function sendDailyReport(config) {
 async function main() {
   const args = argsOf(process.argv.slice(2));
   if (args.help || args.h) {
-    console.log(`终焉 Agent Worker v${VERSION}\n\nnode scripts/tdg-agent-worker.mjs --base-url https://your-domain --once\n\n环境变量：TDG_BASE_URL、TDG_AGENT_KEY、TDG_AGENT_NAME、TDG_INVITE_CODE、TDG_INTERVAL_MS、TDG_REPORT_CHANNEL、TDG_REPORT_WEBHOOK_URL`);
+    console.log(`终焉 Agent Worker v${VERSION}\n\nnode scripts/tdg-agent-worker.mjs --base-url https://your-domain --once\n\n环境变量：TDG_BASE_URL、TDG_AGENT_KEY、TDG_AGENT_NAME、TDG_INVITE_CODE、TDG_INTERVAL_MS、TDG_AGENT_MEMORY、TDG_REPORT_CHANNEL、TDG_REPORT_WEBHOOK_URL`);
     return;
   }
   let config = loadCredential(args) || {};
@@ -365,6 +409,7 @@ async function main() {
   config.baseUrl = normalizeBaseUrl(args.base_url || process.env.TDG_BASE_URL || config.baseUrl);
   if (!config.key) config = await registerIfNeeded(args, config);
   if (!config.baseUrl) config.baseUrl = normalizeBaseUrl(args.base_url || process.env.TDG_BASE_URL || config.baseUrl);
+  const memory = new MemoryStore({ path: memoryPath(args) });
   const interval = Math.max(1000, Number(args.interval || process.env.TDG_INTERVAL_MS || DEFAULT_INTERVAL_MS));
   let lastReportDate = "";
   let stopped = false;
@@ -373,11 +418,11 @@ async function main() {
 
   do {
     try {
-      const result = await runCycle(config, args);
+      const result = await runCycle(config, args, memory);
       console.log(`探索 ${result.status}${result.code ? ` · ${result.code}` : ""}${result.action ? ` · ${result.action}` : ""}`);
       const reportDate = new Date().toISOString().slice(0, 10);
       if (reportDate !== lastReportDate && process.env.TDG_REPORT_WEBHOOK_URL) {
-        await sendDailyReport(config);
+        await sendDailyReport(config, memory);
         lastReportDate = reportDate;
       }
     } catch (error) {

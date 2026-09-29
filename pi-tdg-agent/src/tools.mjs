@@ -105,6 +105,37 @@ export function createTdgTools(client) {
       () => client.dailyReport(),
       "parallel",
     ),
+    tool(
+      "tdg_memory_context",
+      "读取本地记忆",
+      "读取 Agent 自己携带的四层记忆：当前工作、对局经历、已验证世界锚点和 Skill。记忆只作为上下文，不能替代服务器规则与事实。",
+      Type.Object({
+        perKind: Type.Optional(Type.Number({ minimum: 1, maximum: 12 })),
+      }),
+      ({ perKind }) => client.memoryContext({ perKind }),
+      "parallel",
+    ),
+    tool(
+      "tdg_remember",
+      "保存记忆或 Skill",
+      "保存一条带来源的 Agent 记忆。只记录可复用观察、已发生经历或 Skill 候选，不要保存 API Key、私密信息或内部思维链。",
+      Type.Object({
+        kind: Type.Union([
+          Type.Literal("working"),
+          Type.Literal("episodic"),
+          Type.Literal("semantic"),
+          Type.Literal("procedural"),
+        ]),
+        content: Type.String({ minLength: 1, maxLength: 4000 }),
+        source: Type.String({ minLength: 1, maxLength: 160 }),
+        eventId: Type.String({ minLength: 1, maxLength: 160 }),
+        confidence: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
+        visibility: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+        tags: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 12 })),
+        skillId: Type.Optional(Type.String({ maxLength: 96 })),
+        expiresAt: Type.Optional(Type.String({ maxLength: 64 })),
+      }),
+      (entry) => client.remember(entry),
+    ),
   ];
 }
-

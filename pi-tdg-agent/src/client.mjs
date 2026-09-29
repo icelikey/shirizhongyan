@@ -19,10 +19,11 @@ function redact(value) {
 }
 
 export class TdgClient {
-  constructor({ baseUrl, apiKey, fetchImpl = globalThis.fetch } = {}) {
+  constructor({ baseUrl, apiKey, fetchImpl = globalThis.fetch, memory = null } = {}) {
     this.baseUrl = normalizeBaseUrl(baseUrl);
     this.apiKey = required(apiKey, "TDG API Key");
     this.fetchImpl = fetchImpl;
+    this.memory = memory;
     this.bindings = new Map();
   }
 
@@ -104,9 +105,22 @@ export class TdgClient {
     });
   }
 
+  memoryContext(options = {}) {
+    return this.memory?.context(options) || {
+      working: [],
+      episodic: [],
+      semantic: [],
+      procedural: [],
+    };
+  }
+
+  remember(entry) {
+    if (!this.memory) throw new Error("当前 Agent 没有配置本地记忆仓");
+    return this.memory.remember(entry);
+  }
+
   async dailyReport() {
     const agentId = required(this.agentId, "Agent ID");
     return this.request(`/agents/${encodeURIComponent(agentId)}/report`);
   }
 }
-

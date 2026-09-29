@@ -8,6 +8,8 @@ import {
   type WorldEpochSnapshot,
 } from "@contracts/worldEmergence";
 import type { GameDefinition } from "@contracts/gameSdk";
+import { mapperIdForTemplate } from "@contracts/worldContributionMapper";
+import type { MatchSettledWorldEvent, WorldSeatProjection } from "@contracts/worldOutbox";
 import type { SeatState } from "../games/sdk/runtime";
 import { getDb } from "./connection";
 
@@ -30,11 +32,11 @@ function duplicateKey(error: unknown): boolean {
   return candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062;
 }
 
-function worldId(): string {
+export function getWorldId(): string {
   return process.env.TDG_WORLD_ID?.trim() || DEFAULT_WORLD_ID;
 }
 
-function currentEpoch(): number {
+export function getWorldEpoch(): number {
   const configured = Number(process.env.TDG_WORLD_EPOCH);
   if (Number.isInteger(configured) && configured > 0) return configured;
   return Math.floor(Date.now() / 86_400_000) + 1;
@@ -44,18 +46,31 @@ function currentEpoch(): number {
  * 游戏语义到世界方向的固定映射。
  * Agent 可以影响对局动作，但不能临时修改这张映射或贡献权重。
  */
-function directionFor(def: GameDefinition, rank: number): WorldDirection {
-  if (def.template === "numberGuess") return "law";
-  if (def.template === "pollDuel") return "voice";
-  if (def.template === "pirateGold") return rank === 0 ? "trust" : "rupture";
-  return "memory";
+function directionFor(def: GameDefinition, mapperId: string, rank: number): WorldDirection {
+  switch (mapperId) {
+    case "number-guess/v1": return "law";
+    case "poll-duel/v1": return "voice";
+    case "pirate-gold/v1": return rank === 0 ? "trust" : "rupture";
+    case "fly-tease/v1":
+    case "superpower-billiards/v1": return "memory";
+    default:
+      // 未声明的旧/UGC 定义按模板 v1 兼容映射，不能让未知字符串决定方向。
+      if (def.template === "numberGuess") return "law";
+      if (def.template === "pollDuel") return "voice";
+      if (def.template === "pirateGold") return rank === 0 ? "trust" : "rupture";
+      return "memory";
+  }
 }
 
 function contributionFor(params: {
   def: GameDefinition;
   matchLogId: number;
-  seat: SeatState;
+  seat: Pick<SeatState, "index" | "kind" | "userId" | "agentKeyId"> | WorldSeatProjection;
   rank: number;
+  mapperId: string;
+  worldId: string;
+  epoch: number;
+  committedAt: string;
 }): WorldContribution {
   const participantRef = params.seat.kind === "external-agent"
     ? `agent:${params.seat.agentKeyId ?? params.seat.index}`
@@ -65,17 +80,54 @@ function contributionFor(params: {
   return {
     eventId,
     contributionKey: eventId,
-    worldId: worldId(),
-    epoch: currentEpoch(),
+    worldId: params.worldId,
+    epoch: params.epoch,
     participantRef,
     participantKind,
     gameId: params.def.id,
-    direction: directionFor(params.def, params.rank),
+    direction: directionFor(params.def, params.mapperId, params.rank),
     weight: params.rank === 0 ? 2 : 1,
     evidenceRefs: [`match-${params.matchLogId}`],
     clueId: null,
-    committedAt: new Date().toISOString(),
+    committedAt: params.committedAt,
   };
+}
+
+/**
+ * 将一局已结算的公开座位投影映射为世界贡献。
+ * 这是 GamePackage 与世界层之间唯一的语义边界，Worker 只执行这里的版本。
+ */
+export function mapMatchWorldContributions(params: {
+  def: GameDefinition;
+  matchLogId: number;
+  seats: (Pick<SeatState, "index" | "kind" | "userId" | "agentKeyId"> | WorldSeatProjection | null)[];
+  rankings: number[];
+  mapperId?: string;
+  worldId?: string;
+  epoch?: number;
+  committedAt?: string;
+}): WorldContribution[] {
+  const mapperId = params.mapperId ?? params.def.worldContributionMapperId ?? mapperIdForTemplate(params.def.template);
+  const world = params.worldId ?? getWorldId();
+  const epoch = params.epoch ?? getWorldEpoch();
+  const committedAt = params.committedAt ?? new Date().toISOString();
+  const playableSeats = params.seats.filter(
+    (seat): seat is WorldSeatProjection => seat !== null && seat.kind !== "echo-bot",
+  );
+  return playableSeats
+    .map((seat) => {
+      const rank = params.rankings.indexOf(seat.index);
+      return contributionFor({
+        def: params.def,
+        matchLogId: params.matchLogId,
+        seat,
+        rank: rank < 0 ? params.rankings.length : rank,
+        mapperId,
+        worldId: world,
+        epoch,
+        committedAt,
+      });
+    });
 }
 
 async function persistEpoch(world: string, epoch: number) {
@@ -154,17 +206,10 @@ export async function recordMatchWorldContributions(params: {
   seats: (SeatState | null)[];
   rankings: number[];
 }) {
-  const world = worldId();
-  const epoch = currentEpoch();
-  for (const seat of params.seats) {
-    if (!seat || seat.kind === "echo-bot") continue;
-    const rank = params.rankings.indexOf(seat.index);
-    const contribution = contributionFor({
-      def: params.def,
-      matchLogId: params.matchLogId,
-      seat,
-      rank: rank < 0 ? params.rankings.length : rank,
-    });
+  const world = getWorldId();
+  const epoch = getWorldEpoch();
+  const contributions = mapMatchWorldContributions(params);
+  for (const contribution of contributions) {
     try {
       await getDb().insert(worldContributions).values({
         contributionKey: contribution.contributionKey,
@@ -187,8 +232,46 @@ export async function recordMatchWorldContributions(params: {
   return persistEpoch(world, epoch);
 }
 
+/** Worker 的幂等投影：重复执行只会命中唯一键，然后重算同一纪元。 */
+export async function projectSettledMatchWorldEvent(
+  event: MatchSettledWorldEvent,
+  def: GameDefinition,
+) {
+  const contributions = mapMatchWorldContributions({
+    def,
+    matchLogId: event.matchLogId,
+    seats: event.seats,
+    rankings: event.rankings,
+    mapperId: event.mapperId,
+    worldId: event.worldId,
+    epoch: event.epoch,
+    committedAt: event.settledAt,
+  });
+  for (const contribution of contributions) {
+    try {
+      await getDb().insert(worldContributions).values({
+        contributionKey: contribution.contributionKey,
+        eventId: contribution.eventId,
+        worldId: contribution.worldId,
+        epoch: contribution.epoch,
+        participantRef: contribution.participantRef,
+        participantKind: contribution.participantKind,
+        gameId: contribution.gameId,
+        direction: contribution.direction,
+        weight: contribution.weight,
+        evidenceRefs: contribution.evidenceRefs as never,
+        clueId: contribution.clueId,
+        committedAt: new Date(contribution.committedAt),
+      });
+    } catch (error) {
+      if (!duplicateKey(error)) throw error;
+    }
+  }
+  return persistEpoch(event.worldId, event.epoch);
+}
+
 export async function getPublicWorldState(requestedWorldId?: string) {
-  const world = requestedWorldId?.trim() || worldId();
+  const world = requestedWorldId?.trim() || getWorldId();
   const rows = await getDb()
     .select()
     .from(worldEpochs)
@@ -223,7 +306,7 @@ export async function getPublicWorldState(requestedWorldId?: string) {
 
 /** 将数据库中的公开纪元重新规范化为可跨服务器交换的快照。 */
 export async function getPublicWorldSnapshot(requestedWorldId?: string) {
-  const world = requestedWorldId?.trim() || worldId();
+  const world = requestedWorldId?.trim() || getWorldId();
   const rows = await getDb()
     .select()
     .from(worldEpochs)

@@ -11,6 +11,7 @@ const grant = {
 describe("world CoI", () => {
   it("maps game actions to bounded permissions", () => {
     expect(actionScopeForGameAction({ type: "ability" })).toBe("use_ability");
+    expect(actionScopeForGameAction({ type: "use_tactic" })).toBe("use_tactic");
     expect(actionScopeForGameAction({ type: "speak" })).toBe("speak");
     expect(actionScopeForGameAction({ type: "strike" })).toBe("submit_move");
     expect(scopeContains({ ...grant, actionScopes: ["rule_appeal"] }, { worldId: "tdg-world", gameId: "superpowerBilliards", matchId: "ABC123", floor: 6, action: "rule_appeal" })).toBe(true);

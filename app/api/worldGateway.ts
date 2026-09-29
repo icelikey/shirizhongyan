@@ -36,10 +36,15 @@ import { WORLD_EMERGENCE_VERSION, WORLD_DIRECTIONS } from "@contracts/worldEmerg
 import { getPublicWorldSnapshot, getPublicWorldState } from "./queries/worldEmergence";
 import { proposeWorldMerge, worldSnapshotSchema } from "@contracts/worldEmergence";
 import { publicSkillCatalog } from "@contracts/skills";
+import { isTacticGameScope, publicTacticCardCatalog } from "@contracts/tacticCards";
 import { publicWorldGovernance } from "@contracts/worldGovernance";
 import { actionScopeForGameAction } from "@contracts/worldCoi";
 import { listAgentCoi, coiUsageSummary, requireCoi } from "./queries/agentCoi";
 import { getAgentWorldContext } from "./queries/agentWorld";
+import { findEnvelopeForViewer } from "./queries/matchLogs";
+import { SPECTATOR, type MatchLogEnvelope } from "@contracts/matchLog";
+import { buildBattleReportBrief, buildBattleReportPrompt, renderBattleReportText } from "@contracts/battleReport";
+import type { MatchMode } from "@contracts/matchMode";
 
 /** TDG-WP v0.1 的 HTTP/JSON 适配层；网页内部 tRPC 入口另行保留。 */
 export const worldGateway = new Hono();
@@ -47,6 +52,15 @@ export const worldGateway = new Hono();
 worldGateway.use("*", cors({ origin: "*", allowHeaders: ["content-type", "x-api-key", "authorization"] }));
 
 const PROTOCOL_VERSION = "0.1";
+
+function inferMatchMode(envelope: MatchLogEnvelope): MatchMode {
+  const seats = envelope.events.find(event => event.t === "matchStart")?.seats ?? [];
+  const humans = seats.filter(seat => seat.kind === "human").length;
+  const agents = seats.filter(seat => seat.kind === "external-agent").length;
+  if (humans === 0 && agents >= 2) return "agent-v-agent";
+  if (humans > 0 && agents > 0) return "human-v-agent";
+  return "human-v-human";
+}
 
 class GatewayError extends Error {
   constructor(
@@ -88,8 +102,11 @@ function descriptor(c: Context) {
       governance: `${origin}/world/v1/governance`,
       federationProposal: `${origin}/world/v1/federation/proposals`,
       skills: `${origin}/world/v1/skills`,
+      tacticCards: `${origin}/world/v1/tactic-cards`,
       games: `${origin}/world/v1/games`,
       matches: `${origin}/world/v1/matches`,
+      matchReport: `${origin}/world/v1/matches/:code/report`,
+      publicMatchReport: `${origin}/world/v1/public/matches/:code/report`,
     },
     authentication: {
       type: "api-key",
@@ -113,6 +130,7 @@ function descriptor(c: Context) {
       worldIntel: true,
       memoryCards: true,
       officialSkills: true,
+      tacticCards: true,
       abilityContext: true,
       reportChannels: ["feishu", "wecom"],
       coi: true,
@@ -310,6 +328,19 @@ worldGateway.get("/world/v1/skills", (c) => c.json({
   skills: publicSkillCatalog(),
   boundary: "skills_may_change_information_planning_budget_route_or_explanation; never_settle_results",
 }));
+
+/** 策略卡只读目录；所有权、装备和剩余次数仍由 Agent 视角与房间规则决定。 */
+worldGateway.get("/world/v1/tactic-cards", (c) => {
+  const requestedGame = c.req.query("game");
+  const game = requestedGame && isTacticGameScope(requestedGame) ? requestedGame : undefined;
+  return c.json({
+    protocolVersion: PROTOCOL_VERSION,
+    version: "1.0",
+    game: game ?? "all",
+    cards: publicTacticCardCatalog(game),
+    boundary: "tactic_cards_may_change_information_timing_or_pending_ability;_never_settle_results",
+  });
+});
 
 /**
  * 由已注册 Agent 代为发起的公开接轨提案。
@@ -549,6 +580,82 @@ worldGateway.get("/world/v1/matches/:code/observation", async (c) => {
       observation: room.view(seat.seatToken!),
       worldContext: world.worldContext,
       worldIntel: world.worldIntel,
+      /** 只读公共目录；真实持有权和当前可用窗口仍由房间内核判断。 */
+      tacticCards: publicTacticCardCatalog(room.def.template),
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/**
+ * 终局战报：同一份事实提纲同时提供机器可读版、证据绑定兜底叙事和
+ * 可交给叙事模型润色的 prompt。没有 match log 时明确返回未就绪，
+ * 不凭空编造 Agent 的心理活动。
+ */
+worldGateway.get("/world/v1/matches/:code/report", async (c) => {
+  try {
+    const { key, room } = await agentSeat(c);
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      read: "public_events",
+    });
+    const matchLogId = room.getState().matchLogId;
+    if (!matchLogId) {
+      throw new TRPCError({ code: "CONFLICT", message: "对局尚未结束或事件流尚未落库" });
+    }
+    const envelope = await findEnvelopeForViewer(matchLogId, SPECTATOR);
+    if (!envelope) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "找不到这局的完整事件流" });
+    }
+    const mode = inferMatchMode(envelope);
+    const brief = buildBattleReportBrief({ events: envelope.events, mode, matchId: matchLogId });
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      matchLogId,
+      mode,
+      report: renderBattleReportText(brief),
+      brief,
+      prompt: buildBattleReportPrompt(brief),
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/**
+ * 已终局对局的公开战报。
+ *
+ * 战报只读取公开事件投影，并且必须等房间进入 finished 后才能访问；
+ * 这样真人观众不需要持有 Agent Key，也不会在对局进行中旁路读取密态。
+ * Agent 专用的 /world/v1/matches/:code/report 仍保留，继续执行 CoI 校验。
+ */
+worldGateway.get("/world/v1/public/matches/:code/report", async (c) => {
+  try {
+    const room = await requireRoom(codeFromPath(c));
+    const state = room.getState();
+    if (state.status !== "finished") {
+      throw new TRPCError({ code: "CONFLICT", message: "对局尚未结束，战报将在终局后开放" });
+    }
+    if (!state.matchLogId) {
+      throw new TRPCError({ code: "CONFLICT", message: "终局事件流尚未落库" });
+    }
+    const envelope = await findEnvelopeForViewer(state.matchLogId, SPECTATOR);
+    if (!envelope) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "找不到这局的完整事件流" });
+    }
+    const mode = inferMatchMode(envelope);
+    const brief = buildBattleReportBrief({ events: envelope.events, mode, matchId: state.matchLogId });
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      public: true,
+      matchLogId: state.matchLogId,
+      mode,
+      report: renderBattleReportText(brief),
+      brief,
+      prompt: buildBattleReportPrompt(brief),
     });
   } catch (error) {
     return errorResponse(c, error);

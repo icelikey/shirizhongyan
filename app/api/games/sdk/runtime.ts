@@ -44,17 +44,34 @@ import { recordAgentActivity } from "../../queries/agentActivity";
 import { incrementGameDefPlays } from "../../queries/gameDefs";
 import { persistRoomState } from "../../queries/rooms";
 import { insertMatchLog } from "../../queries/matchLogs";
-import { grantCard } from "../../queries/playerCards";
+import { grantCard, hasCard } from "../../queries/playerCards";
 import { detectEggs } from "../../world/eggs";
 import { ruleBookForTemplate } from "@contracts/rulebooks.data";
+import {
+  getTacticCard,
+} from "@contracts/tacticCards";
+import type { TacticCard } from "@contracts/cards";
 import { EventRecorder, newMatchSeed } from "./eventRecorder";
 import type { RoundEntry, TemplateModule } from "./templates";
 import { FLY_ATLAS } from "./flybrain/atlas.generated";
-import { recordMatchWorldContributions } from "../../queries/worldEmergence";
+import {
+  getWorldEpoch,
+  getWorldId,
+} from "../../queries/worldEmergence";
+import { mapperIdForTemplate } from "@contracts/worldContributionMapper";
 
 export const REVEAL_MS = 5_000;
 /** v4 SDK 房间快照标记（v3 旧快照无此字段 → 不恢复） */
 export const SDK_STATE_VERSION = 1;
+
+function isAbilityPayload(payload: unknown): boolean {
+  return Boolean(
+    payload &&
+      typeof payload === "object" &&
+      "kind" in payload &&
+      (payload as { kind?: unknown }).kind === "ability",
+  );
+}
 
 const BOT_NAMES = [
   "白泽",
@@ -89,6 +106,22 @@ export interface SeatState {
   userId: number | null;
   agentKeyId: number | null;
   score: number;
+}
+
+export interface TacticLedgerEntry {
+  seat: number;
+  cardId: string;
+  round: number;
+  targetSeat: number | null;
+  resolution: "accepted" | "rejected" | "countered" | "expired";
+  reason: string;
+}
+
+export interface TacticSignal {
+  seat: number;
+  round: number;
+  kind: "false-signal" | "evidence" | "deadline";
+  text: string;
 }
 
 export interface SdkRoomState {
@@ -127,6 +160,14 @@ export interface SdkRoomState {
   seed?: string;
   /** 已落库的 match_logs.id（终局后写入，观战页据此取事件流） */
   matchLogId?: number | null;
+  /** 盘外招的公开审计投影；卡牌使用不直接写入胜负函数。 */
+  tacticLedger?: TacticLedgerEntry[];
+  /** 观测层可见的假信号/证据/节奏提示。 */
+  tacticSignals?: TacticSignal[];
+  /** 本轮已经被哑针/封脉压下的异能提交。 */
+  suppressedAbilitySeats?: { round: number; seat: number; cardId: string }[];
+  /** 每席每张卡的对局内使用次数与最近使用轮次。 */
+  tacticUses?: Record<number, Record<string, { count: number; lastRound: number }>>;
 }
 
 function newSeatToken(): string {
@@ -197,7 +238,16 @@ export class SdkRoom {
       matchState: null,
       subPhases: null,
       subPhaseIdx: 0,
+      tacticLedger: [],
+      tacticSignals: [],
+      suppressedAbilitySeats: [],
+      tacticUses: {},
     };
+    // 兼容没有新增字段的旧房间快照。
+    this.state.tacticLedger ??= [];
+    this.state.tacticSignals ??= [];
+    this.state.suppressedAbilitySeats ??= [];
+    this.state.tacticUses ??= {};
   }
 
   private get seatCount(): number {
@@ -326,6 +376,7 @@ export class SdkRoom {
         throw new TRPCError({ code: "FORBIDDEN", message: "无效的 seatToken" });
       }
       if (action.type === "start") return this.startInternal(seat);
+      if (action.type === "use_tactic") return this.useTacticInternal(seat, action);
       const normalized = this.module.normalizeStructuredSubmission
         ? this.module.normalizeStructuredSubmission(this.def, action)
         : this.module.normalizeSubmission(this.def, action);
@@ -338,6 +389,233 @@ export class SdkRoom {
       const payload = typeof normalized === "number" ? { value: normalized } : normalized;
       return this.submitInternal(seat, payload.value, payload.payload);
     });
+  }
+
+  /**
+   * 盘外招唯一执行入口。
+   * 卡牌先过持有权、游戏兼容性、当前时机、对局内次数/冷却四道门，
+   * 再调用白名单效果。效果不能直接改分、改胜负或回滚已结算事实。
+   */
+  private async useTacticInternal(
+    seat: SeatState,
+    action: Extract<GameAction, { type: "use_tactic" }>,
+  ) {
+    const card = getTacticCard(action.cardId);
+    const targetSeat = action.targetSeat ?? null;
+    const reject = (reason: string): never => {
+      this.recordTactic(seat.index, card, targetSeat, "rejected", reason);
+      throw new TRPCError({ code: "BAD_REQUEST", message: reason });
+    };
+
+    if (this.state.status !== "playing") reject("当前不在进行中的对局");
+    if (!card) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "未知的策略卡" });
+    }
+    if (!card.compatibleGames.includes("all") && !card.compatibleGames.includes(this.def.template)) {
+      reject(`策略卡「${card.name}」不适用于当前游戏`);
+    }
+    const ruleBook = ruleBookForTemplate(this.def.template);
+    if (!ruleBook?.tacticHooks?.includes(card.ruleHook)) {
+      reject(`当前规则书未开放策略钩子「${card.ruleHook}」`);
+    }
+    if (!this.tacticTimingAllowed(seat.index, card)) {
+      reject(`策略卡「${card.name}」不在当前规则窗口`);
+    }
+    if (seat.userId == null || !(await hasCard(seat.userId, card.id))) {
+      reject(`当前 Agent 或玩家未持有策略卡「${card.name}」`);
+    }
+    const use = this.state.tacticUses?.[seat.index]?.[card.id];
+    if (use && use.count >= card.charges) {
+      reject(`策略卡「${card.name}」本局次数已用尽`);
+    }
+    if (use && card.cooldown > 0 && this.state.round - use.lastRound <= card.cooldown) {
+      reject(`策略卡「${card.name}」仍在冷却中`);
+    }
+    const targetError = this.validateTacticTarget(seat, card, targetSeat, action.consent);
+    if (targetError) reject(targetError);
+
+    const result = this.applyTacticEffect(seat, card, targetSeat);
+    if (!result.accepted) reject(result.reason);
+
+    this.state.tacticUses ??= {};
+    this.state.tacticUses[seat.index] ??= {};
+    this.state.tacticUses[seat.index][card.id] = {
+      count: (use?.count ?? 0) + 1,
+      lastRound: this.state.round,
+    };
+    this.state.tacticLedger ??= [];
+    this.state.tacticLedger.push({
+      seat: seat.index,
+      cardId: card.id,
+      round: this.state.round,
+      targetSeat,
+      resolution: "accepted",
+      reason: result.reason,
+    });
+    this.recorder?.tactic({
+      seat: seat.index,
+      cardId: card.id,
+      ruleHook: card.ruleHook,
+      targetSeat,
+      resolution: "accepted",
+      reason: result.reason,
+    });
+    if (action.strategy) {
+      const maxEvidence = Math.max(-1, (this.recorder?.count ?? 1) - 1);
+      const evidenceSeqs = (action.strategy.evidenceSeqs ?? [maxEvidence])
+        .filter(seq => seq >= 0 && seq <= maxEvidence)
+        .slice(0, 16);
+      this.recorder?.strategyTrace({
+        seat: seat.index,
+        phase: this.state.subPhases?.[this.state.subPhaseIdx]?.name ?? this.state.phase ?? "unknown",
+        hypothesis: action.strategy.hypothesis,
+        risk: action.strategy.risk,
+        candidateCount: action.strategy.candidateCount,
+        chosenLabel: action.strategy.chosenLabel,
+        evidenceSeqs,
+      });
+    }
+    this.touch();
+    return {
+      ok: true,
+      cardId: card.id,
+      resolution: "accepted" as const,
+      reason: result.reason,
+      privateInsight: result.privateInsight,
+      observation: this.view(seat.seatToken!),
+    };
+  }
+
+  private recordTactic(
+    seat: number,
+    card: TacticCard | undefined,
+    targetSeat: number | null,
+    resolution: "accepted" | "rejected" | "countered" | "expired",
+    reason: string,
+  ) {
+    if (!card) return;
+    this.state.tacticLedger ??= [];
+    this.state.tacticLedger.push({ seat, cardId: card.id, round: this.state.round, targetSeat, resolution, reason });
+    this.recorder?.tactic({ seat, cardId: card.id, ruleHook: card.ruleHook, targetSeat, resolution, reason });
+    this.touch();
+  }
+
+  private tacticTimingAllowed(seat: number, card: TacticCard): boolean {
+    const phase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+    const ownSubmitted = this.state.submissions.some(entry => entry.seat === seat && entry.phase === phase);
+    switch (card.timing) {
+      case "before-submit": return this.state.phase === "submit" && !ownSubmitted;
+      case "after-submit": return this.state.phase === "submit" && ownSubmitted;
+      case "before-reveal": return this.state.phase === "submit";
+      case "on-ability": return this.state.phase === "submit" && phase === "ability";
+      case "after-reveal": return this.state.phase === "reveal";
+      default: return false;
+    }
+  }
+
+  private validateTacticTarget(
+    seat: SeatState,
+    card: TacticCard,
+    targetSeat: number | null,
+    consent?: boolean,
+  ): string | null {
+    const target = targetSeat == null ? null : this.state.seats[targetSeat];
+    if ((card.target === "opponent" || card.target === "mutual") && targetSeat == null) {
+      return `策略卡「${card.name}」必须指定目标席位`;
+    }
+    if (targetSeat != null && (!target || target.index === seat.index)) {
+      return "策略卡目标席位无效";
+    }
+    if (card.target === "self" && targetSeat != null && targetSeat !== seat.index) {
+      return "该策略卡只能作用于自己";
+    }
+    if (card.target === "public-event" && targetSeat != null) {
+      return "公开事件类策略卡不接受目标席位";
+    }
+    if (card.effect === "swap-private-commitment" && consent !== true) {
+      return "换底必须明确提交双方同意标记";
+    }
+    return null;
+  }
+
+  private applyTacticEffect(
+    seat: SeatState,
+    card: TacticCard,
+    targetSeat: number | null,
+  ): { accepted: boolean; reason: string; privateInsight?: unknown } {
+    const target = targetSeat == null ? null : this.state.seats[targetSeat];
+    const currentPhase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+    const entryFor = (index: number) => this.state.submissions.find(entry => entry.seat === index && entry.phase === currentPhase);
+    const ownEntry = entryFor(seat.index);
+    const targetEntry = target ? entryFor(target.index) : undefined;
+
+    if (card.effect === "peek-private-commitment") {
+      if (!target || !targetEntry) return { accepted: false, reason: "目标尚未提交可照看的动作" };
+      const payload = targetEntry.payload as { kind?: string; cardId?: string } | undefined;
+      return {
+        accepted: true,
+        reason: "已读取目标的动作摘要，未暴露身份、思维链或结算值",
+        privateInsight: {
+          targetSeat: target.index,
+          actionKind: payload?.kind ?? this.module.gameKind,
+          cardSummary: payload?.cardId ? `使用了 ${payload.cardId} 类动作` : "已提交但无牌面摘要",
+        },
+      };
+    }
+
+    if (card.effect === "swap-private-commitment") {
+      if (!ownEntry || !targetEntry) return { accepted: false, reason: "换底要求双方都已提交且尚未揭示" };
+      const ownValue = ownEntry.value;
+      const ownPayload = ownEntry.payload;
+      ownEntry.value = targetEntry.value;
+      ownEntry.payload = targetEntry.payload;
+      targetEntry.value = ownValue;
+      targetEntry.payload = ownPayload;
+      return { accepted: true, reason: "双方已提交的未揭示承诺完成交换，事件已留痕" };
+    }
+
+    if (card.effect === "suppress-pending-ability") {
+      if (!target || !targetEntry || !isAbilityPayload(targetEntry.payload)) {
+        return { accepted: false, reason: "当前响应窗口没有可封锁的待结算异能" };
+      }
+      this.state.suppressedAbilitySeats ??= [];
+      this.state.suppressedAbilitySeats.push({ round: this.state.round, seat: target.index, cardId: card.id });
+      return { accepted: true, reason: `已封锁第 ${target.index + 1} 席本窗口待结算异能` };
+    }
+
+    if (card.effect === "extend-decision-window") {
+      if (card.id === "tactic-extra-breath" && this.state.phase === "submit") {
+        this.extendSubmitWindow(5_000);
+        return { accepted: true, reason: "行动窗口延长 5 秒" };
+      }
+      this.state.tacticSignals ??= [];
+      this.state.tacticSignals.push({ seat: seat.index, round: this.state.round, kind: "deadline", text: `第 ${(targetSeat ?? seat.index) + 1} 席的窗口被催响` });
+      return { accepted: true, reason: "已向观测层发出节奏信号，不替目标提交动作" };
+    }
+
+    if (card.effect === "plant-false-signal") {
+      this.state.tacticSignals ??= [];
+      this.state.tacticSignals.push({ seat: seat.index, round: this.state.round, kind: "false-signal", text: "一条带有伪信标记的动作摘要进入公开观测层" });
+      return { accepted: true, reason: "伪信已进入公开观测层，真实动作与结算保持不变" };
+    }
+
+    if (card.effect === "restore-public-evidence") {
+      this.state.tacticSignals ??= [];
+      this.state.tacticSignals.push({ seat: seat.index, round: this.state.round, kind: "evidence", text: "一条被跳过的公开事件被重新推回证据流顶部" });
+      return { accepted: true, reason: "公开证据已重新置顶" };
+    }
+
+    return { accepted: false, reason: "规则书没有为此策略卡提供执行钩子" };
+  }
+
+  private extendSubmitWindow(ms: number) {
+    if (this.state.submitDeadlineAt == null) return;
+    this.state.submitDeadlineAt += ms;
+    if (this.submitTimer) clearTimeout(this.submitTimer);
+    this.submitTimer = setTimeout(() => {
+      this.submitTimer = null;
+      void this.enqueue(() => this.afterSubmitWindow());
+    }, Math.max(0, this.state.submitDeadlineAt - Date.now()));
   }
 
   /** 开局：仅房主（0 号 human 席）可发起；空位全部由 echo-bot 填充 */
@@ -636,9 +914,11 @@ export class SdkRoom {
 
   /** 结算本轮：模板揭晓/计分 → 5s 后下一轮或终局 */
   private async revealRound() {
-    const entries = [...this.state.submissions].sort(
+    const entries = [...this.state.submissions]
+      .filter(entry => !this.isSuppressedAbility(entry))
+      .sort(
       (a, b) => a.order - b.order,
-    );
+      );
     const { reveal, scoreDeltas, finished } = this.module.resolveRound(
       this.def,
       this.state.round,
@@ -671,6 +951,11 @@ export class SdkRoom {
     }, REVEAL_MS);
   }
 
+  private isSuppressedAbility(entry: RoundEntry): boolean {
+    if (!isAbilityPayload(entry.payload)) return false;
+    return (this.state.suppressedAbilitySeats ?? []).some(item => item.round === this.state.round && item.seat === entry.seat);
+  }
+
   /* ---------------------------------------------------------------- */
   /* 终局与通用结算                                                      */
   /* ---------------------------------------------------------------- */
@@ -681,13 +966,15 @@ export class SdkRoom {
     this.state.winner = this.state.rankings[0] ?? null;
     this.touch();
     await this.settleRewards();
-    // 事件流落库 + 彩蛋判定，须在发奖后——彩蛋读的 fragmentsDelta 由发奖决定
-    await this.persistMatchLog();
+    // 房间已进入 finished，UGC 开局统计先于较重的事件流/彩蛋后处理落库，
+    // 让大厅的作品热度与玩家结算在同一个可观测终点完成。
     if (!this.def.isOfficial) {
       await incrementGameDefPlays(this.def.id).catch((err) =>
         console.error(`[sdkRoom] plays++ ${this.def.id} failed`, err),
       );
     }
+    // 事件流落库 + 彩蛋判定，须在发奖后——彩蛋读的 fragmentsDelta 由发奖决定
+    await this.persistMatchLog();
   }
 
   /**
@@ -728,17 +1015,24 @@ export class SdkRoom {
         seed: rec.seed,
         events: [...rec.all],
         startedAt: rec.startedAt,
-        endedAt: Date.now(),
-        winnerSeat: this.state.winner,
-      });
-      this.state.matchLogId = logId;
-      this.touch();
-      await recordMatchWorldContributions({
-        def: this.def,
-        matchLogId: logId,
-        seats: this.state.seats,
-        rankings: this.state.rankings ?? [],
-      });
+      endedAt: Date.now(),
+      winnerSeat: this.state.winner,
+      worldSettlement: {
+        defId: this.def.id,
+        mapperId: this.def.worldContributionMapperId ?? mapperIdForTemplate(this.def.template),
+        worldId: getWorldId(),
+        epoch: getWorldEpoch(),
+        rankings: [...(this.state.rankings ?? [])],
+        seats: this.state.seats.map((seat) => seat ? {
+          index: seat.index,
+          kind: seat.kind,
+          userId: seat.userId,
+          agentKeyId: seat.agentKeyId,
+        } : null),
+      },
+    });
+    this.state.matchLogId = logId;
+    this.touch();
     } catch (err) {
       console.error(`[sdkRoom] ${this.code} 事件流落库失败`, err);
       return; // 落库失败则不发卡：卡牌应可溯源到具体一局
@@ -751,8 +1045,8 @@ export class SdkRoom {
    * 彩蛋判定与发卡。
    *
    * 判定在全知事件流上做（服务端时机，可读密态事件）。
-   * 只给 human 席发卡——bot 无账户，外部 Agent 的奖励走其所属 userId，
-   * 但卡牌是给「人」的收藏，故此处只认真人席。
+   * bot 无账户，不收卡；human 和 external-agent 席都通过 userId 收卡，
+   * 这样 Agent 的奇遇卡才能进入所属用户的卡册和后续世界记忆上下文。
    */
   private async grantEggCards(rec: EventRecorder): Promise<void> {
     let hits;
@@ -766,7 +1060,7 @@ export class SdkRoom {
 
     for (const hit of hits) {
       const seat = this.state.seats[hit.seat];
-      if (seat?.kind !== "human" || !seat.userId) continue;
+      if (!seat?.userId) continue;
       await grantCard({
         userId: seat.userId,
         cardId: hit.cardId,
@@ -935,6 +1229,9 @@ export class SdkRoom {
           : null,
       submittedCount: this.state.submissions.length,
       serverNow: Date.now(),
+      /** 公开盘外招轨迹，供观战和 Agent 判断节奏；不含私有牌库数量。 */
+      tacticLedger: [...(this.state.tacticLedger ?? [])],
+      tacticSignals: [...(this.state.tacticSignals ?? [])],
     };
     if (this.def.template === "pollDuel") {
       return {

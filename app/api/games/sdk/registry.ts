@@ -39,6 +39,7 @@ import { pirateGoldModule } from "./pirateGold";
 import { pollDuelModule } from "./pollDuel";
 import { flyTeaseModule } from "./flyTease";
 import { superpowerBilliardsModule } from "./superpowerBilliards";
+import { WORLD_CONTRIBUTION_MAPPER_IDS } from "@contracts/worldContributionMapper";
 
 /* ------------------------------------------------------------------ */
 /* 官方定义（guess-core = v3 众念锚定默认参数；poll-duel-core = 红眼病官方版）*/
@@ -53,6 +54,7 @@ export const GUESS_CORE: GameDefinition = {
   entryFee: { suit: "club", amount: 0 },
   rewards: { winner: 50, runnerUp: 25, participation: 5 },
   submitWindowSec: 30,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.numberGuess,
 };
 
 /**
@@ -72,6 +74,7 @@ export const GUESS_MILLE_CORE: GameDefinition = {
   rewards: { winner: 50, runnerUp: 25, participation: 5 },
   submitWindowSec: 10,
   seatPolicy: "agent-only",
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.numberGuess,
 };
 
 export const POLL_DUEL_CORE: GameDefinition = {
@@ -84,6 +87,7 @@ export const POLL_DUEL_CORE: GameDefinition = {
   entryFee: { suit: "heart", amount: 0 },
   rewards: { winner: 50, runnerUp: 25, participation: 5 },
   submitWindowSec: 30,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.pollDuel,
 };
 
 export const PIRATE_GOLD_CORE: GameDefinition = {
@@ -99,6 +103,7 @@ export const PIRATE_GOLD_CORE: GameDefinition = {
   seatPolicy: "mixed-required",
   minHumanSeats: 1,
   minAgentSeats: 1,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.pirateGold,
 };
 
 export const FLYTEASE_CORE: GameDefinition = {
@@ -111,6 +116,7 @@ export const FLYTEASE_CORE: GameDefinition = {
   entryFee: { suit: "spade", amount: 0 },
   rewards: { winner: 50, runnerUp: 25, participation: 5 },
   submitWindowSec: 45,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.flyTease,
 };
 
 export const SUPERPOWER_BILLIARDS_CORE: GameDefinition = {
@@ -123,6 +129,7 @@ export const SUPERPOWER_BILLIARDS_CORE: GameDefinition = {
   entryFee: { suit: "spade", amount: 0 },
   rewards: { winner: 80, runnerUp: 40, participation: 10 },
   submitWindowSec: 45,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.superpowerBilliards,
 };
 
 export const OFFICIAL_GAMES: GameDefinition[] = [

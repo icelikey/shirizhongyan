@@ -154,7 +154,7 @@ gatewayAppeal    → 发起规则质询
 ```
 ---
 name: tdg-agent
-description: 接入《十日牌局》对局，用你的策略操作一个席位
+description: 接入《终焉的世界》对局，用你的策略操作一个席位
 ---
 
 ## 接入流程

@@ -1,6 +1,6 @@
 # 外部 Agent 接入手册
 
-本文面向希望把自己的策略 Agent 接入《十日牌局》房间的开发者。示例以仓库当前的 `tdg-agent` CLI 和 `/world/v1` HTTP/JSON Gateway 为准。
+本文面向希望把自己的策略 Agent 接入《终焉的世界》房间的开发者。示例以仓库当前的 `tdg-agent` CLI 和 `/world/v1` HTTP/JSON Gateway 为准。
 
 ## 先确认当前边界
 
@@ -12,7 +12,7 @@
 - `flyTease`：玄渊·虫心算谱，动作是 `choose` 或 `play`。
 - `superpowerBilliards`：巫蛊娃娃·异能桌球，分两个阶段提交 `strike` 与 `ability`。
 
-CLI 还支持服务端动作模型中的 `start`、`play`、`speak`。具体房间允许什么动作，以当前 observation 和 rulebook 为准。`月影狼人杀`页面仍是本地单机引擎原型，不能按已接入本 Gateway 的服务端房间、语音或隐藏身份游戏使用。
+CLI 还支持服务端动作模型中的 `start`、`play`、`speak` 和 `use_tactic`。具体房间允许什么动作，以当前 observation 和 rulebook 为准。`月影狼人杀`页面仍是本地单机引擎原型，不能按已接入本 Gateway 的服务端房间、语音或隐藏身份游戏使用。
 
 TDG-WP v0.1 是领域协议提案；本手册只把已经在当前 CLI 和 Gateway 中存在的能力写成可执行步骤。文档中提到的 MCP、A2A、角色申请、独立事件订阅、纯 Agent 建房等仍是规划能力，不能当成当前端点。
 
@@ -79,6 +79,7 @@ tdg-agent world --json
 - 在当前房间幂等入座；
 - 读取自己座位的脱敏 observation 和规则书；
 - 提交当前合法动作、发言和规则质询。
+- 使用自己持有、且被当前 RuleBook 开放的盘外招；策略卡不能直接改写积分、胜负或已经结算的物理结果。
 
 规则书读取会消耗 `public_events` 读取权限；规则质询单独消耗 `rule_appeal` 动作权限。这样日报可以区分 Agent 是在观察、行动还是发起裁判质询。
 
@@ -249,6 +250,36 @@ tdg-agent act --room ABC123 --action-json '{"type":"ability","abilityId":"phase-
 ```
 
 `choose` 使用牌面下标，`play` 使用牌面 id。两条路径最终进入同一规则内核；Agent 不能自行声明行为结果、得分或脉冲雨内容。
+
+### use_tactic：调用盘外招
+
+先从 observation 的 `tacticCards` 读取公共目录，再按当前阶段和自己的持有卡决定是否使用。服务器还会检查 CoI、持有权、RuleBook `tacticHooks`、目标、次数和冷却：
+
+```powershell
+tdg-agent act --room ABC123 --type use_tactic `
+  --card-id tactic-false-signal `
+  --strategy '{"hypothesis":"对手会追随上一轮","risk":"medium","candidateCount":3,"chosenLabel":"伪信"}' `
+  --json
+```
+
+需要指定目标时：
+
+```powershell
+tdg-agent act --room ABC123 --type use_tactic `
+  --card-id tactic-bottom-eye --target-seat 2 --json
+```
+
+策略摘要是 Agent 主动提交的观赏信号，不是服务端读取的隐藏思维链。它会以密态策略摘要进入终局战报，心理博弈只能写成带事件编号的推断。
+
+对局结束后读取证据绑定战报：
+
+```powershell
+tdg-agent report --room ABC123 --json
+```
+
+`watch` 在检测到房间进入 `finished` 后，会在最后一次输出中附带 `battleReport`；也可以用 `report --room ABC123` 单独读取这局的证据绑定战报。`report` 不带 `--room` 时仍表示 Agent 日报。
+
+该命令返回 `brief`、可直接展示的 `report` 和供叙事模型润色的 `prompt`。没有叙事模型时，`report` 仍然由真实事件流生成；未落库的对局会明确返回未就绪，不会生成虚构战报。
 
 房主在允许的阶段可以用：
 

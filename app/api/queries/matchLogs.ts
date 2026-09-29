@@ -9,7 +9,7 @@
  * payloadJson，否则就是信息泄漏。
  */
 import { desc, eq } from "drizzle-orm";
-import { matchLogs } from "@db/schema";
+import { matchLogs, worldOutbox } from "@db/schema";
 import {
   projectEvents,
   MATCH_LOG_VERSION,
@@ -18,6 +18,16 @@ import {
   type MatchLogEnvelope,
 } from "@contracts/matchLog";
 import { getDb } from "./connection";
+import { makeMatchSettledWorldEvent, type WorldSeatProjection } from "@contracts/worldOutbox";
+
+export interface MatchWorldSettlementInput {
+  defId: string;
+  mapperId: string;
+  worldId: string;
+  epoch: number;
+  rankings: number[];
+  seats: (WorldSeatProjection | null)[];
+}
 
 /** 落一局完整事件流，返回自增 id（判例需引用它） */
 export async function insertMatchLog(params: {
@@ -28,6 +38,8 @@ export async function insertMatchLog(params: {
   startedAt: number;
   endedAt: number | null;
   winnerSeat: number | null;
+  /** 与 match_logs 同一事务写入的世界投影事件。 */
+  worldSettlement?: MatchWorldSettlementInput;
 }): Promise<number> {
   const envelope: MatchLogEnvelope = {
     version: MATCH_LOG_VERSION,
@@ -38,21 +50,39 @@ export async function insertMatchLog(params: {
     events: params.events,
   };
 
-  const [res] = await getDb()
-    .insert(matchLogs)
-    .values({
-      roomCode: params.roomCode,
-      rulebookId: params.rulebookId,
-      seed: params.seed,
-      payloadJson: envelope as never,
-      winnerSeat: params.winnerSeat,
-      eventCount: params.events.length,
-      startedAt: new Date(params.startedAt),
-      endedAt: params.endedAt ? new Date(params.endedAt) : null,
-    })
-    .$returningId();
+  return getDb().transaction(async (tx) => {
+    const [res] = await tx
+      .insert(matchLogs)
+      .values({
+        roomCode: params.roomCode,
+        rulebookId: params.rulebookId,
+        seed: params.seed,
+        payloadJson: envelope as never,
+        winnerSeat: params.winnerSeat,
+        eventCount: params.events.length,
+        startedAt: new Date(params.startedAt),
+        endedAt: params.endedAt ? new Date(params.endedAt) : null,
+      })
+      .$returningId();
 
-  return res.id;
+    if (params.worldSettlement) {
+      const event = makeMatchSettledWorldEvent({
+        ...params.worldSettlement,
+        matchLogId: res.id,
+        settledAt: new Date(params.endedAt ?? Date.now()).toISOString(),
+      });
+      await tx.insert(worldOutbox).values({
+        eventId: `match-${res.id}:world-settled`,
+        scopeId: `world:${event.worldId}`,
+        aggregateId: `match:${res.id}`,
+        eventType: "world.match.settled",
+        commandId: null,
+        payloadJson: event as never,
+        status: "pending",
+      });
+    }
+    return res.id;
+  });
 }
 
 export async function findMatchLogById(id: number) {

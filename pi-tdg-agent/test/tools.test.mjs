@@ -64,6 +64,8 @@ test("工具目录覆盖世界上下文、入座、规则、裁判、复盘和�
     "tdg_request_judges",
     "tdg_reflect",
     "tdg_daily_report",
+    "tdg_memory_context",
+    "tdg_remember",
   ]);
 });
 
@@ -75,7 +77,7 @@ test("Pi Agent 初始化时只获得工具，不会获得 Gateway 密钥", () =>
     model: { provider: "test", id: "mock" },
     streamFn: async () => { throw new Error("test stream is not invoked"); },
   });
-  assert.equal(agent.state.tools.length, 9);
+  assert.equal(agent.state.tools.length, 11);
   assert.ok(!JSON.stringify(agent.state).includes("tdg_test_key"));
 });
 
