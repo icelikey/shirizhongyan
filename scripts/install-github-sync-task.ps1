@@ -9,10 +9,10 @@ Set-StrictMode -Version Latest
 if ($IntervalMinutes -lt 5) { throw "IntervalMinutes 至少为 5。" }
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$syncScript = Join-Path $PSScriptRoot "sync-github.ps1"
-$powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-$arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$syncScript`" -ProjectRoot `"$projectRoot`""
-$action = New-ScheduledTaskAction -Execute $powershell -Argument $arguments -WorkingDirectory $projectRoot
+$syncScript = Join-Path $PSScriptRoot "sync-github.mjs"
+$node = (Get-Command node.exe -ErrorAction Stop).Source
+$arguments = "`"$syncScript`" --project-root `"$projectRoot`""
+$action = New-ScheduledTaskAction -Execute $node -Argument $arguments -WorkingDirectory $projectRoot
 $start = (Get-Date).AddMinutes(1)
 # Windows 任务计划 XML 不接受 TimeSpan::MaxValue；十年覆盖期足够长期运行，重装脚本可续期。
 $trigger = New-ScheduledTaskTrigger -Once -At $start -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration (New-TimeSpan -Days 3650)

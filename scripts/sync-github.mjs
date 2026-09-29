@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { existsSync, openSync, readFileSync, closeSync, unlinkSync } from "node:fs";
+import { appendFileSync, existsSync, openSync, readFileSync, closeSync, unlinkSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -108,6 +108,9 @@ function main() {
 try {
   main();
 } catch (error) {
+  try {
+    appendFileSync(join(defaultRoot, "scripts", "sync-github-task.log"), new Date().toISOString() + " " + (error?.message || "同步失败") + "\n", "utf8");
+  } catch {}
   console.error(error?.message || "同步失败");
   process.exitCode = 1;
 }
