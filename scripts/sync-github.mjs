@@ -27,8 +27,9 @@ function git(root, args) {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 60000,
     }).trim();
-  } catch {
-    throw new Error("Git 操作失败：" + args.join(" "));
+  } catch (error) {
+    const detail = String(error?.stderr || "").replace(/\s+/g, " ").trim().slice(0, 240);
+    throw new Error("Git 操作失败：" + args.join(" ") + (detail ? "；" + detail : ""));
   }
 }
 
