@@ -22,7 +22,7 @@ function parseArgs(argv) {
 
 function git(root, args) {
   try {
-    return execFileSync("git", ["-C", root, ...args], {
+    return execFileSync("git", ["-c", "http.sslBackend=schannel", "-C", root, ...args], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 60000,
