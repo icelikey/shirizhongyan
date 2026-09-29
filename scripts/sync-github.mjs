@@ -76,10 +76,6 @@ function main() {
     git(root, ["ls-remote", "--exit-code", args.remote, "HEAD"]);
 
     const status = git(root, ["status", "--porcelain=v1", "--untracked-files=all"]);
-    if (!status) {
-      console.log("工作区没有待同步改动。");
-      return;
-    }
 
     for (const path of changedPaths(status)) {
       if (isBlockedPath(path)) throw new Error("检测到不应自动上传的文件：" + path);
@@ -92,12 +88,14 @@ function main() {
 
     git(root, ["diff", "--check"]);
     if (args.dryRun) {
-      console.log("DryRun：将同步分支 " + branch + "，改动 " + status.split(/\r?\n/).length + " 项。");
+      console.log("DryRun：将检查并同步分支 " + branch + "，改动 " + (status ? status.split(/\r?\n/).length : 0) + " 项。");
       return;
     }
 
-    git(root, ["add", "-A"]);
-    git(root, ["commit", "-m", "sync: " + new Date().toISOString()]);
+    if (status) {
+      git(root, ["add", "-A"]);
+      git(root, ["commit", "-m", "sync: " + new Date().toISOString()]);
+    }
     git(root, ["push", args.remote, branch]);
     console.log("已同步分支 " + branch + " 到 GitHub。");
   } finally {
