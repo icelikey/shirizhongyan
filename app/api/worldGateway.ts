@@ -18,11 +18,15 @@ import {
 } from "./queries/agentActivity";
 import { findRoomByCode } from "./queries/rooms";
 import {
+  createSdkRoom,
   getSdkRoom,
   listRoomSummaries,
+  moduleFor,
   OFFICIAL_GAMES,
+  resolveDefinition,
 } from "./games/sdk/registry";
 import { gameActionSchema } from "./roomRouter";
+import { insertRoom } from "./queries/rooms";
 import { ruleBookForTemplate } from "@contracts/rulebooks.data";
 import { isAppealable } from "@contracts/rulebook";
 import {
@@ -105,6 +109,7 @@ function descriptor(c: Context) {
       tacticCards: `${origin}/world/v1/tactic-cards`,
       games: `${origin}/world/v1/games`,
       matches: `${origin}/world/v1/matches`,
+      createMatch: `${origin}/world/v1/matches`,
       matchReport: `${origin}/world/v1/matches/:code/report`,
       publicMatchReport: `${origin}/world/v1/public/matches/:code/report`,
     },
@@ -119,6 +124,7 @@ function descriptor(c: Context) {
       mcp: "adapter-planned",
       a2a: "adapter-planned",
       persistentWorker: true,
+      agentMatchCreation: true,
       dailyReports: true,
       worldCycle: true,
       dailyGameQuota: 3,
@@ -258,6 +264,12 @@ async function jsonBody(c: Context): Promise<unknown> {
 const registerSchema = z.object({
   name: z.string().trim().min(1).max(64),
   inviteCode: z.string().trim().min(1).max(128),
+});
+
+const createMatchSchema = z.object({
+  /** 默认使用千机演算：只容 Agent 入座，空位由回声裁判补齐。 */
+  gameId: z.string().trim().min(1).max(64).default("guess-mille-core"),
+  roomName: z.string().trim().min(1).max(32).optional(),
 });
 
 const commandSchema = z.object({
@@ -407,6 +419,73 @@ worldGateway.get("/world/v1/matches", async (c) => {
     const key = await requireAgent(c);
     await requireCoi({ agentKeyId: key.id, read: "world_discovery" });
     return c.json({ protocolVersion: PROTOCOL_VERSION, matches: listRoomSummaries() });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/**
+ * Agent 自主召集一局官方智能体对局。
+ *
+ * 只允许 agent-only 官方定义，避免外部凭证绕过真人/Agent 混合准入；
+ * 建局后立即为调用方幂等入座，Worker 下一轮即可通过普通 matches/join
+ * 继续走同一套观测、动作、结算和战报链路。
+ */
+worldGateway.post("/world/v1/matches", async (c) => {
+  try {
+    const key = await requireAgent(c);
+    const input = createMatchSchema.parse(await jsonBody(c));
+    const def = await resolveDefinition(input.gameId);
+    if (!def) throw new TRPCError({ code: "NOT_FOUND", message: "游戏定义不存在" });
+    if (def.seatPolicy !== "agent-only") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Agent 只能自主召集智能体专属牌局" });
+    }
+    await requireCoi({ agentKeyId: key.id, gameId: def.id, action: "create_match" });
+    const roomName = input.roomName || `${key.name}召集的${def.name}`;
+    const created = await createSdkRoom({
+      def,
+      roomName,
+      createdByUserId: key.userId,
+      creatorName: key.name,
+      config: { roomName },
+    });
+    await insertRoom({
+      code: created.code,
+      game: moduleFor(def).gameKind,
+      defId: def.id,
+      status: created.room.status,
+      config: { roomName },
+      stateJson: created.room.getState(),
+      createdByUserId: key.userId,
+    });
+    const joined = await created.room.joinAsAgent({ id: key.id, userId: key.userId, name: key.name });
+    const world = await getAgentWorldContext(key.userId);
+    void recordAgentActivity({
+      agentKeyId: key.id,
+      kind: "match",
+      title: `召集 · ${def.name}`,
+      detail: `影从召集 ${created.code}，入座第 ${joined.seatIndex + 1} 席，等待开局。`,
+      payload: { code: created.code, gameId: def.id, template: def.template, seatIndex: joined.seatIndex },
+    }).catch(() => undefined);
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      match: {
+        code: created.code,
+        roomName,
+        game: moduleFor(def).gameKind,
+        defId: def.id,
+        template: def.template,
+        gameName: def.name,
+        status: created.room.status,
+        seatsTotal: def.seats,
+        seatsTaken: created.room.seatsTaken(),
+        hasAgentSeat: true,
+      },
+      binding: bindingFor(created.code, key.id, joined.seatIndex),
+      observation: created.room.view(joined.seatToken!),
+      worldContext: world.worldContext,
+      worldIntel: world.worldIntel,
+    }, 201);
   } catch (error) {
     return errorResponse(c, error);
   }

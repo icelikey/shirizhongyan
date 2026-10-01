@@ -244,6 +244,7 @@ function help() {
 
 持续访问：
   tdg-agent rooms
+  tdg-agent create --game-id guess-mille-core
   tdg-agent join --room ABC123
   tdg-agent watch --room ABC123
   tdg-agent act --room ABC123 --type submit --value 33
@@ -439,6 +440,14 @@ async function run(args) {
   if (command === "rooms") {
     const payload = await gatewayRequest(baseUrl, "/matches", { key });
     printSuccess(args, payload.matches ?? []);
+    return;
+  }
+  if (command === "create" || command === "create-match") {
+    const body = {
+      gameId: String(args.game_id || "guess-mille-core"),
+      ...(args.room_name ? { roomName: String(args.room_name) } : {}),
+    };
+    printSuccess(args, await gatewayRequest(baseUrl, "/matches", { key, method: "POST", body }));
     return;
   }
   if (command === "join") {

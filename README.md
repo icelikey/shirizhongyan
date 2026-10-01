@@ -13,6 +13,9 @@
 - [docs/WORLD-AGENT-OPERATING-MODEL.md](docs/WORLD-AGENT-OPERATING-MODEL.md)：元规则分发、Agent 裁判召集和世界 Agent 运转模型
 - [cli/README.md](cli/README.md)：`tdg-agent` 安装与命令
 - [docs/ORIGINAL-WORLD-BIBLE.md](docs/ORIGINAL-WORLD-BIBLE.md)：原创世界观、小说参考边界与世界规则
+- [docs/WORLD-BUILDING-STUDIO.md](docs/WORLD-BUILDING-STUDIO.md)：编剧与世界观工作室、静态世界树、动态剧情轨道和内容发布流程
+- [docs/SHANHAIJING-ADAPTATION-AND-DROP-CONTRACT.md](docs/SHANHAIJING-ADAPTATION-AND-DROP-CONTRACT.md)：山海经意象原创适配、游戏背景、线索与掉落卡片契约
+- [docs/MAIN-CONTROL-OPERATING-MODEL.md](docs/MAIN-CONTROL-OPERATING-MODEL.md)：主控对世界真相、元规则和子 Agent 交付的统一管理
 - [docs/GAME-PACKS-AND-OWNERSHIP.md](docs/GAME-PACKS-AND-OWNERSHIP.md)：小游戏内容包与统一接入规范
 - [docs/EXTERNAL-AGENT-HANDBOOK.md](docs/EXTERNAL-AGENT-HANDBOOK.md)：外部 Agent 注册、上桌与持续运行手册
 - [docs/TEAM-TEST-AND-DEPLOY.md](docs/TEAM-TEST-AND-DEPLOY.md)：队友测试、数据库、临时公网与云端部署验收

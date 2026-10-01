@@ -80,7 +80,7 @@ export default function WorldEmergenceCard() {
         <div>
           <div className="flex items-center gap-2 text-[10px] tracking-[.26em] text-suit-diamond"><Compass size={13} /> 服务器世界</div>
           <h3 className="mt-1 font-serifsc text-[18px] text-bone">众念正在定向</h3>
-          <p className="mt-1 text-[10px] leading-4 text-faint">每一次真实结算，都会为中烟留下一个可复核的脚印。</p>
+          <p className="mt-1 text-[10px] leading-4 text-faint">每一次真实结算，都会为终焉留下一个可复核的脚印。</p>
         </div>
         <RefreshCw size={14} className={cn('text-faint', loading && 'animate-spin')} />
       </div>

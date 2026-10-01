@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "tdg-world-content-manifest/0.1",
+  "worldId": "tdg-world",
+  "title": "终焉的世界 · 山海经内容接入清单",
+  "status": "draft",
+  "statusPolicy": [
+    "draft",
+    "editorial-review",
+    "playable",
+    "evidence-backed",
+    "canon"
+  ],
+  "truthPolicy": {
+    "worldPremise": "终焉是人类文明毁灭后承载记忆、人格痕迹与灵魂连续性的数字载点。",
+    "inWorldBelief": "角色默认终焉是真实世界；最高暗线必须通过跨游戏、跨轮回、跨 Agent 的独立证据逐步确认。",
+    "narrativeBoundary": "叙事、JEV、视觉和音效只能解释已经发生的结构化事件，不能创造或改写结算事实。",
+    "evidenceRule": "单条传闻不能升级为正史；至少需要来源事件、规则版本和独立复核。"
+  },
+  "packages": [
+    {
+      "packageId": "world.qingye-consensus",
+      "name": "青野算庭 · 众念锚定",
+      "source": "work/worldbuilding/drafts/guess-average-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "guess-core", "template": "numberGuess", "binding": "official-runtime" },
+      "anchor": "回算谷、六道岩槽与记录众念偏差的回算兽。",
+      "clues": ["clue-qa-target-is-two-thirds", "clue-qa-drifting-consensus", "clue-qa-failure-is-evidence", "clue-qa-independent-replay", "clue-qa-memory-offset"],
+      "drops": ["drop-qa-second-guess", "drop-qa-loop-mark", "drop-map-qingye-north-gate", "drop-note-three-games", "skill-strategy-counterfactual", "skill-world-read-anchor", "ability-qa-huntian-fragment", "ability-qa-stillness-fragment"],
+      "routes": ["gate-qa-to-poll", "gate-qa-to-moon", "gate-qa-to-jinrang", "gate-qa-to-cross-agent", "gate-qa-to-recurrence"]
+    },
+    {
+      "packageId": "world.red-eye-minority",
+      "name": "红眼病 · 少数派票决",
+      "source": "work/worldbuilding/drafts/minority-vote-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "poll-duel-core", "template": "pollDuel", "binding": "official-runtime" },
+      "anchor": "异兽辨识与反共识回廊：多数留下喧声，少数留下方向。",
+      "clues": ["clue-red-eye-001", "clue-red-eye-002", "clue-red-eye-003", "clue-red-eye-004", "clue-red-eye-005"],
+      "drops": ["drop-red-eye-flash", "drop-unclaimed-seat", "drop-danqiu-fork", "drop-backwash-page", "drop-absence-note", "drop-contrarian-scan", "drop-outlier-kindling", "drop-long-view"],
+      "routes": ["world.qingye-consensus", "world.moon-shadow-village", "world.spire-loop"]
+    },
+    {
+      "packageId": "world.jinrang-pact",
+      "name": "金壤分潮 · 海盗分金",
+      "source": "work/worldbuilding/drafts/pirate-gold-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "pirate-gold-core", "template": "pirateGold", "binding": "official-runtime" },
+      "anchor": "藏宝山、守藏异兽与资源承诺：即时收益会把长期信誉推向潮汐。",
+      "clues": [],
+      "drops": ["pg.memory-broken-pact", "pg.map-hidden-canal", "pg.note-ledger-of-weights", "pg.skill-contract-memory", "pg.ability-tide-lock", "pg.memory-keeper-debt", "pg.note-refused-gold", "pg.skill-vote-chain"],
+      "routes": ["world.moon-shadow-village", "world.superpower-race", "world.spire-loop"]
+    },
+    {
+      "packageId": "world.xuanyuan-fly-mind",
+      "name": "玄渊 · 虫心算谱",
+      "source": "work/worldbuilding/drafts/fly-mind-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "flytease-core", "template": "flyTease", "binding": "official-runtime" },
+      "anchor": "脉冲、感知与群体响应：看见响应不等于知道原因。",
+      "clues": ["CLUE-FM-01", "CLUE-FM-02", "CLUE-FM-03", "CLUE-FM-04", "CLUE-FM-05"],
+      "drops": ["drop-fm-silent-band-index", "drop-fm-dual-pulse-record", "drop-fm-response-page-61", "skill-fm-structural-counterfactual", "ability-fm-blind-frequency-hearing", "drop-fm-return-vein-mark", "drop-fm-nameless-observer", "drop-fm-intermittent-score-page"],
+      "routes": ["world.wugudoll-billiards", "world.moon-shadow-village"]
+    },
+    {
+      "packageId": "world.wugudoll-billiards",
+      "name": "终焉 · 巫蛊娃娃异能桌球",
+      "source": "work/worldbuilding/drafts/superpower-billiards-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "superpower-billiards-core", "template": "superpowerBilliards", "binding": "official-runtime" },
+      "anchor": "球形影从、碰撞与返魂：载体可以失去行动资格，事件仍会留下回放。",
+      "clues": ["L-01", "L-02", "L-03", "L-04", "L-05"],
+      "drops": ["memory-billiards-collision-afterglow", "memory-billiards-revival-coordinate", "map-billiards-four-corners-return", "note-billiards-last-legal-collision", "skill-billiards-echo-replay", "skill-billiards-forgetting-buffer", "ability-billiards-soul-return", "ability-billiards-right-angle-echo"],
+      "routes": ["world.superpower-race", "world.xuanyuan-fly-mind", "world.spire-loop"]
+    },
+    {
+      "packageId": "world.moon-shadow-village",
+      "name": "月影村 · 十二席异形证言",
+      "source": "work/worldbuilding/drafts/werewolf-12-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "werewolf-12", "template": "werewolf", "binding": "content-only-twelve-seat-contract-pending" },
+      "anchor": "十二座门牌与异形证言：每个人都可能说真话，只有事件顺序能识别错位。",
+      "clues": ["speech-recorded", "identity-sealed", "archive-gap"],
+      "drops": ["ww.memory-testimony-gap", "ww.map-twelve-houses", "ww.note-night-shadow", "ww.skill-disclosure-audit", "ww.ability-mask-reversal", "ww.memory-judge-absence", "ww.note-conflicting-witness", "ww.skill-role-boundary"],
+      "routes": ["world.xuanyuan-fly-mind", "world.jinrang-pact", "world.spire-loop"]
+    },
+    {
+      "packageId": "world.superpower-race",
+      "name": "金壤 · 超能力赛马",
+      "source": "work/worldbuilding/drafts/superpower-race-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "superpower-race", "template": "beastRace", "binding": "contract-present-runtime-adapter-pending" },
+      "anchor": "山川迁徙、天象与路线选择：最快到达不一定带回最关键的证据。",
+      "clues": [],
+      "drops": ["sr.memory-migration-beat", "sr.map-nine-ridges", "sr.note-star-weather", "sr.skill-route-branch", "sr.ability-cloud-step", "sr.ability-companion-draft", "sr.memory-slow-winner", "sr.skill-weather-audit"],
+      "routes": ["world.spire-loop", "world.qingye-consensus", "world.jinrang-pact"]
+    },
+    {
+      "packageId": "world.spire-loop",
+      "name": "碎境爬塔 · 十日轮回",
+      "source": "work/worldbuilding/drafts/spire-loop-shanhaijing.md",
+      "state": "draft",
+      "runtime": { "gameId": "spire-loop", "template": "spire", "binding": "existing-ui-and-engine-content-contract-pending" },
+      "anchor": "层级、生命危机与地图拼合：局部最优无法替代长期轮回中的证据积累。",
+      "clues": [],
+      "drops": ["sp.memory-loop-index", "sp.map-layer-seam", "sp.note-life-crisis", "sp.skill-memory-loadout", "sp.ability-recall-fragment", "sp.memory-death-witness", "sp.map-server-bridge", "sp.skill-long-horizon"],
+      "routes": ["world.qingye-consensus", "world.wugudoll-billiards", "world.superpower-race", "world.moon-shadow-village"]
+    }
+  ]
+}

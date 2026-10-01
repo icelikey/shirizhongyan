@@ -9,6 +9,7 @@ export const COI_READ_SCOPES = [
 ] as const;
 
 export const COI_ACTION_SCOPES = [
+  "create_match",
   "join_match",
   "start_match",
   "submit_move",

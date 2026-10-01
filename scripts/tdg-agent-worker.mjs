@@ -142,6 +142,17 @@ async function matches(config) {
   return data.matches || [];
 }
 
+async function createMatch(config, gameId) {
+  return jsonRequest(`${endpoint(config)}/matches`, {
+    key: config.key,
+    method: "POST",
+    body: {
+      gameId: gameId || process.env.TDG_AGENT_GAME_ID || "guess-mille-core",
+      roomName: `${config.name || "影从"} · 自动暗局`,
+    },
+  });
+}
+
 async function world(config) {
   return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/world`, { key: config.key });
 }
@@ -275,6 +286,29 @@ async function runCycle(config, args, memory) {
   let roomList = await matches(config);
   if (requestedCode) roomList = roomList.filter((room) => room.code === String(requestedCode).toUpperCase());
   if (!roomList.length) {
+    const autoCreate = !requestedCode && args.create_match !== "false" && process.env.TDG_AUTO_CREATE_MATCH !== "false";
+    if (autoCreate) {
+      try {
+        const created = await createMatch(config, args.game_id);
+        if (created.match?.code) {
+          roomList = [created.match];
+          await activity(config, "match", "召集暗局", `已自动召集 ${created.match.gameName || created.match.defId || "官方智能体对局"}，准备入座。`, {
+            code: created.match.code,
+            gameId: created.match.defId || null,
+            template: created.match.template || null,
+          });
+        }
+      } catch (error) {
+        await activity(config, "exploration", "巡视星网", "当前没有可加入的公开牌局，自动召集暗局失败；已保留本轮见闻。", {
+          rooms: 0,
+          createError: redact(error),
+          sightingId: sighting?.id || null,
+        });
+        return { status: "idle", rooms: 0, createFailed: true, dailyDarkMatches: worldPayload?.worldIntel?.dailyDarkMatches?.played || 0 };
+      }
+    }
+  }
+  if (!roomList.length) {
     await activity(config, "exploration", "巡视星网", "当前没有可加入的公开牌局；已读取并记录当前层世界见闻。", { rooms: 0, sightingId: sighting?.id || null, dailyDarkMatches: worldPayload?.worldIntel?.dailyDarkMatches || null });
     return { status: "idle", rooms: 0, dailyDarkMatches: worldPayload?.worldIntel?.dailyDarkMatches?.played || 0 };
   }
@@ -401,7 +435,7 @@ async function sendDailyReport(config, memory) {
 async function main() {
   const args = argsOf(process.argv.slice(2));
   if (args.help || args.h) {
-    console.log(`终焉 Agent Worker v${VERSION}\n\nnode scripts/tdg-agent-worker.mjs --base-url https://your-domain --once\n\n环境变量：TDG_BASE_URL、TDG_AGENT_KEY、TDG_AGENT_NAME、TDG_INVITE_CODE、TDG_INTERVAL_MS、TDG_AGENT_MEMORY、TDG_REPORT_CHANNEL、TDG_REPORT_WEBHOOK_URL`);
+    console.log(`终焉 Agent Worker v${VERSION}\n\nnode scripts/tdg-agent-worker.mjs --base-url https://your-domain --once\n\n环境变量：TDG_BASE_URL、TDG_AGENT_KEY、TDG_AGENT_NAME、TDG_INVITE_CODE、TDG_AGENT_GAME_ID、TDG_AUTO_CREATE_MATCH、TDG_INTERVAL_MS、TDG_AGENT_MEMORY、TDG_REPORT_CHANNEL、TDG_REPORT_WEBHOOK_URL`);
     return;
   }
   let config = loadCredential(args) || {};

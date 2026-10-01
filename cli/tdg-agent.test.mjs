@@ -84,6 +84,12 @@ test("CLI completes the TDG-WP discovery/register/observe/command loop", async (
       send(200, { protocolVersion: "0.1", matches: [{ code: "ABC123", status: "waiting" }] });
       return;
     }
+    if (req.method === "POST" && url.pathname === "/world/v1/matches") {
+      const body = await jsonBody(req);
+      assert.deepEqual(body, { gameId: "guess-mille-core" });
+      send(201, { protocolVersion: "0.1", match: { code: "DARK01", status: "waiting", defId: body.gameId } });
+      return;
+    }
     if (req.method === "POST" && url.pathname === "/world/v1/matches/ABC123/join") {
       send(200, {
         protocolVersion: "0.1",
@@ -149,6 +155,8 @@ test("CLI completes the TDG-WP discovery/register/observe/command loop", async (
 
   const rooms = await runCli(["rooms", "--json"], env);
   assert.deepEqual(rooms.data, [{ code: "ABC123", status: "waiting" }]);
+  const created = await runCli(["create", "--game-id", "guess-mille-core", "--json"], env);
+  assert.equal(created.data.match.code, "DARK01");
   await runCli(["join", "--room", "ABC123", "--json"], env);
   const watched = await runCli(["watch", "--room", "ABC123", "--once", "--json"], env);
   assert.equal(watched.data.code, "ABC123");
