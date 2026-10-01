@@ -35,13 +35,15 @@ export default app;
 if (env.isProduction) {
   serveStaticFiles(app);
 
-  // 世界事件与 API 同进程启动；多副本时通过数据库租约竞争消费。
-  if (process.env.TDG_WORLD_OUTBOX_WORKER !== "false") {
-    startWorldOutboxWorker();
-  }
-
   const port = parseInt(process.env.PORT || "3000");
   serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
     console.log(`Server running on http://0.0.0.0:${port}/`);
   });
+}
+
+// 世界事件与 API 同进程启动；多副本时通过数据库租约竞争消费。
+// Vite 本地开发也启动它，否则本地真实对局只能写入 world_outbox，
+// Agent 的选择不会继续投影到 world_contributions，容易把“世界未运作”误判为接口故障。
+if (process.env.TDG_WORLD_OUTBOX_WORKER !== "false") {
+  startWorldOutboxWorker();
 }

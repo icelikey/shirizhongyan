@@ -219,6 +219,17 @@ await waitFor(async () => {
   return observation.status === "finished";
 }, 30_000);
 
+// 终局返回 finished 只代表房间内核完成；世界贡献由 outbox 消费器异步投影。
+// 验收必须等到 Agent 的 participantRef 真正出现，不能把“已入 outbox”算作世界已更新。
+await waitFor(async () => {
+  const rows = await db
+    .select({ id: worldContributions.id })
+    .from(worldContributions)
+    .where(eq(worldContributions.participantRef, `agent:${agentId}`))
+    .limit(1);
+  return rows.length > 0;
+}, 15_000);
+
 const logs = await db.select({ id: matchLogs.id }).from(matchLogs).where(eq(matchLogs.roomCode, code));
 const contributions = await db
   .select({ id: worldContributions.id })
