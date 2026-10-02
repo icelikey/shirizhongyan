@@ -154,15 +154,19 @@ function shuffle<T>(items: readonly T[], rng: () => number): T[] {
 }
 
 /** 生成赛道、分配动物和 8 张初始手牌；不依赖运行时随机。 */
-export function createRaceMatchState(seed: string, seatCount: number): RaceMatchState {
+export function createRaceMatchState(seed: string, seatCount: number, trackLength = TRACK_LENGTH): RaceMatchState {
   if (!Number.isInteger(seatCount) || seatCount < 2 || seatCount > BEASTS.length) {
     throw new Error("赛马席位数必须在 2–6 之间");
+  }
+  if (!Number.isInteger(trackLength) || trackLength < 12 || trackLength > TRACK_LENGTH) {
+    throw new Error("赛道长度必须在 12–100 之间");
   }
   const rng = mulberry32(hashSeed(`${seed}:match`));
   const beasts = shuffle(BEASTS, rng).slice(0, seatCount);
   return {
     seed,
-    track: generateTrack(seed),
+    track: generateTrack(seed, trackLength),
+    trackLength,
     racers: beasts.map((beast, seat) => ({
       seat,
       beastId: beast.id,
@@ -221,12 +225,12 @@ function pickTile(rng: () => number): TileKind {
  * 而戏剧性要建立在玩家已理解局势之后。
  * 终点前一格亦为平地，避免「冲线瞬间被格子拉回」的挫败感。
  */
-export function generateTrack(seed: string): TileKind[] {
+export function generateTrack(seed: string, trackLength = TRACK_LENGTH): TileKind[] {
   const rng = mulberry32(hashSeed(`${seed}:track`));
   const track: TileKind[] = [];
 
-  for (let i = 0; i < TRACK_LENGTH; i++) {
-    if (i < 3 || i === TRACK_LENGTH - 1) {
+  for (let i = 0; i < trackLength; i++) {
+    if (i < 3 || i === trackLength - 1) {
       track.push("plain");
       continue;
     }

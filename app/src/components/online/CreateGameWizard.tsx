@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { ChevronLeft, ChevronRight, Minus, Plus, X } from 'lucide-react'
 import { trpc } from '@/providers/trpc'
-import type { GameTemplate, Suit } from '@contracts/gameSdk'
+import type { Suit } from '@contracts/gameSdk'
 import { SDK_LIMITS } from '@contracts/gameSdk'
 import GameModal from '@/components/game/GameModal'
 import GoldButton from '@/components/GoldButton'
@@ -20,8 +20,10 @@ import { seatTokenKey } from '@/components/online/OnlineLobbySection'
 import { SUIT_META } from '@/data/echoes'
 import { cn } from '@/lib/utils'
 
+type WizardTemplate = 'numberGuess' | 'pollDuel' | 'flyTease'
+
 const TEMPLATE_CARDS: {
-  template: Exclude<GameTemplate, 'pirateGold' | 'superpowerBilliards'>
+  template: WizardTemplate
   title: string
   suit: Suit
   desc: string
@@ -107,7 +109,7 @@ function Stepper({
 export default function CreateGameWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
-  const [template, setTemplate] = useState<Exclude<GameTemplate, 'pirateGold' | 'superpowerBilliards'>>('numberGuess')
+  const [template, setTemplate] = useState<WizardTemplate>('numberGuess')
   const [seats, setSeats] = useState(6)
   const [rounds, setRounds] = useState(5)
   const [targetRatio, setTargetRatio] = useState(0.667)
@@ -134,7 +136,7 @@ export default function CreateGameWizard({ open, onClose }: { open: boolean; onC
   const estimateSec = rounds * (windowSec + 5)
   const activeSuit: Suit = template === 'pollDuel' ? 'heart' : template === 'flyTease' ? 'spade' : feeSuit
 
-  const pickTemplate = (t: Exclude<GameTemplate, 'pirateGold' | 'superpowerBilliards'>) => {
+  const pickTemplate = (t: WizardTemplate) => {
     setTemplate(t)
     setFeeSuit(t === 'pollDuel' ? 'heart' : t === 'flyTease' ? 'spade' : 'club')
   }

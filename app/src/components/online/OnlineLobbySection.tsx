@@ -27,6 +27,9 @@ const TEMPLATE_META: Record<RoomSummary['template'], { label: string; color: str
   pirateGold: { label: '分金', color: '#F2A93B' },
   flyTease: { label: '虫心', color: '#9B7FE8' },
   superpowerBilliards: { label: '异能桌球', color: '#D76B9B' },
+  beastRace: { label: '异能赛马', color: '#D9A441' },
+  werewolf: { label: '十二席证言', color: '#A66CFF' },
+  spire: { label: '碎境爬塔', color: '#6C9CFF' },
 }
 
 /** 按模板路由到对应游玩页（千轮猜数是 numberGuess 模板换参数，靠 defId 单独分流） */
@@ -35,6 +38,9 @@ export const onlineRoomPath = (r: Pick<RoomSummary, 'template' | 'code' | 'defId
   if (r.template === 'pirateGold') return `/game/online-pirate/${r.code}`
   if (r.template === 'flyTease') return `/game/online-fly/${r.code}`
   if (r.template === 'superpowerBilliards') return `/game/online-billiards/${r.code}`
+  if (r.template === 'beastRace') return `/game/online/${r.code}`
+  if (r.template === 'werewolf') return `/game/online/${r.code}`
+  if (r.template === 'spire') return `/game/online/${r.code}`
   if (r.defId === 'guess-mille-core') return `/game/online-mille/${r.code}`
   return `/game/online/${r.code}`
 }

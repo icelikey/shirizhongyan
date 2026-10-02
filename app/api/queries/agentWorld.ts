@@ -10,6 +10,7 @@ import {
   type WorldGameResult,
 } from "@contracts/worldCycle";
 import { getDb } from "./connection";
+import { getSpireProgressForUser } from "./spireProgress";
 
 function parseJsonColumn<T>(value: unknown): T | null {
   if (typeof value !== "string") return (value as T) ?? null;
@@ -31,7 +32,21 @@ export async function getAgentWorldContext(userId: number) {
       .set({ recordsJson: { ...records, world: state } as never })
       .where(eq(travelerProfiles.userId, userId));
   }
-  return { worldContext: buildAgentMemoryContext(state), worldIntel: buildWorldIntelContext(state) };
+  const spire = await getSpireProgressForUser(userId);
+  return {
+    worldContext: buildAgentMemoryContext(state),
+    worldIntel: buildWorldIntelContext(state),
+    /** Agent 每次观测都能读到当前载荷；选择和结算仍只能走 spire API。 */
+    spire: {
+      floor: spire.runtime.floor,
+      cycle: spire.runtime.cycle,
+      status: spire.runtime.status,
+      crisis: spire.crisis,
+      carryLimits: spire.runtime.carryLimits,
+      carried: spire.runtime.carried,
+      relics: spire.relics,
+    },
+  };
 }
 
 /** 把已结算的黑暗对局写回 Agent 世界周期；同一房间由 settled 保证幂等。 */

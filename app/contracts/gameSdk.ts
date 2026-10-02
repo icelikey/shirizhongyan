@@ -23,7 +23,15 @@ import type { FlyTeaseParams, FlyTeaseRoomView } from "./flyTease";
 export type Suit = "spade" | "heart" | "club" | "diamond";
 
 /** 游戏模板 id */
-export type GameTemplate = "numberGuess" | "pollDuel" | "pirateGold" | "flyTease" | "superpowerBilliards";
+export type GameTemplate =
+  | "numberGuess"
+  | "pollDuel"
+  | "pirateGold"
+  | "flyTease"
+  | "superpowerBilliards"
+  | "beastRace"
+  | "werewolf"
+  | "spire";
 
 /* ------------------------------------------------------------------ */
 /* 席位准入策略                                                        */
@@ -107,6 +115,7 @@ export function validateSeatComposition(params: {
 /* 边界（sdk.md §6 硬要求）                                             */
 /* ------------------------------------------------------------------ */
 export const SDK_LIMITS = {
+  /** 通用模板保持 8 席上限；十二席狼人杀在自己的 schema 中显式放宽。 */
   seats: { min: 2, max: 8 },
   /**
    * 上限从 10 放宽到 1000：千轮猜数（agent-only 官方局）需要跑数百轮才能
@@ -209,6 +218,29 @@ export const superpowerBilliardsParamsSchema = z.object({
   comboBonus: z.number().int().min(0).max(30),
 });
 
+/** 金壤·超能力赛马的公共定义边界；物理细节仍由 beastRace 合约负责。 */
+export const beastRaceParamsSchema = z.object({
+  rounds: z.number().int().min(3).max(24),
+  trackLength: z.number().int().min(12).max(120),
+  handSize: z.number().int().min(1).max(12),
+});
+
+/** 月影村·十二席异形证言的公共定义边界。 */
+export const werewolfParamsSchema = z.object({
+  rounds: z.number().int().min(3).max(20),
+  wolfSeats: z.number().int().min(1).max(4),
+  nightWindowSec: z.number().int().min(10).max(120),
+  dayWindowSec: z.number().int().min(10).max(180),
+});
+
+/** 碎境爬塔的世界层定义边界；具体生命与记忆结算由 spireRuntime 负责。 */
+export const spireParamsSchema = z.object({
+  floors: z.number().int().min(1).max(48),
+  lives: z.number().int().min(1).max(9),
+  memorySlots: z.number().int().min(1).max(12),
+  dailyMatches: z.number().int().min(1).max(6),
+});
+
 export { flyTeaseParamsSchema } from "./flyTease";
 
 /** game.createDef 入参（模板判别联合） */
@@ -280,6 +312,33 @@ export const createGameDefSchema = z.discriminatedUnion("template", [
     rewards: rewardsSchema,
     submitWindowSec: z.number().int().min(10).max(120),
   }),
+  z.object({
+    template: z.literal("beastRace"),
+    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
+    seats: z.number().int().min(2).max(6),
+    params: beastRaceParamsSchema,
+    entryFee: entryFeeSchema,
+    rewards: rewardsSchema,
+    submitWindowSec: z.number().int().min(10).max(120),
+  }),
+  z.object({
+    template: z.literal("werewolf"),
+    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
+    seats: z.literal(12),
+    params: werewolfParamsSchema,
+    entryFee: entryFeeSchema,
+    rewards: rewardsSchema,
+    submitWindowSec: z.number().int().min(10).max(180),
+  }),
+  z.object({
+    template: z.literal("spire"),
+    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
+    seats: z.number().int().min(1).max(6),
+    params: spireParamsSchema,
+    entryFee: entryFeeSchema,
+    rewards: rewardsSchema,
+    submitWindowSec: z.number().int().min(10).max(120),
+  }),
 ]);
 
 export type CreateGameDefInput = z.infer<typeof createGameDefSchema>;
@@ -332,6 +391,26 @@ export interface SuperpowerBilliardsParams {
   pocketPenalty: number;
   hitScore: number;
   comboBonus: number;
+}
+
+export interface BeastRaceParams {
+  rounds: number;
+  trackLength: number;
+  handSize: number;
+}
+
+export interface WerewolfParams {
+  rounds: number;
+  wolfSeats: number;
+  nightWindowSec: number;
+  dayWindowSec: number;
+}
+
+export interface SpireParams {
+  floors: number;
+  lives: number;
+  memorySlots: number;
+  dailyMatches: number;
 }
 
 export type { FlyTeaseParams } from "./flyTease";
@@ -396,12 +475,30 @@ export interface SuperpowerBilliardsDefinition extends GameDefinitionBase {
   params: SuperpowerBilliardsParams;
 }
 
+export interface BeastRaceDefinition extends GameDefinitionBase {
+  template: "beastRace";
+  params: BeastRaceParams;
+}
+
+export interface WerewolfDefinition extends GameDefinitionBase {
+  template: "werewolf";
+  params: WerewolfParams;
+}
+
+export interface SpireDefinition extends GameDefinitionBase {
+  template: "spire";
+  params: SpireParams;
+}
+
 export type GameDefinition =
   | NumberGuessDefinition
   | PollDuelDefinition
   | PirateGoldDefinition
   | FlyTeaseDefinition
-  | SuperpowerBilliardsDefinition;
+  | SuperpowerBilliardsDefinition
+  | BeastRaceDefinition
+  | WerewolfDefinition
+  | SpireDefinition;
 
 /* ------------------------------------------------------------------ */
 /* pollDuel 揭示与视图                                                   */
@@ -532,7 +629,15 @@ export type { GuessReveal, GuessRoomView };
 /** game.listDefs 返回元素（官方 + 热门 UGC） */
 export interface GameDefSummary extends GameDefinitionBase {
   template: GameTemplate;
-  params: NumberGuessParams | PollDuelParams | PirateGoldParams | FlyTeaseParams | SuperpowerBilliardsParams;
+  params:
+    | NumberGuessParams
+    | PollDuelParams
+    | PirateGoldParams
+    | FlyTeaseParams
+    | SuperpowerBilliardsParams
+    | BeastRaceParams
+    | WerewolfParams
+    | SpireParams;
   /** 累计开局数（官方定义恒 0，仅 UGC 统计） */
   plays: number;
 }

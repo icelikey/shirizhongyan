@@ -155,7 +155,10 @@ function invalidRaceAction(message: string): never {
 /** 通用 TemplateModule 适配器；纯内容包接口仍由 beastRaceModule/raceActionCandidates 提供。 */
 export const beastRaceTemplateModule: TemplateModule = {
   template: "beastRace", gameKind: "beastRace", recordKey: "beastRace",
-  initMatchState(_def, seatCount, seed = "beast-race") { return beastRaceModule.initMatchState(seed, seatCount); },
+  initMatchState(def, seatCount, seed = "beast-race") {
+    const trackLength = "trackLength" in def.params ? def.params.trackLength : undefined;
+    return createRaceMatchState(seed, seatCount, trackLength);
+  },
   normalizeSubmission(_def, action: GameAction): number | null { return action.type === "play" ? 0 : null; },
   normalizeStructuredSubmission(_def, action: GameAction): SubmissionResult {
     if (action.type !== "play") return null;
@@ -163,7 +166,6 @@ export const beastRaceTemplateModule: TemplateModule = {
     return { value: 0, payload: { kind: "beastRace", action: { cardId: action.cardId, ...(action.targetSeat === undefined ? {} : { targetSeat: action.targetSeat }) } } satisfies BeastRacePayload };
   },
   timeoutFallback() { return 0; },
-  timeoutFallbackStructured(_def, _seatIndex, _phaseName): SubmissionResult { return null; },
   botPick(_def, seatIndex, _levelK, _history, _phaseName, matchState): number {
     const state = matchState as RaceMatchState | null;
     if (state) beastRaceModule.timeoutFallback(state, seatIndex);
@@ -179,6 +181,9 @@ export const beastRaceTemplateModule: TemplateModule = {
     const raceEntries = entries.map(entry => ({ seat: entry.seat, order: entry.order, action: beastRacePayload(entry.payload)?.action ?? beastRaceModule.timeoutFallback(state, entry.seat) }));
     try {
       const result = beastRaceModule.resolveRound(state, round, raceEntries);
+      // SdkRoom 持有 initMatchState 返回的对象；纯 reducer 返回新快照，
+      // 这里回写以保证下一轮和 rooms.stateJson 使用最新位置与手牌。
+      Object.assign(state, result.state);
       return { reveal: result.reveal, scoreDeltas: result.scoreDeltas, finished: result.finished };
     } catch (error) {
       invalidRaceAction(error instanceof Error ? error.message : "赛马动作不合法");

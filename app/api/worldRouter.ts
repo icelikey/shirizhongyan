@@ -45,6 +45,13 @@ import {
   relicProgressForUser,
 } from "./queries/relicProgress";
 import { SPECTATOR } from "@contracts/matchLog";
+import {
+  chooseSpireDropForUser,
+  getSpireProgressForUser,
+  resolveSpireDeathForUser,
+  settleSpireForUser,
+  startSpireRunForUser,
+} from "./queries/spireProgress";
 
 /* ------------------------------------------------------------------ */
 /* 入参校验                                                            */
@@ -281,7 +288,71 @@ export const worldRouter = createRouter({
     )
     .query(async ({ ctx, input }) =>
       checkGateForUser(ctx.user.id, input.gate as never),
-    ),
+  ),
+
+  /* ---------------- 碎境爬塔运行时 ---------------- */
+
+  /** Agent 与玩家共用的塔层、生命危机、携带卡组和轮回上下文。 */
+  mySpireProgress: authedQuery.query(({ ctx }) =>
+    getSpireProgressForUser(ctx.user.id),
+  ),
+
+  /** 开始一次可回放轮回；seed/runId 由调用方固定，重试不会换掉掉落序列。 */
+  startSpireRun: authedQuery
+    .input(z.object({
+      runId: z.string().trim().min(1).max(96),
+      seed: z.number().int(),
+      carry: z.object({
+        memoryIds: z.array(z.string().trim().min(1).max(96)).max(32).optional(),
+        skillIds: z.array(z.string().trim().min(1).max(96)).max(32).optional(),
+        mapFragmentIds: z.array(z.string().trim().min(1).max(96)).max(32).optional(),
+      }).optional(),
+      skillCapacity: z.number().int().min(0).max(8).optional(),
+      mapFragmentCapacity: z.number().int().min(0).max(8).optional(),
+    }))
+    .mutation(({ ctx, input }) => startSpireRunForUser({
+      userId: ctx.user.id,
+      ...input,
+    })),
+
+  /** 小游戏已经结算后，写入事实并生成确定性掉落候选。 */
+  settleSpire: authedQuery
+    .input(z.object({
+      eventId: z.string().trim().min(1).max(128),
+      encounter: z.enum(["battle", "elite", "boss"]),
+      result: z.enum(["win", "loss", "draw", "abandon"]),
+      now: z.number().int().optional(),
+      evidence: z.object({
+        independentObserverCount: z.number().int().min(0).max(100).optional(),
+        crossServerSnapshotCount: z.number().int().min(0).max(100).optional(),
+      }).optional(),
+    }))
+    .mutation(({ ctx, input }) => settleSpireForUser({
+      userId: ctx.user.id,
+      ...input,
+    })),
+
+  /** 确认一层结束后的单张掉落；超容量与重复选择由纯契约拒绝。 */
+  chooseSpireDrop: authedQuery
+    .input(z.object({
+      settlementId: z.string().trim().min(1).max(128),
+      dropId: z.string().trim().min(1).max(96),
+    }))
+    .mutation(({ ctx, input }) => chooseSpireDropForUser({
+      userId: ctx.user.id,
+      ...input,
+    })),
+
+  /** 死亡后的携带选择：未选中的局内记忆不会进入下一轮。 */
+  resolveSpireDeath: authedQuery
+    .input(z.object({
+      selectedIds: z.array(z.string().trim().min(1).max(96)).max(32),
+      now: z.number().int().optional(),
+    }))
+    .mutation(({ ctx, input }) => resolveSpireDeathForUser({
+      userId: ctx.user.id,
+      ...input,
+    })),
 
   /* ---------------- 观战 / 回放 ---------------- */
 

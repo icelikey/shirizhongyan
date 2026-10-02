@@ -53,6 +53,9 @@ function directionFor(def: GameDefinition, mapperId: string, rank: number): Worl
     case "pirate-gold/v1": return rank === 0 ? "trust" : "rupture";
     case "fly-tease/v1":
     case "superpower-billiards/v1": return "memory";
+    case "beast-race/v1": return rank === 0 ? "trust" : "law";
+    case "werewolf/v1": return "voice";
+    case "spire/v1": return "memory";
     default:
       // 未声明的旧/UGC 定义按模板 v1 兼容映射，不能让未知字符串决定方向。
       if (def.template === "numberGuess") return "law";

@@ -255,7 +255,9 @@ export class SdkRoom {
   }
 
   private get totalRounds(): number {
-    return this.def.params.rounds;
+    // 爬塔是单次进入/结算的世界层流程，不使用通用回合数；
+    // 其它模板都保留 rounds 字段并沿用原有计时器。
+    return "rounds" in this.def.params ? this.def.params.rounds : 1;
   }
 
   private get windowMs(): number {
@@ -707,7 +709,7 @@ export class SdkRoom {
     );
 
     this.state.matchState =
-      this.module.initMatchState?.(this.def, this.seatCount) ?? null;
+      this.module.initMatchState?.(this.def, this.seatCount, this.code) ?? null;
 
     this.beginRound(1);
     this.touch();

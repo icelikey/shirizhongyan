@@ -235,6 +235,8 @@ export interface RaceMatchState {
   seed?: string;
   /** 赛道每格的类型（开局由 seed 生成，全程不变） */
   track: TileKind[];
+  /** 本局终点长度；旧快照缺失时回退到 track.length。 */
+  trackLength?: number;
   racers: RacerState[];
   /** 已完赛数（决定下一个完赛者的名次） */
   finishedCount: number;
@@ -391,10 +393,10 @@ export function reduceRaceRound(
         events.push({ type: "effect_applied", round, seat: racer.seat, targetSeat: target.seat, cardId: action.cardId, delta: 0, note: "扰行被御守挡下" });
       } else if (target.riposting) {
         target.riposting = false;
-        racer.position = clampPosition(racer.position + amount);
+        racer.position = clampPosition(racer.position + amount, state.trackLength ?? state.track.length);
         events.push({ type: "effect_applied", round, seat: racer.seat, targetSeat: target.seat, cardId: action.cardId, delta: amount, note: "扰行被反照并反弹" });
       } else {
-        target.position = clampPosition(target.position - amount);
+        target.position = clampPosition(target.position - amount, state.trackLength ?? state.track.length);
         events.push({ type: "effect_applied", round, seat: racer.seat, targetSeat: target.seat, cardId: action.cardId, delta: -amount, note: `目标退${amount}格` });
       }
     }
@@ -404,10 +406,11 @@ export function reduceRaceRound(
     if (racer.finishRank !== null) continue;
     const beast = getBeast(racer.beastId)!;
     const delta = computeAdvance({ racer, cardDelta: cardDeltas.get(racer.seat) ?? 0, baseSpeed: beast.baseSpeed });
-    const next = clampPosition(racer.position + delta);
+    const next = clampPosition(racer.position + delta, state.trackLength ?? state.track.length);
     racer.position = next;
     events.push({ type: "movement_applied", round, seat: racer.seat, delta: next - (before.get(racer.seat) ?? next), note: `基础移动与疾行结算至${next}格` });
-    const tile = state.track[Math.max(0, Math.min(TRACK_LENGTH - 1, next - 1))] ?? "plain";
+    const trackLength = state.trackLength ?? state.track.length;
+    const tile = state.track[Math.max(0, Math.min(trackLength - 1, next - 1))] ?? "plain";
     let tileDelta = 0;
     const immune = isImmune(beast, tile);
     if (!immune && tile === "headwind") racer.slowedNextRound = true;
@@ -415,7 +418,7 @@ export function reduceRaceRound(
     if (!immune && tile === "marsh" && beast.locomotion === "water") tileDelta = 3;
     if (!immune && tile === "current") tileDelta = 3;
     if (!immune && tile === "thundercloud" && beast.locomotion === "air") tileDelta = -5;
-    if (tileDelta) racer.position = clampPosition(racer.position + tileDelta);
+    if (tileDelta) racer.position = clampPosition(racer.position + tileDelta, state.trackLength ?? state.track.length);
     events.push({ type: "tile_triggered", round, seat: racer.seat, tile, delta: tileDelta, note: immune ? `${beast.name}免疫${tile}` : (tileDelta ? `${beast.name}受${tile}影响${tileDelta > 0 ? "前进" : "后退"}${Math.abs(tileDelta)}格` : `触发${tile}`) });
     if (racer.slowedNextRound && tile !== "headwind") racer.slowedNextRound = false;
     if (racer.stunnedRounds > 0) racer.stunnedRounds -= 1;
@@ -423,7 +426,8 @@ export function reduceRaceRound(
 
   const finishers: number[] = [];
   for (const racer of [...state.racers].sort((a, b) => a.seat - b.seat)) {
-    if (racer.position >= TRACK_LENGTH && racer.finishRank === null) {
+    const trackLength = state.trackLength ?? state.track.length;
+    if (racer.position >= trackLength && racer.finishRank === null) {
       racer.finishRank = ++state.finishedCount;
       finishers.push(racer.seat);
       events.push({ type: "race_finished", round, seat: racer.seat, note: `第${racer.finishRank}名冲线` });
@@ -550,8 +554,8 @@ export function computeAdvance(params: {
 }
 
 /** 落位后夹取到合法区间 */
-export function clampPosition(pos: number): number {
-  return Math.max(0, Math.min(TRACK_LENGTH, pos));
+export function clampPosition(pos: number, trackLength = TRACK_LENGTH): number {
+  return Math.max(0, Math.min(trackLength, pos));
 }
 
 /** 该兽是否免疫此格 */

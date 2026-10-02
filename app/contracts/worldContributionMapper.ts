@@ -13,6 +13,9 @@ export const WORLD_CONTRIBUTION_MAPPER_IDS = {
   pirateGold: "pirate-gold/v1",
   flyTease: "fly-tease/v1",
   superpowerBilliards: "superpower-billiards/v1",
+  beastRace: "beast-race/v1",
+  werewolf: "werewolf/v1",
+  spire: "spire/v1",
 } as const satisfies Record<GameTemplate, string>;
 
 export type WorldContributionMapperId =

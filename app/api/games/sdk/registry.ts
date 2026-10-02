@@ -22,6 +22,8 @@ import {
   pirateGoldParamsSchema,
   pollDuelParamsSchema,
   superpowerBilliardsParamsSchema,
+  beastRaceParamsSchema,
+  werewolfParamsSchema,
   resolveSeatPolicy,
 } from "@contracts/gameSdk";
 import { FLYTEASE_CORE_ID, FLYTEASE_DEFAULT_PARAMS } from "@contracts/flyTease";
@@ -39,6 +41,8 @@ import { pirateGoldModule } from "./pirateGold";
 import { pollDuelModule } from "./pollDuel";
 import { flyTeaseModule } from "./flyTease";
 import { superpowerBilliardsModule } from "./superpowerBilliards";
+import { beastRaceTemplateModule } from "./beastRace";
+import { werewolf12TemplateModule } from "./werewolf12Template";
 import { WORLD_CONTRIBUTION_MAPPER_IDS } from "@contracts/worldContributionMapper";
 
 /* ------------------------------------------------------------------ */
@@ -132,6 +136,33 @@ export const SUPERPOWER_BILLIARDS_CORE: GameDefinition = {
   worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.superpowerBilliards,
 };
 
+export const SUPERPOWER_RACE_CORE: GameDefinition = {
+  id: "superpower-race-core",
+  name: "金壤 · 超能力赛马",
+  template: "beastRace",
+  seats: 6,
+  isOfficial: true,
+  // 每兽 8 张初始牌；8 轮正好让每轮都有一次真实决策。
+  params: { rounds: 8, trackLength: 48, handSize: 8 },
+  entryFee: { suit: "diamond", amount: 0 },
+  rewards: { winner: 80, runnerUp: 40, participation: 10 },
+  submitWindowSec: 45,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.beastRace,
+};
+
+export const WEREWOLF_12_CORE: GameDefinition = {
+  id: "werewolf-12-core",
+  name: "月影村 · 十二席异形证言",
+  template: "werewolf",
+  seats: 12,
+  isOfficial: true,
+  params: { rounds: 12, wolfSeats: 4, nightWindowSec: 45, dayWindowSec: 90 },
+  entryFee: { suit: "heart", amount: 0 },
+  rewards: { winner: 100, runnerUp: 50, participation: 10 },
+  submitWindowSec: 45,
+  worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.werewolf,
+};
+
 export const OFFICIAL_GAMES: GameDefinition[] = [
   GUESS_CORE,
   GUESS_MILLE_CORE,
@@ -139,20 +170,32 @@ export const OFFICIAL_GAMES: GameDefinition[] = [
   PIRATE_GOLD_CORE,
   FLYTEASE_CORE,
   SUPERPOWER_BILLIARDS_CORE,
+  SUPERPOWER_RACE_CORE,
+  WEREWOLF_12_CORE,
 ];
 
 const officialMap = new Map(OFFICIAL_GAMES.map((d) => [d.id, d]));
 
-const TEMPLATE_MODULES: Record<GameDefinition["template"], TemplateModule> = {
+/**
+ * 未完成公共房间接线的内容包可以先以纯合约形式发布；
+ * 只有注册到这里的模板才允许创建联机房，moduleFor 会给出明确错误。
+ */
+const TEMPLATE_MODULES: Partial<Record<GameDefinition["template"], TemplateModule>> = {
   numberGuess: numberGuessModule,
   pollDuel: pollDuelModule,
   pirateGold: pirateGoldModule,
   flyTease: flyTeaseModule,
   superpowerBilliards: superpowerBilliardsModule,
+  beastRace: beastRaceTemplateModule,
+  werewolf: werewolf12TemplateModule,
 };
 
 export function moduleFor(def: GameDefinition): TemplateModule {
-  return TEMPLATE_MODULES[def.template];
+  const module = TEMPLATE_MODULES[def.template];
+  if (!module) {
+    throw new Error(`游戏模板 ${def.template} 尚未接入公共房间运行时`);
+  }
+  return module;
 }
 
 /**
@@ -210,6 +253,16 @@ function rowToDefinition(row: GameDefRow): GameDefinition | null {
     const params = superpowerBilliardsParamsSchema.safeParse(parseJsonColumn(row.params));
     if (!params.success) return null;
     return { ...base, template: "superpowerBilliards", params: params.data };
+  }
+  if (row.template === "beastRace") {
+    const params = beastRaceParamsSchema.safeParse(parseJsonColumn(row.params));
+    if (!params.success) return null;
+    return { ...base, template: "beastRace", params: params.data };
+  }
+  if (row.template === "werewolf") {
+    const params = werewolfParamsSchema.safeParse(parseJsonColumn(row.params));
+    if (!params.success) return null;
+    return { ...base, template: "werewolf", params: params.data };
   }
   return null;
 }

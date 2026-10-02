@@ -48,7 +48,7 @@ export interface TemplateModule {
    *
    * 不实现此方法的模板视为无状态，运行时不为其分配状态槽。
    */
-  initMatchState?(def: GameDefinition, seatCount: number): unknown;
+  initMatchState?(def: GameDefinition, seatCount: number, seed?: string): unknown;
   /**
    * 校验并归一化一局内提交动作，返回数值载荷；
    * 非提交动作（如 start）返回 null。非法载荷抛 TRPCError(BAD_REQUEST)。

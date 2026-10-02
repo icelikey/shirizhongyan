@@ -436,19 +436,6 @@ function resolveNight(state: Werewolf12MatchState): void {
   beginDaySpeech(state);
 }
 
-function targetIsAliveOther(
-  state: Werewolf12MatchState,
-  seat: number,
-  target: number
-): boolean {
-  return (
-    target >= 0 &&
-    target < WEREWOLF12_SEAT_COUNT &&
-    target !== seat &&
-    isAlive(state, target)
-  );
-}
-
 function legalWitchActions(
   state: Werewolf12MatchState,
   seat: number
