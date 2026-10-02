@@ -1,7 +1,7 @@
 /** 赛马 / 十二席狼人杀共用的联机牌桌；状态与动作都来自公共 Game SDK。 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Cloud, DoorOpen, Play, RotateCcw, Send, Swords } from 'lucide-react'
+import { BookOpen, Cloud, DoorOpen, LoaderCircle, Play, RotateCcw, Send, Swords } from 'lucide-react'
 import { toast } from 'sonner'
 import { trpc } from '@/providers/trpc'
 import { useAuth } from '@/hooks/useAuth'
@@ -46,6 +46,9 @@ export default function OfficialTemplateOnline({ template }: { template: Officia
   const [targetSeat, setTargetSeat] = useState(0)
   const [speech, setSpeech] = useState('')
   const [finishedOpen, setFinishedOpen] = useState(false)
+  const [battleReport, setBattleReport] = useState<string | null>(null)
+  const [battleReportError, setBattleReportError] = useState<string | null>(null)
+  const [battleReportLoading, setBattleReportLoading] = useState(false)
   const finishedShownRef = useRef(false)
   const triedJoin = useRef(false)
   const now = useNow()
@@ -93,6 +96,23 @@ export default function OfficialTemplateOnline({ template }: { template: Officia
       return () => clearTimeout(timer)
     }
   }, [status])
+  useEffect(() => {
+    if (!finishedOpen || status !== 'finished') return
+    let cancelled = false
+    setBattleReportLoading(true)
+    setBattleReportError(null)
+    fetch(`${import.meta.env.BASE_URL}world/v1/public/matches/${encodeURIComponent(CODE)}/report`)
+      .then(async (response) => {
+        const payload = await response.json() as { report?: string; error?: { message?: string } }
+        if (!response.ok) throw new Error(payload.error?.message || '战报暂时无法读取')
+        if (!cancelled) setBattleReport(payload.report || '这局暂时没有可展示的战报正文。')
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) setBattleReportError(reason instanceof Error ? reason.message : '战报暂时无法读取')
+      })
+      .finally(() => { if (!cancelled) setBattleReportLoading(false) })
+    return () => { cancelled = true }
+  }, [CODE, finishedOpen, status])
 
   const actMutation = trpc.room.act.useMutation({
     onSuccess: () => {
@@ -203,15 +223,38 @@ export default function OfficialTemplateOnline({ template }: { template: Officia
 
   return (
     <div className="relative z-[55] -mt-16 flex h-[100dvh] flex-col overflow-hidden bg-abyss text-bone">
-      <GameTopBar suit={template === 'beastRace' ? 'diamond' : 'heart'} intro={template === 'beastRace' ? GAME_INTROS.guess : GAME_INTROS.werewolf} room={`${template === 'beastRace' ? '金壤·超能力赛马' : '月影村·十二席证言'} · ${view?.roomName ?? CODE} · ${CODE}`} phase={<span>{status === 'playing' ? `${PHASE_LABEL[subPhase ?? ''] ?? '行动窗口'} · ${Math.ceil(timeLeft)}s` : status === 'waiting' ? '待开局' : '已终局'}</span>} pool={view ? view.rewards.winner + view.rewards.runnerUp + view.rewards.participation : 130} onExit={() => navigate('/lobby')} />
+      <GameTopBar suit={template === 'beastRace' ? 'diamond' : 'heart'} intro={template === 'beastRace' ? GAME_INTROS.race : GAME_INTROS.werewolf} room={`${template === 'beastRace' ? '金壤·超能力赛马' : '月影村·十二席证言'} · ${view?.roomName ?? CODE} · ${CODE}`} phase={<span>{status === 'playing' ? `${PHASE_LABEL[subPhase ?? ''] ?? '行动窗口'} · ${Math.ceil(timeLeft)}s` : status === 'waiting' ? '待开局' : '已终局'}</span>} pool={view ? view.rewards.winner + view.rewards.runnerUp + view.rewards.participation : 130} onExit={() => navigate('/lobby')} />
       <main className="relative z-10 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
         {status === 'waiting' && <section className="panel-bg rounded-2xl p-5 text-center"><p className="mb-4 text-[13px] tracking-[.18em] text-dim">{template === 'beastRace' ? '六兽已在金壤边界列阵' : '十二席已封入月影村，等待影从落座'}</p>{isHost ? <GoldButton variant="gold" size="lg" disabled={actMutation.isPending} onClick={() => act({ type: 'start' })}><Play size={16} /> 开局 · 由影从补席</GoldButton> : mySeat != null ? <span className="text-[13px] text-dim">已入座 · 静候房主开局</span> : isAuthenticated ? <GoldButton variant="suit" suit={template === 'beastRace' ? 'diamond' : 'heart'} size="lg" onClick={() => { triedJoin.current = true; joinMutation.mutate({ code: CODE }) }}><DoorOpen size={16} /> 入座此局</GoldButton> : <GoldButton variant="gold" size="lg" onClick={() => navigate(LOGIN_PATH)}><Cloud size={16} /> 云登录后入座</GoldButton>}</section>}
         {template === 'beastRace' ? renderRaceBoard() : renderWerewolfBoard()}
         {template === 'beastRace' ? renderRaceControls() : renderWerewolfControls()}
-        {status === 'finished' && <section className="panel-bg rounded-2xl p-6 text-center"><h2 className="font-serifsc text-[20px] text-gold-100">这一局已经封存</h2><p className="mt-2 text-[12px] text-dim">终局事实已进入战报与世界贡献流。</p><div className="mt-4 flex justify-center gap-3"><GoldButton variant="gold" onClick={() => setFinishedOpen(true)}>查看终局</GoldButton><GoldButton variant="ghost" onClick={() => navigate('/lobby')}><RotateCcw size={14} /> 返回大厅</GoldButton></div></section>}
+        {status === 'finished' && <section className="panel-bg rounded-2xl p-6 text-center"><h2 className="font-serifsc text-[20px] text-gold-100">这一局已经封存</h2><p className="mt-2 text-[12px] text-dim">终局事实已进入战报与世界贡献流。</p><div className="mt-4 flex justify-center gap-3"><GoldButton variant="gold" onClick={() => setFinishedOpen(true)}><BookOpen size={15} /> 查看小说战报</GoldButton><GoldButton variant="ghost" onClick={() => navigate('/lobby')}><RotateCcw size={14} /> 返回大厅</GoldButton></div></section>}
         <aside className="panel-bg rounded-2xl p-4"><OnlineScorePanel seats={view?.seats ?? []} mySeat={mySeat} winner={view?.winner} /><p className="mt-3 text-[10px] leading-5 text-faint">状态每秒从服务端同步；所有动作先进入确定性规则内核，再产生公开揭示。</p></aside>
       </main>
-      {finishedOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" onClick={() => setFinishedOpen(false)}><div className="panel-bg max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl p-6" onClick={(event) => event.stopPropagation()}><h2 className="font-serifsc text-[20px] text-gold-100">终局揭示</h2><pre className="mt-4 whitespace-pre-wrap break-words text-[11px] leading-5 text-dim">{JSON.stringify(view?.lastReveal, null, 2)}</pre></div></div>}
+      {finishedOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4" onClick={() => setFinishedOpen(false)}>
+          <div className="panel-bg max-h-[86vh] w-full max-w-3xl overflow-auto rounded-2xl p-5 sm:p-7" onClick={(event) => event.stopPropagation()}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-[10px] tracking-[.28em] text-suit-diamond"><BookOpen size={15} /> 终焉 · Agent 对战实录</div>
+                <h2 className="font-serifsc text-[22px] text-gold-100">{template === 'beastRace' ? '金壤赛道 · 小说式战报' : '月影村 · 证言式战报'}</h2>
+                <p className="mt-1 text-[11px] leading-5 text-faint">由真实事件流生成；事实、技能与反制都绑定公开证据。</p>
+              </div>
+              <button type="button" onClick={() => setFinishedOpen(false)} className="rounded-full border border-bone/10 px-3 py-1 text-[11px] text-faint hover:text-bone">关闭</button>
+            </div>
+            <div className="mt-5 rounded-2xl border border-suit-diamond/20 bg-suit-diamond/[.04] p-4">
+              {battleReportLoading && <div className="flex items-center gap-2 text-[12px] text-dim"><LoaderCircle size={16} className="animate-spin text-suit-diamond" />正在把这场十秒级对局编成可读战报……</div>}
+              {battleReportError && <p className="text-[12px] leading-6 text-cinnabar-hi">{battleReportError}</p>}
+              {battleReport && <pre className="whitespace-pre-wrap break-words font-serifsc text-[13px] leading-7 text-bone/90">{battleReport}</pre>}
+            </div>
+            <details className="mt-4 rounded-xl border border-bone/10 bg-black/15 p-3">
+              <summary className="cursor-pointer text-[11px] tracking-[.18em] text-faint">查看公开回放数据</summary>
+              <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-5 text-dim">{JSON.stringify(view?.lastReveal, null, 2)}</pre>
+            </details>
+            <p className="mt-4 text-[10px] leading-5 text-faint">战报中的【事实】来自已落库事件；【推断】只来自 Agent 主动提交的策略摘要，不还原隐藏思维链。</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

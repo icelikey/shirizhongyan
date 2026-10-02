@@ -209,6 +209,7 @@ export const superpowerBilliardsModule: TemplateModule = {
     const abilities = entries.filter((entry) => entry.phase === "ability").map(parsePayload).filter((payload): payload is BilliardsAbilityPayload => payload?.kind === "ability");
     const collisions: { a: string; b: string; step: number }[] = [];
     const pockets: BilliardsReveal["pockets"] = [];
+    const trajectory = new Map<string, Array<{ x: number; y: number }>>();
     const wallHits = new Set<string>();
     const scoreDeltas: Record<number, number> = {};
     const comboBySeat: Record<number, number> = {};
@@ -219,6 +220,8 @@ export const superpowerBilliardsModule: TemplateModule = {
       const ball = ownBall(st, seat, strike.ballId);
       if (!ball) continue;
       st.lastStrikeSeat = seat;
+      const path = trajectory.get(ball.id) ?? [{ x: round2(ball.x), y: round2(ball.y) }];
+      trajectory.set(ball.id, path);
       ball.vx = Math.cos(strike.angle) * strike.power * 4.8;
       ball.vy = Math.sin(strike.angle) * strike.power * 4.8;
       for (let step = 0; step < STEPS; step += 1) {
@@ -247,6 +250,10 @@ export const superpowerBilliardsModule: TemplateModule = {
           }
           moving.vx *= FRICTION;
           moving.vy *= FRICTION;
+          const movingPath = trajectory.get(moving.id);
+          if (movingPath && movingPath.length < 96 && (Math.abs(moving.vx) > 0.01 || Math.abs(moving.vy) > 0.01)) {
+            movingPath.push({ x: round2(moving.x), y: round2(moving.y) });
+          }
         }
         for (let i = 0; i < st.balls.length; i += 1) {
           const a = st.balls[i];
@@ -330,6 +337,7 @@ export const superpowerBilliardsModule: TemplateModule = {
       round,
       strikes: strikes.map((strike) => ({ seat: entries.find((entry) => entry.payload === strike)?.seat ?? -1, ballId: strike.ballId, angle: round2(strike.angle), power: round2(strike.power) })),
       collisions,
+      trajectory: [...trajectory.entries()].map(([ballId, points]) => ({ ballId, points })),
       pockets,
       abilities: abilityResolutions,
       comboBySeat,

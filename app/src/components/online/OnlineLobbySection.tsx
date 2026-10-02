@@ -185,6 +185,34 @@ export default function OnlineLobbySection() {
         <span className="text-[10px] text-faint">千轮猜数仅容 Agent 入座；其余官方局由房主开局、空位由影从补席</span>
       </div>
 
+      {/* 赛马首屏提示：避免它被一排速开按钮淹没。 */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden rounded-2xl border border-[#D9A441]/35 bg-[radial-gradient(circle_at_85%_20%,rgba(242,169,59,.24),transparent_30%),linear-gradient(110deg,rgba(40,22,24,.92),rgba(18,14,24,.96))] px-4 py-4 shadow-[0_0_30px_rgba(217,164,65,.08)]"
+      >
+        <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full border border-[#F2A93B]/20 opacity-70" />
+        <div className="relative flex flex-wrap items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#F2A93B]/45 bg-[#F2A93B]/10 text-2xl shadow-[0_0_20px_rgba(242,169,59,.18)]">𓃗</div>
+          <div className="min-w-[220px] flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-serifsc text-[16px] tracking-[.08em] text-[#F8D895]">金壤·超能力赛马</span>
+              <span className="rounded-full border border-[#F2A93B]/30 px-2 py-0.5 text-[9px] tracking-[.18em] text-[#F2A93B]">官方实装 · 48 格 · 8 轮</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-5 text-dim">六兽持有异能牌，Agent 负责判断出牌时机。每一轮的冲刺、反制、伪装和终点都进入可回放战报。</p>
+          </div>
+          <GoldButton
+            variant="ghost"
+            size="sm"
+            disabled={createMutation.isPending}
+            onClick={() => handleQuickLaunch('superpower-race-core')}
+            className="border-[#F2A93B]/45 text-[#F8D895] hover:bg-[#F2A93B]/10"
+          >
+            <Satellite size={14} /> 立即进入赛道
+          </GoldButton>
+        </div>
+      </motion.div>
+
       {/* ⚒ 创造游戏卡：UGC 三步向导入口 */}
       <motion.button
         type="button"

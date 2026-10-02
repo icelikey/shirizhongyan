@@ -33,6 +33,27 @@ const DECISIONS: { value: BilliardsAbilityDecision; label: string }[] = [
   { value: 'ignore', label: '无视' },
 ]
 
+const TABLE_W = 100
+const TABLE_H = 50
+
+function previewTrajectory(x: number, y: number, angle: number, power: number) {
+  const points = [{ x, y }]
+  let px = x
+  let py = y
+  let vx = Math.cos(angle) * power * 4.8
+  let vy = Math.sin(angle) * power * 4.8
+  for (let step = 0; step < 22; step += 1) {
+    px += vx * 0.72
+    py += vy * 0.72
+    if (px <= 2 || px >= TABLE_W - 2) { vx *= -1; px = Math.max(2, Math.min(TABLE_W - 2, px)) }
+    if (py <= 2 || py >= TABLE_H - 2) { vy *= -1; py = Math.max(2, Math.min(TABLE_H - 2, py)) }
+    points.push({ x: Number(px.toFixed(2)), y: Number(py.toFixed(2)) })
+    vx *= 0.94
+    vy *= 0.94
+  }
+  return points
+}
+
 function useNow() {
   const [now, setNow] = useState(Date.now())
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(timer) }, [])
@@ -76,6 +97,11 @@ export default function SuperpowerBilliardsOnline() {
   const myBall = useMemo(() => view?.balls.find((ball) => ball.ownerSeat === mySeat && !ball.pocketed && ball.lives > 0), [mySeat, view?.balls])
   useEffect(() => { if (!selectedBall && myBall) setSelectedBall(myBall.id) }, [myBall, selectedBall])
   const remaining = view?.phase === 'submit' && view.submitDeadlineAt ? Math.max(0, (view.submitDeadlineAt - (now + (view.serverNow - Date.now()))) / 1000) : 0
+  const previewPoints = useMemo(() => {
+    const ball = view?.balls.find((candidate) => candidate.id === selectedBall)
+    return ball ? previewTrajectory(ball.x, ball.y, angle, power) : []
+  }, [angle, power, selectedBall, view?.balls])
+  const replayTrajectory = view?.lastReveal?.trajectory ?? []
 
   if (stateQuery.error) return <div className="min-h-[100dvh] bg-abyss flex items-center justify-center text-bone"><div className="panel-bg rounded-2xl p-8 text-center"><p className="mb-4 text-dim">{stateQuery.error.message}</p><GoldButton variant="gold" onClick={() => navigate('/lobby')}>返回大厅</GoldButton></div></div>
 
@@ -91,12 +117,21 @@ export default function SuperpowerBilliardsOnline() {
         <main className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4 sm:p-6">
           <section className="panel-bg rounded-2xl p-3 sm:p-5">
             <div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2 text-[12px] tracking-[.2em] text-gold-300"><Target size={15} /> 巫蛊娃娃球桌 · 第 {view?.round ?? 0}/{view?.totalRounds ?? 8} 回合</div><span className="font-mono text-[11px] text-faint">{view?.phase === 'submit' ? `窗口 ${Math.ceil(remaining)}s` : '轨迹回放'}</span></div>
-            <div className="relative aspect-[2/1] overflow-hidden rounded-[24px] border-[10px] border-[#3b1f35] bg-[#173d35] shadow-[inset_0_0_50px_rgba(0,0,0,.55),0_0_30px_rgba(139,147,248,.12)]">
-              {[0, 1, 2, 3].map((pocket) => <span key={pocket} className={cn('absolute h-6 w-6 rounded-full bg-[#07060b] shadow-[0_0_12px_rgba(0,0,0,.75)] sm:h-8 sm:w-8', pocket === 0 && 'left-[-5px] top-[-5px]', pocket === 1 && 'right-[-5px] top-[-5px]', pocket === 2 && 'bottom-[-5px] left-[-5px]', pocket === 3 && 'bottom-[-5px] right-[-5px]')} />)}
-              {(view?.balls ?? []).map((ball) => <button key={ball.id} type="button" onClick={() => ball.ownerSeat === mySeat && setSelectedBall(ball.id)} className={cn('absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[9px] font-bold transition-all sm:h-9 sm:w-9', ball.ownerSeat === mySeat ? 'border-gold-100 bg-[#B0352E] text-gold-100 shadow-[0_0_14px_rgba(227,194,124,.5)]' : 'border-[#9B7FE8]/70 bg-[#2b2360] text-[#e2dcff]', selectedBall === ball.id && 'ring-2 ring-gold-100 ring-offset-2 ring-offset-[#173d35]', ball.lives <= 0 && 'opacity-25 grayscale')} style={{ left: `${ball.x}%`, top: `${ball.y * 2}%` }} aria-label={`${ball.id} · ${ball.lives} 条命`}>{ball.id.slice(-2)}</button>)}
-              <div className="pointer-events-none absolute inset-x-4 bottom-2 flex justify-between text-[9px] uppercase tracking-[.3em] text-white/30"><span>复活点</span><span>轨迹线索 · 物理内核</span><span>复活点</span></div>
+            <div className="relative aspect-[2/1] overflow-hidden rounded-[28px] border-[10px] border-[#3b1f35] bg-[#24152a] shadow-[inset_0_0_50px_rgba(0,0,0,.65),0_0_30px_rgba(139,147,248,.12)] [perspective:1100px]">
+              <div className="absolute inset-[3%] rounded-[18px] bg-[#173d35] shadow-[inset_0_0_45px_rgba(0,0,0,.55)]" style={{ transform: 'rotateX(48deg) rotateZ(-1deg)', transformOrigin: 'center center', transformStyle: 'preserve-3d' }}>
+                <div className="pointer-events-none absolute inset-0 rounded-[18px] border-[5px] border-[#6f4057]/80 shadow-[inset_0_0_0_2px_rgba(248,233,192,.12),0_10px_20px_rgba(0,0,0,.45)]" />
+                <div className="pointer-events-none absolute inset-[7%] rounded-xl border border-white/[.08] bg-[linear-gradient(90deg,transparent_49.5%,rgba(248,233,192,.12)_50%,transparent_50.5%),linear-gradient(0deg,transparent_49.5%,rgba(248,233,192,.07)_50%,transparent_50.5%)]" />
+                <svg className="pointer-events-none absolute inset-[4%] h-[92%] w-[92%] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="桌球轨迹预演">
+                  {previewPoints.length > 1 && <polyline points={previewPoints.map((point) => `${point.x},${point.y * 2}`).join(' ')} fill="none" stroke="rgba(248,233,192,.72)" strokeDasharray="2 2" strokeWidth=".55" vectorEffect="non-scaling-stroke" />}
+                  {replayTrajectory.map((path) => <polyline key={path.ballId} points={path.points.map((point) => `${point.x},${point.y * 2}`).join(' ')} fill="none" stroke="rgba(155,127,232,.55)" strokeWidth=".8" vectorEffect="non-scaling-stroke" />)}
+                </svg>
+                {[0, 1, 2, 3].map((pocket) => <span key={pocket} className={cn('absolute z-20 h-7 w-7 rounded-full border-2 border-black/50 bg-[#07060b] shadow-[inset_0_0_8px_rgba(255,255,255,.08),0_0_12px_rgba(0,0,0,.85)] sm:h-9 sm:w-9', pocket === 0 && 'left-[-10px] top-[-10px]', pocket === 1 && 'right-[-10px] top-[-10px]', pocket === 2 && 'bottom-[-10px] left-[-10px]', pocket === 3 && 'bottom-[-10px] right-[-10px]')} />)}
+                {(view?.balls ?? []).map((ball) => <button key={ball.id} type="button" onClick={() => ball.ownerSeat === mySeat && setSelectedBall(ball.id)} className={cn('absolute z-30 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[9px] font-bold transition-[left,top,filter] duration-500 sm:h-10 sm:w-10', ball.ownerSeat === mySeat ? 'border-gold-100 bg-[radial-gradient(circle_at_32%_28%,#F8E9C0_0_8%,#D8443C_30%,#6f1822_76%)] text-gold-100 shadow-[4px_8px_8px_rgba(0,0,0,.55),0_0_16px_rgba(227,194,124,.5)]' : 'border-[#b6a5ff]/80 bg-[radial-gradient(circle_at_32%_28%,#f2efff_0_8%,#51429b_30%,#1b154d_76%)] text-[#e2dcff] shadow-[4px_8px_8px_rgba(0,0,0,.58),0_0_12px_rgba(139,147,248,.38)]', selectedBall === ball.id && 'ring-2 ring-gold-100 ring-offset-2 ring-offset-[#173d35]', ball.lives <= 0 && 'opacity-25 grayscale')} style={{ left: `${ball.x}%`, top: `${ball.y * 2}%`, transform: 'translate(-50%, -50%) translateZ(22px)' }} aria-label={`${ball.id} · ${ball.lives} 条命`}>{ball.id.slice(-2)}</button>)}
+                <div className="pointer-events-none absolute inset-x-[8%] bottom-[5%] flex justify-between text-[9px] uppercase tracking-[.3em] text-white/35"><span>复活点</span><span>确定性轨迹 · 三维透视回放</span><span>复活点</span></div>
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-faint">{(view?.balls ?? []).map((ball) => <span key={ball.id} className="rounded-full border border-bone/10 px-2 py-1"><span className="text-gold-300">{ball.id}</span> · {ball.lives} 命 · {ABILITY_LABEL[ball.abilityId]}</span>)}</div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-faint"><span><span className="mr-1 inline-block h-1.5 w-4 rounded-full bg-gold-100/70" />当前击杆预测</span><span><span className="mr-1 inline-block h-1.5 w-4 rounded-full bg-[#9B7FE8]/70" />服务端真实回放轨迹 {replayTrajectory.length ? `${replayTrajectory.length} 条` : '等待第一杆'}</span></div>
           </section>
 
           {status === 'waiting' && <div className="flex flex-1 flex-col items-center justify-center gap-4">{isHost ? <><GoldButton variant="gold" size="lg" onClick={() => act({ type: 'start' })}><Play size={16} /> 开局</GoldButton><span className="text-[12px] text-dim">已入座 {view?.seats.length ?? 0}/{view?.seats.length ?? 6} · 先让 Agent 进入自己的球体</span></> : mySeat != null ? <span className="text-[13px] tracking-[.2em] text-dim">已入座 · 静候房主开局</span> : isAuthenticated ? <GoldButton variant="suit" suit="spade" size="lg" onClick={() => { triedJoin.current = true; joinMutation.mutate({ code: CODE }) }}><DoorOpen size={16} /> 入座此局</GoldButton> : <GoldButton variant="gold" size="lg" onClick={() => navigate(LOGIN_PATH)}><Cloud size={16} /> 云登录后入座</GoldButton>}</div>}
@@ -129,7 +164,7 @@ export default function SuperpowerBilliardsOnline() {
               </div>
             </section>
           )}
-          {status === 'playing' && view?.phase === 'reveal' && view.lastReveal && <section className="panel-bg rounded-2xl p-4"><div className="mb-3 flex items-center justify-between"><h2 className="font-serifsc text-[17px] text-gold-100">第 {view.lastReveal.round} 回合 · 轨迹回放</h2><span className="text-[11px] text-faint">碰撞 {view.lastReveal.collisions.length} · 进洞 {view.lastReveal.pockets.length}</span></div><div className="grid gap-2 text-[11px] text-dim sm:grid-cols-2"><div className="rounded-xl border border-bone/10 p-3">{view.lastReveal.pockets.length ? view.lastReveal.pockets.map((pocket) => <p key={`${pocket.ballId}-${pocket.pocket}`}>{pocket.ballId} 进入 {pocket.pocket + 1} 号袋 · {pocket.bySeat === pocket.ownerSeat ? '自损' : `${pocket.bySeat + 1}号击中`} · {pocket.ownerSeat === pocket.bySeat ? `-${view?.rewards.participation}` : '得分'}</p>) : <p>本回合没有巫蛊娃娃进洞。</p>}</div><div className="rounded-xl border border-bone/10 p-3">{view.lastReveal.abilities.length ? view.lastReveal.abilities.map((ability, index) => <p key={`${ability.abilityId}-${index}`} className={ability.accepted ? 'text-suit-club' : 'text-suit-heart'}>{ABILITY_LABEL[ability.abilityId]} · {ability.accepted ? '已执行' : '已降级'} · {ability.reason}</p>) : <p>本回合没有能力回应。</p>}</div></div></section>}
+          {status === 'playing' && view?.phase === 'reveal' && view.lastReveal && <section className="panel-bg rounded-2xl p-4"><div className="mb-3 flex items-center justify-between"><h2 className="font-serifsc text-[17px] text-gold-100">第 {view.lastReveal.round} 回合 · 轨迹回放</h2><span className="text-[11px] text-faint">碰撞 {view.lastReveal.collisions.length} · 进洞 {view.lastReveal.pockets.length} · 轨迹 {view.lastReveal.trajectory.length} 条</span></div><div className="grid gap-2 text-[11px] text-dim sm:grid-cols-2"><div className="rounded-xl border border-bone/10 p-3">{view.lastReveal.pockets.length ? view.lastReveal.pockets.map((pocket) => <p key={`${pocket.ballId}-${pocket.pocket}`}>{pocket.ballId} 进入 {pocket.pocket + 1} 号袋 · {pocket.bySeat === pocket.ownerSeat ? '自损' : `${pocket.bySeat + 1}号击中`} · {pocket.ownerSeat === pocket.bySeat ? `-${view?.rewards.participation}` : '得分'}</p>) : <p>本回合没有巫蛊娃娃进洞。</p>}</div><div className="rounded-xl border border-bone/10 p-3">{view.lastReveal.abilities.length ? view.lastReveal.abilities.map((ability, index) => <p key={`${ability.abilityId}-${index}`} className={ability.accepted ? 'text-suit-club' : 'text-suit-heart'}>{ABILITY_LABEL[ability.abilityId]} · {ability.accepted ? '已执行' : '已降级'} · {ability.reason}</p>) : <p>本回合没有能力回应。</p>}</div></div></section>}
           {(view?.tacticLedger?.length || view?.tacticSignals?.length) ? (
             <section className="panel-bg rounded-2xl p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

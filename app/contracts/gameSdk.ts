@@ -594,6 +594,11 @@ export interface BilliardsReveal {
   round: number;
   strikes: BilliardsStrike[];
   collisions: { a: string; b: string; step: number }[];
+  /** 服务端确定性模拟产生的真实轨迹，供观战与回放补间使用。 */
+  trajectory: Array<{
+    ballId: string;
+    points: Array<{ x: number; y: number }>;
+  }>;
   pockets: { ballId: string; ownerSeat: number; bySeat: number; pocket: number }[];
   abilities: BilliardsAbilityResolution[];
   comboBySeat: Record<number, number>;
