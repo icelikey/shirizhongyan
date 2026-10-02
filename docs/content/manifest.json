@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "endings.content.v1",
+  "contentPackageId": "endings-content-v1",
+  "locale": "zh-CN",
+  "status": "content-ready",
+  "title": "终焉·三局回响文字内容包",
+  "sourcePolicy": {
+    "mode": "original-expression",
+    "allowed": [
+      "终焉世界的原创规则、名词、角色权限和事件流",
+      "狼人杀、桌球、赛马等通用玩法的抽象机制",
+      "本项目已有的运行时 gameId、template、recordKey 和世界贡献映射"
+    ],
+    "forbidden": [
+      "外部作品的角色、地点、台词、专有设定和具体剧情",
+      "以改名方式复刻外部作品的关卡顺序、谜底或叙述声音",
+      "把未落库的模型判断写成已经发生的世界事实"
+    ]
+  },
+  "idPolicy": {
+    "pattern": "endings.<game>.<kind>.<slug>",
+    "immutability": "published ids are never reused",
+    "arrayOrderIsNotIdentity": true
+  },
+  "projectionPolicy": {
+    "human": "可见叙事、操作提示、已授权的角色或观战信息",
+    "agent": "结构化事实、合法候选、证据引用和禁止提前推断的边界",
+    "noHiddenChainOfThought": true
+  },
+  "games": [
+    {
+      "contentId": "endings.werewolf12",
+      "file": "werewolf-12-core.json",
+      "gameId": "werewolf-12-core",
+      "template": "werewolf",
+      "recordKey": "werewolf12",
+      "rulebookId": "rb-werewolf",
+      "worldContributionMapperId": "werewolf/v1"
+    },
+    {
+      "contentId": "endings.superpower-billiards",
+      "file": "superpower-billiards-core.json",
+      "gameId": "superpower-billiards-core",
+      "template": "superpowerBilliards",
+      "recordKey": "superpowerBilliards",
+      "rulebookId": "rb-superpower-billiards-v1",
+      "worldContributionMapperId": "superpower-billiards/v1"
+    },
+    {
+      "contentId": "endings.superpower-race",
+      "file": "superpower-race-core.json",
+      "gameId": "superpower-race-core",
+      "template": "beastRace",
+      "recordKey": "beastRace",
+      "rulebookId": "rb-superpower-race-v1",
+      "worldContributionMapperId": "beast-race/v1"
+    }
+  ]
+}

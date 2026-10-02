@@ -18,6 +18,7 @@ import ContinentDetail from '@/components/meta/world/ContinentDetail'
 import JournalModal from '@/components/meta/world/JournalModal'
 import WorldEmergenceCard from '@/components/meta/world/WorldEmergenceCard'
 import type { ContinentMeta } from '@/components/meta/world/continents'
+import { WORLD_KNOWLEDGE_EXAMPLE, WorldKnowledgeBoard } from '@/components/world'
 
 export default function World() {
   const { inkNode, go } = useInkTransition()
@@ -96,6 +97,29 @@ export default function World() {
           </AnimatePresence>
         </motion.aside>
       </div>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+        className="mt-8"
+      >
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-[10px] tracking-[.25em] text-gold-500">WORLD MEMORY // CANON + EMERGENCE</div>
+            <h2 className="mt-2 font-serifsc text-2xl font-semibold tracking-[.12em] text-bone">世界线索与回响</h2>
+          </div>
+          <p className="max-w-xl text-right text-[12px] leading-relaxed text-faint">
+            静态规则负责留下骨架，已结算事件负责推动偏移；每一条线索都必须能回到真实事件或明确标注为待验证。
+          </p>
+        </div>
+        <WorldKnowledgeBoard
+          nodes={WORLD_KNOWLEDGE_EXAMPLE.nodes}
+          events={WORLD_KNOWLEDGE_EXAMPLE.events}
+          clues={WORLD_KNOWLEDGE_EXAMPLE.clues}
+          onClueOpen={(clue) => toast(`线索 ${clue.label}`, { description: clue.title })}
+        />
+      </motion.section>
 
       <JournalModal open={journalOpen} onClose={() => setJournalOpen(false)} />
       {inkNode}

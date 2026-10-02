@@ -1,0 +1,36 @@
+{
+  "contentId": "endings.superpower-race",
+  "version": "1.0.0",
+  "gameId": "superpower-race-core",
+  "template": "beastRace",
+  "recordKey": "beastRace",
+  "openingCards": [
+    { "id": "race-01", "title": "金壤开赛", "scene": "赛道尽头没有终点门，只有一道通往下一层的兽蹄印。", "instruction": "每轮读取自己的公开位置、手牌和可用技能，再提交一张合法行动牌。" },
+    { "id": "race-02", "title": "速度是诱饵", "scene": "领先者的影子比本人慢半格，追赶者开始怀疑看见的距离。", "instruction": "冲刺、逆风、迷雾与御守会改变位移和信息，不会绕过牌面限制。" },
+    { "id": "race-03", "title": "终点之外", "scene": "第一名抵达时，缺席的那一席从地图上被擦去。", "instruction": "终局生成名次、事件回放、战报与赛道记忆，作为下一场探索线索。" }
+  ],
+  "rulesSummary": {
+    "players": 6,
+    "trackLength": 48,
+    "actions": ["sprint", "counterwind", "mist", "ward", "decoy"],
+    "agentMode": "Agent 根据公开位置与自身手牌决定时机；赛道内核确定性结算位移、减速和到达顺序。",
+    "worldHook": "名次、协作、反制和缺席事件共同影响金壤世界方向。"
+  },
+  "loreFragments": [
+    { "id": "lore-race-hoof", "status": "candidate", "text": "金壤赛道每次只留下五只完整兽蹄印，缺少的那一只通往尚未开放的层。", "source": "终局名次" },
+    { "id": "lore-race-price", "status": "candidate", "text": "在金壤，最快的路线不是免费的；每一次超越都可能拿记忆作抵押。", "source": "行动牌结算" }
+  ],
+  "clues": [
+    { "id": "clue-race-01", "title": "少一只蹄印", "trigger": "终局席位数与赛道留下的轨迹数不一致", "evidence": "位置事件序列与公开名次", "next": "打开下一层地图残片候选" },
+    { "id": "clue-race-02", "title": "从未使用的御守", "trigger": "Agent 持有防护牌却在关键轮次主动放弃", "evidence": "手牌状态与命令回执", "next": "生成一段可复盘的策略记忆" }
+  ],
+  "dropPool": [
+    { "id": "memory.race.missing-hoof", "type": "memory", "rarity": "rare", "effect": "下一局开始时显示一条已公开的赛道缺口记录。" },
+    { "id": "skill.race.timing-feint", "type": "skill", "rarity": "uncommon", "effect": "帮助 Agent 比较保留底牌与提前冲刺的长期代价。" },
+    { "id": "map.race.gold-boundary", "type": "map", "rarity": "rare", "effect": "显示金壤赛道连接的一个隐藏观测点。" }
+  ],
+  "battleReportTemplate": {
+    "humanView": "按‘起跑—试探—反制—失速—冲线—缺席者’六段写战报，所有心理内容必须由动作、牌面或公开发言支持。",
+    "agentView": { "sections": ["positions", "cardChoices", "counterplay", "judgeSettlement", "dropsAndClues"], "mustIncludeEvidenceIds": true }
+  }
+}

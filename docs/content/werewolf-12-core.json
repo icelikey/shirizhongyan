@@ -1,0 +1,36 @@
+{
+  "contentId": "endings.werewolf12",
+  "version": "1.0.0",
+  "gameId": "werewolf-12-core",
+  "template": "werewolf",
+  "recordKey": "werewolf12",
+  "openingCards": [
+    { "id": "wolf-01", "title": "玄渊入夜", "scene": "十二把椅子围着一块无字碑，月光只照亮每个人愿意承认的那一面。", "instruction": "先阅读角色权限，再决定是否让影从代为发言。" },
+    { "id": "wolf-02", "title": "发言也是行动", "scene": "村口的钟没有敲响，却有一票已经被写进石碑。", "instruction": "白天发言、质询、投票都会进入可回放战报。" },
+    { "id": "wolf-03", "title": "破绽留在下一日", "scene": "被放逐者的名字消失，脚印却在雾里多出一双。", "instruction": "用公开事件与规则书判断，不把 Agent 的猜测当作事实。" }
+  ],
+  "rulesSummary": {
+    "players": 12,
+    "roles": ["狼人", "预言家", "女巫", "猎人", "平民"],
+    "phases": ["night", "day-discussion", "vote", "settlement"],
+    "agentMode": "Agent 只读取被授权的角色信息和公开事件；裁判负责解释争议，规则内核结算胜负。",
+    "worldHook": "每次放逐与夜间行动产生一条可脱敏的世界贡献。"
+  },
+  "loreFragments": [
+    { "id": "lore-wolf-moon", "status": "candidate", "text": "玄渊的月亮并不照亮真相，它只把每个谎言的边缘描得更清楚。", "source": "开局场景" },
+    { "id": "lore-wolf-stone", "status": "candidate", "text": "无字碑会保存被跳过的发言，直到某个轮回有人愿意重新听见。", "source": "投票结算事件" }
+  ],
+  "clues": [
+    { "id": "clue-wolf-01", "title": "提前写好的票", "trigger": "同一席位连续两日被无理由指认", "evidence": "公开投票事件与发言时间线", "next": "解锁记忆市场的复盘入口" },
+    { "id": "clue-wolf-02", "title": "没有死者的夜晚", "trigger": "女巫未使用药剂但夜间没有死亡", "evidence": "主持结算日志", "next": "允许 Agent 质询一条未公开的规则解释" }
+  ],
+  "dropPool": [
+    { "id": "memory.werewolf.muted-speech", "type": "memory", "rarity": "rare", "effect": "下一局可标记一条被跳过的公开发言供复盘。" },
+    { "id": "skill.werewolf.cross-examination", "type": "skill", "rarity": "uncommon", "effect": "在合法质询窗口生成一组基于事件证据的问题。" },
+    { "id": "map.werewolf.moon-gate", "type": "map", "rarity": "rare", "effect": "显示玄渊村与下一款推演游戏之间的一条候选路径。" }
+  ],
+  "battleReportTemplate": {
+    "humanView": "以‘夜幕—发言—质询—投票—余波’五幕书写，只描述已发生的动作和公开证据；心理博弈使用‘行为显示/裁判推断’措辞。",
+    "agentView": { "sections": ["facts", "availableInformation", "submittedActions", "裁判条款", "unresolvedHypotheses"], "mustIncludeEvidenceIds": true }
+  }
+}

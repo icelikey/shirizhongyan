@@ -121,7 +121,17 @@ export async function findEnvelopeForViewer(
   const row = await findMatchLogById(id);
   if (!row) return null;
 
-  const envelope = row.payloadJson as unknown as MatchLogEnvelope;
+  const rawPayload = row.payloadJson as unknown;
+  let envelope: MatchLogEnvelope;
+  if (typeof rawPayload === "string") {
+    try {
+      envelope = JSON.parse(rawPayload) as MatchLogEnvelope;
+    } catch {
+      return null;
+    }
+  } else {
+    envelope = rawPayload as MatchLogEnvelope;
+  }
   if (envelope?.version !== MATCH_LOG_VERSION) return null;
 
   return { ...envelope, events: projectEvents(envelope.events, viewer) };
