@@ -31,8 +31,12 @@ import type {
   BilliardsRoomView,
   BilliardsReveal,
   BilliardsBallView,
+  BeastRaceRoomView,
+  WerewolfRoomView,
 } from "@contracts/gameSdk";
 import { cricketMoodFor, type FlyTeaseParams, type FlyTeaseReveal } from "@contracts/flyTease";
+import { visiblePosition, type RaceMatchState, type RaceReveal } from "@contracts/beastRace";
+import { projectWerewolf12State, type Werewolf12MatchState } from "@contracts/werewolf12";
 import {
   resolveSeatPolicy,
   seatKindAllowed,
@@ -708,8 +712,10 @@ export class SdkRoom {
         .map(s => ({ index: s.index, name: s.name, kind: s.kind })),
     );
 
+    // 内容包状态与事件记录必须共享同一个真实种子；房间码只是寻址标识，
+    // 不能替代回放种子，否则相同房间无法复现同一条赛道或身份分配。
     this.state.matchState =
-      this.module.initMatchState?.(this.def, this.seatCount, this.code) ?? null;
+      this.module.initMatchState?.(this.def, this.seatCount, seed) ?? null;
 
     this.beginRound(1);
     this.touch();
@@ -1289,6 +1295,55 @@ export class SdkRoom {
           atlasVersion: FLY_ATLAS.version,
         },
       };
+    }
+    if (this.def.template === "beastRace") {
+      const st = this.state.matchState as RaceMatchState | null;
+      const currentSubPhase = this.state.subPhases?.[this.state.subPhaseIdx]?.name;
+      const trackLength = st?.trackLength ?? st?.track.length ?? this.def.params.trackLength;
+      const race = st
+        ? {
+            track: [...st.track],
+            trackLength,
+            racers: st.racers.map((racer) => ({
+              seat: racer.seat,
+              beastId: racer.beastId,
+              position: racer.position,
+              visiblePosition: visiblePosition(racer),
+              // 只把自己的手牌发给座位视角；其他席位只给数量，避免旁观/对手读底牌。
+              hand: racer.seat === me?.index ? [...racer.hand] : [],
+              handCount: racer.hand.length,
+              slowedNextRound: racer.slowedNextRound,
+              stunnedRounds: racer.stunnedRounds,
+              finishRank: racer.finishRank,
+            })),
+          }
+        : null;
+      return {
+        ...base,
+        template: "beastRace",
+        lastReveal: this.state.lastReveal as RaceReveal | null,
+        history: this.state.history as RaceReveal[],
+        choices: null,
+        race,
+        subPhase: currentSubPhase === "play" ? "play" : null,
+        phaseSubmittedCount: this.state.submissions.filter((entry) => entry.phase === currentSubPhase).length,
+      } as BeastRaceRoomView;
+    }
+    if (this.def.template === "werewolf") {
+      const st = this.state.matchState as Werewolf12MatchState | null;
+      const currentSubPhase = this.state.subPhases?.[this.state.subPhaseIdx]?.name ?? null;
+      // 未入座的旁观者使用 -1，projector 会隐藏所有角色与阵营；入座者只能看自己的。
+      const projected = st ? { ...projectWerewolf12State(st, me?.index ?? -1), round: st.day } : null;
+      return {
+        ...base,
+        template: "werewolf",
+        lastReveal: projected,
+        history: [],
+        choices: null,
+        werewolf: projected,
+        subPhase: currentSubPhase,
+        phaseSubmittedCount: this.state.submissions.filter((entry) => entry.phase === currentSubPhase).length,
+      } as WerewolfRoomView;
     }
     if (this.def.template === "superpowerBilliards") {
       const st = this.state.matchState as {

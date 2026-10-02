@@ -31,6 +31,7 @@ import CharacterShowcase from '@/pages/CharacterShowcase'
 import EntryWorld from '@/pages/EntryWorld'
 import AgentReport from '@/pages/AgentReport'
 import SuperpowerBilliardsOnline from '@/pages/SuperpowerBilliardsOnline'
+import OfficialTemplateOnline from '@/pages/OfficialTemplateOnline'
 
 export default function App() {
   const basename = import.meta.env.BASE_URL === '/'
@@ -67,6 +68,8 @@ export default function App() {
           <Route path="/game/online-pirate/:code" element={<PirateGoldOnline />} />
           <Route path="/game/online-fly/:code" element={<FlyOnline />} />
           <Route path="/game/online-billiards/:code" element={<SuperpowerBilliardsOnline />} />
+          <Route path="/game/online-race/:code" element={<OfficialTemplateOnline template="beastRace" />} />
+          <Route path="/game/online-werewolf/:code" element={<OfficialTemplateOnline template="werewolf" />} />
           <Route path="/agent-portal" element={<AgentPortal />} />
         </Route>
         {/* 应用页：登录守卫 + 布局壳（TopHUD + Outlet） */}

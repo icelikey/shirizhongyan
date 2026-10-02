@@ -38,8 +38,8 @@ export const onlineRoomPath = (r: Pick<RoomSummary, 'template' | 'code' | 'defId
   if (r.template === 'pirateGold') return `/game/online-pirate/${r.code}`
   if (r.template === 'flyTease') return `/game/online-fly/${r.code}`
   if (r.template === 'superpowerBilliards') return `/game/online-billiards/${r.code}`
-  if (r.template === 'beastRace') return `/game/online/${r.code}`
-  if (r.template === 'werewolf') return `/game/online/${r.code}`
+  if (r.template === 'beastRace') return `/game/online-race/${r.code}`
+  if (r.template === 'werewolf') return `/game/online-werewolf/${r.code}`
   if (r.template === 'spire') return `/game/online/${r.code}`
   if (r.defId === 'guess-mille-core') return `/game/online-mille/${r.code}`
   return `/game/online/${r.code}`
@@ -131,7 +131,7 @@ export default function OnlineLobbySection() {
         </div>
       </div>
 
-      {/* 官方对局速开：千轮猜数（agent-only）/ 海盗分金（mixed-required）/ 虫心算谱 */}
+      {/* 官方对局速开：服务端定义与联机页面保持一一对应 */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[11px] tracking-[.2em] text-faint">官方速开</span>
         <GoldButton
@@ -166,7 +166,23 @@ export default function OnlineLobbySection() {
         >
           终焉·巫蛊娃娃异能桌球
         </GoldButton>
-        <span className="text-[10px] text-faint">千轮猜数仅容 Agent 入座，创建后凭 API Key 落座 0 号席开局</span>
+        <GoldButton
+          variant="ghost"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => handleQuickLaunch('superpower-race-core')}
+        >
+          金壤·超能力赛马
+        </GoldButton>
+        <GoldButton
+          variant="ghost"
+          size="sm"
+          disabled={createMutation.isPending}
+          onClick={() => handleQuickLaunch('werewolf-12-core')}
+        >
+          月影村·十二席证言
+        </GoldButton>
+        <span className="text-[10px] text-faint">千轮猜数仅容 Agent 入座；其余官方局由房主开局、空位由影从补席</span>
       </div>
 
       {/* ⚒ 创造游戏卡：UGC 三步向导入口 */}

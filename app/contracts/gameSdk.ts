@@ -14,6 +14,8 @@
 import { z } from "zod";
 import type { GuessRoomView, GuessReveal } from "./room";
 import type { FlyTeaseParams, FlyTeaseRoomView } from "./flyTease";
+import type { RaceReveal, RaceMatchState } from "./beastRace";
+import type { Werewolf12StateView } from "./werewolf12";
 
 /* ------------------------------------------------------------------ */
 /* 基础类型                                                            */
@@ -221,8 +223,9 @@ export const superpowerBilliardsParamsSchema = z.object({
 /** 金壤·超能力赛马的公共定义边界；物理细节仍由 beastRace 合约负责。 */
 export const beastRaceParamsSchema = z.object({
   rounds: z.number().int().min(3).max(24),
-  trackLength: z.number().int().min(12).max(120),
-  handSize: z.number().int().min(1).max(12),
+  trackLength: z.number().int().min(12).max(100),
+  /** 当前官方卡池每兽 8 张；扩充牌库时再提升这个边界。 */
+  handSize: z.literal(8),
 });
 
 /** 月影村·十二席异形证言的公共定义边界。 */
@@ -329,15 +332,6 @@ export const createGameDefSchema = z.discriminatedUnion("template", [
     entryFee: entryFeeSchema,
     rewards: rewardsSchema,
     submitWindowSec: z.number().int().min(10).max(180),
-  }),
-  z.object({
-    template: z.literal("spire"),
-    name: z.string().trim().min(1).max(SDK_LIMITS.name.max),
-    seats: z.number().int().min(1).max(6),
-    params: spireParamsSchema,
-    entryFee: entryFeeSchema,
-    rewards: rewardsSchema,
-    submitWindowSec: z.number().int().min(10).max(120),
   }),
 ]);
 
@@ -620,8 +614,42 @@ export interface BilliardsRoomView extends Omit<GuessRoomView, "lastReveal" | "h
   phaseSubmittedCount: number;
 }
 
+export interface BeastRaceRoomView extends Omit<GuessRoomView, "lastReveal" | "history" | "choices"> {
+  template: "beastRace";
+  lastReveal: RaceReveal | null;
+  history: RaceReveal[];
+  choices: null;
+  race: {
+    track: RaceMatchState["track"];
+    trackLength: number;
+    racers: Array<{
+      seat: number;
+      beastId: string;
+      position: number;
+      visiblePosition: number;
+      hand: string[];
+      handCount: number;
+      slowedNextRound: boolean;
+      stunnedRounds: number;
+      finishRank: number | null;
+    }>;
+  } | null;
+  subPhase: "play" | null;
+  phaseSubmittedCount: number;
+}
+
+export interface WerewolfRoomView extends Omit<GuessRoomView, "lastReveal" | "history" | "choices"> {
+  template: "werewolf";
+  lastReveal: (Werewolf12StateView & { round: number }) | null;
+  history: (Werewolf12StateView & { round: number })[];
+  choices: null;
+  werewolf: Werewolf12StateView | null;
+  subPhase: string | null;
+  phaseSubmittedCount: number;
+}
+
 /** room.state / agent.gatewayObserve 的返回联合（按 template 判别） */
-export type GameRoomView = GuessRoomView | PollRoomView | PirateGoldRoomView | FlyTeaseRoomView | BilliardsRoomView;
+export type GameRoomView = GuessRoomView | PollRoomView | PirateGoldRoomView | FlyTeaseRoomView | BilliardsRoomView | BeastRaceRoomView | WerewolfRoomView;
 
 /** 房间动作在 room.ts 的 GuessAction 上扩展了 choose，这里给出门户别名 */
 export type { GuessReveal, GuessRoomView };
