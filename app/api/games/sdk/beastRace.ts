@@ -7,6 +7,8 @@
 import {
   createRaceMatchState,
 } from "@contracts/beastRace.data";
+import { TRPCError } from "@trpc/server";
+import type { GameAction } from "@contracts/room";
 import {
   legalRaceActions,
   normalizeRaceAction,
@@ -15,6 +17,7 @@ import {
   type RaceMatchState,
   type RaceRoundResult,
 } from "@contracts/beastRace";
+import type { RoundEntry, SubmissionResult, TemplateModule } from "./templates";
 
 export interface BeastRaceRoundEntry {
   seat: number;
@@ -133,3 +136,53 @@ export const beastRaceModule: BeastRaceModule = {
 export function raceActionCandidates(state: RaceMatchState, seat: number): RaceAction[] {
   return beastRaceModule.legalActions(state, seat);
 }
+
+type BeastRacePayload = { kind: "beastRace"; action: RaceAction };
+
+function beastRacePayload(value: unknown): BeastRacePayload | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<BeastRacePayload>;
+  if (candidate.kind !== "beastRace" || !candidate.action || typeof candidate.action !== "object") return null;
+  const action = candidate.action as Partial<RaceAction>;
+  if (typeof action.cardId !== "string") return null;
+  return { kind: "beastRace", action: { cardId: action.cardId, ...(action.targetSeat === undefined ? {} : { targetSeat: action.targetSeat }) } };
+}
+
+function invalidRaceAction(message: string): never {
+  throw new TRPCError({ code: "BAD_REQUEST", message });
+}
+
+/** 通用 TemplateModule 适配器；纯内容包接口仍由 beastRaceModule/raceActionCandidates 提供。 */
+export const beastRaceTemplateModule: TemplateModule = {
+  template: "beastRace", gameKind: "beastRace", recordKey: "beastRace",
+  initMatchState(_def, seatCount, seed = "beast-race") { return beastRaceModule.initMatchState(seed, seatCount); },
+  normalizeSubmission(_def, action: GameAction): number | null { return action.type === "play" ? 0 : null; },
+  normalizeStructuredSubmission(_def, action: GameAction): SubmissionResult {
+    if (action.type !== "play") return null;
+    if (!action.cardId.trim()) invalidRaceAction("赛马动作必须指定牌面");
+    return { value: 0, payload: { kind: "beastRace", action: { cardId: action.cardId, ...(action.targetSeat === undefined ? {} : { targetSeat: action.targetSeat }) } } satisfies BeastRacePayload };
+  },
+  timeoutFallback() { return 0; },
+  timeoutFallbackStructured(_def, _seatIndex, _phaseName): SubmissionResult { return null; },
+  botPick(_def, seatIndex, _levelK, _history, _phaseName, matchState): number {
+    const state = matchState as RaceMatchState | null;
+    if (state) beastRaceModule.timeoutFallback(state, seatIndex);
+    return 0;
+  },
+  botPickStructured(_def, seatIndex, levelK, _history, _phaseName, matchState): SubmissionResult {
+    const state = matchState as RaceMatchState | null;
+    if (!state) return null;
+    return { value: 0, payload: { kind: "beastRace", action: beastRaceModule.botPick(state, seatIndex, levelK) } satisfies BeastRacePayload };
+  },
+  resolveRound(_def, round, entries: RoundEntry[], matchState) {
+    const state = matchState as RaceMatchState;
+    const raceEntries = entries.map(entry => ({ seat: entry.seat, order: entry.order, action: beastRacePayload(entry.payload)?.action ?? beastRaceModule.timeoutFallback(state, entry.seat) }));
+    try {
+      const result = beastRaceModule.resolveRound(state, round, raceEntries);
+      return { reveal: result.reveal, scoreDeltas: result.scoreDeltas, finished: result.finished };
+    } catch (error) {
+      invalidRaceAction(error instanceof Error ? error.message : "赛马动作不合法");
+    }
+  },
+  roundWinners(reveal: unknown): number[] { return beastRaceModule.roundWinners(reveal as RaceRoundResult["reveal"]); },
+};

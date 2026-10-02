@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { beastRaceModule, raceActionCandidates } from "./beastRace";
+import { beastRaceModule, beastRaceTemplateModule, raceActionCandidates } from "./beastRace";
 
 describe("beastRace SDK 内容包适配器", () => {
   it("由 seed 初始化并只暴露合法候选", () => {
-    const state = beastRaceModule.initMatchState("sdk-seed", 2);
-    const actions = raceActionCandidates(state, 0);
-    expect(actions.length).toBeGreaterThan(0);
-    expect(() => beastRaceModule.normalizeSubmission(state, 0, actions[0])).not.toThrow();
-    expect(() => beastRaceModule.normalizeSubmission(state, 0, { cardId: "invalid" })).toThrow();
+    for (let seats = 2; seats <= 6; seats += 1) {
+      const state = beastRaceModule.initMatchState("sdk-seed", seats);
+      expect(state.racers).toHaveLength(seats);
+      const actions = raceActionCandidates(state, 0);
+      expect(actions.length).toBeGreaterThan(0);
+      expect(() => beastRaceModule.normalizeSubmission(state, 0, actions[0])).not.toThrow();
+      expect(() => beastRaceModule.normalizeSubmission(state, 0, { cardId: "invalid" })).toThrow();
+    }
   });
 
   it("超时和 bot 都从同一候选集合取动作", () => {
@@ -50,5 +53,22 @@ describe("beastRace SDK 内容包适配器", () => {
     ]);
     expect(result.events.some(e => e.note.includes("反照"))).toBe(true);
     expect(result.highlights.some(h => h.kind === "counter")).toBe(true);
+  });
+
+  it("TemplateModule 适配器支持合法 play、超时兜底、bot 与确定性 resolve", () => {
+    const def = { template: "beastRace", id: "beast", seats: 2, params: { rounds: 8, trackLength: 100, handSize: 8 } } as never;
+    const state = beastRaceTemplateModule.initMatchState!(def, 2, "template-seed") as ReturnType<typeof beastRaceModule.initMatchState>;
+    const action = beastRaceModule.timeoutFallback(state, 0);
+    const normalized = beastRaceTemplateModule.normalizeStructuredSubmission!(def, { type: "play", cardId: action.cardId, ...(action.targetSeat === undefined ? {} : { targetSeat: action.targetSeat }) });
+    expect(normalized).toEqual({ value: 0, payload: { kind: "beastRace", action } });
+    expect(beastRaceTemplateModule.normalizeSubmission(def, { type: "play", cardId: action.cardId })).toBe(0);
+    expect(beastRaceTemplateModule.timeoutFallback(def, 0)).toBe(0);
+    expect(beastRaceTemplateModule.botPickStructured!(def, 1, 2.4, [], undefined, state)).not.toBeNull();
+    const entries = state.racers.map((r, seat) => ({ seat, order: seat, value: 0, payload: { kind: "beastRace", action: beastRaceModule.timeoutFallback(state, seat) } }));
+    const first = beastRaceTemplateModule.resolveRound(def, 1, entries, state);
+    const replayState = beastRaceModule.initMatchState("template-seed", 2);
+    const replay = beastRaceTemplateModule.resolveRound(def, 1, entries, replayState);
+    expect(first).toEqual(replay);
+    expect(first.finished).toBe(false);
   });
 });
