@@ -1,7 +1,7 @@
 /**
  * 大陆详情态（world.md §右栏 · 大陆详情态）—— 右栏 Drawer 式切换。
  * 12 生肖印 4×3 阵列（点亮金底 / 线稿 + 当前章胜场进度）+ 碎片套组进度 +
- * 大陆规则卡（前往大厅开桌）+ 大陆纪事 3 条。
+ * 大陆规则卡（进入玩法 · 前往大厅）+ 大陆纪事 3 条。
  */
 import { motion } from 'framer-motion'
 import { ArrowLeft } from 'lucide-react'
@@ -121,7 +121,7 @@ export default function ContinentDetail({ suit, onBack, onGoLobby, onGoSpire, on
             52 张牌组词条跨局养成，精英胜场计入丹丘生肖，登顶 +40♥。
           </p>
           <GoldButton variant="suit" suit="heart" size="sm" className="mt-3 w-full" onClick={onGoPoker ?? onGoLobby}>
-            前往千面牌楼
+            进入玩法 · 千面牌楼
           </GoldButton>
         </motion.div>
       ) : suit === 'diamond' ? (
@@ -133,7 +133,7 @@ export default function ContinentDetail({ suit, onBack, onGoLobby, onGoSpire, on
             Boss 击杀计入金壤生肖胜场。
           </p>
           <GoldButton variant="suit" suit="diamond" size="sm" className="mt-3 w-full" onClick={onGoSpire ?? onGoLobby}>
-            前往碎境登塔
+            进入玩法 · 碎境登塔
           </GoldButton>
         </motion.div>
       ) : (
@@ -146,7 +146,7 @@ export default function ContinentDetail({ suit, onBack, onGoLobby, onGoSpire, on
                 : '6 人 5 轮秘密出数（0–100），目标 = 均值 × 0.8，最接近者胜。胜场计入青野生肖。'}
             </p>
             <GoldButton variant="suit" suit={suit} size="sm" className="mt-3 w-full" onClick={onGoLobby}>
-              前往大厅开桌
+              进入玩法 · 前往大厅
             </GoldButton>
           </motion.div>
         )

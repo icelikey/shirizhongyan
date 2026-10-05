@@ -191,7 +191,265 @@
     border-radius: 2px;
     box-shadow: 0 2px 8px rgba(176, 53, 46, .5), inset 0 0 0 1px rgba(248, 233, 192, .25);
   }
+
+  /* 剧情画册：视觉资产负责氛围，文字由网页叠加，翻页由组件控制。 */
+  .story-album {
+    isolation: isolate;
+    background:
+      radial-gradient(90% 70% at 50% 10%, rgba(77, 50, 87, .24), transparent 68%),
+      linear-gradient(180deg, rgba(7, 6, 11, .58), rgba(7, 6, 11, .94));
+  }
+  .story-album-stars {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: .28;
+    background-image:
+      radial-gradient(circle at 18% 22%, rgba(248, 233, 192, .85) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 76% 18%, rgba(139, 147, 248, .75) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 64% 78%, rgba(227, 194, 124, .55) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 32% 80%, rgba(238, 106, 114, .55) 0 1px, transparent 1.5px);
+    background-size: 240px 220px, 310px 280px, 360px 300px, 290px 260px;
+  }
+  .story-album-stage {
+    perspective: 1800px;
+    touch-action: pan-y;
+  }
+  .story-album-page {
+    display: grid;
+    min-height: min(68vh, 650px);
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr);
+    overflow: hidden;
+    transform-style: preserve-3d;
+    transform-origin: center center;
+    border: 1px solid rgba(227, 194, 124, .25);
+    border-radius: 22px;
+    background:
+      linear-gradient(110deg, rgba(248, 233, 192, .04), transparent 34%),
+      #16111d;
+    box-shadow:
+      0 28px 90px rgba(0, 0, 0, .62),
+      inset 0 0 0 1px rgba(7, 6, 11, .75),
+      0 0 0 12px rgba(227, 194, 124, .025);
+    will-change: transform, opacity;
+  }
+  .story-album-page-cover {
+    grid-template-columns: 1.2fr .8fr;
+  }
+  .story-album-art {
+    position: relative;
+    min-height: 360px;
+    overflow: hidden;
+    background-position: center;
+    background-size: cover;
+    background-color: #191122;
+  }
+  .story-album-art::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-right: 1px solid rgba(248, 233, 192, .16);
+    box-shadow: inset -24px 0 42px rgba(0, 0, 0, .28);
+    pointer-events: none;
+  }
+  .story-album-art-wash {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(7, 6, 11, .06), rgba(7, 6, 11, .72)),
+      linear-gradient(90deg, transparent 45%, rgba(7, 6, 11, .42));
+  }
+  .story-album-art-grid {
+    position: absolute;
+    inset: 0;
+    opacity: .2;
+    background-image: linear-gradient(rgba(248, 233, 192, .12) 1px, transparent 1px), linear-gradient(90deg, rgba(248, 233, 192, .12) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: linear-gradient(135deg, black, transparent 70%);
+  }
+  .story-album-art-caption {
+    position: absolute;
+    right: 20px;
+    bottom: 18px;
+    left: 20px;
+    z-index: 2;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: rgba(248, 233, 192, .66);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9px;
+    letter-spacing: .24em;
+    text-transform: uppercase;
+  }
+  .story-album-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    padding: clamp(28px, 5vw, 64px) clamp(24px, 5vw, 64px);
+    background:
+      radial-gradient(120% 100% at 0% 0%, rgba(227, 194, 124, .075), transparent 48%),
+      repeating-linear-gradient(0deg, rgba(248, 233, 192, .016) 0 1px, transparent 1px 5px);
+  }
+  .story-album-page-mark {
+    min-width: 38px;
+    padding-top: 6px;
+    color: var(--gold-300);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: .1em;
+  }
+  .story-album-body {
+    text-wrap: pretty;
+  }
+  .story-album-note,
+  .story-album-memory {
+    border: 1px solid rgba(227, 194, 124, .2);
+    background: rgba(7, 6, 11, .28);
+    padding: 14px 16px;
+  }
+  .story-album-memory {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .story-album-control {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid rgba(227, 194, 124, .2);
+    border-radius: 999px;
+    padding: 0 14px;
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: .14em;
+    transition: border-color .2s ease, color .2s ease, background-color .2s ease, transform .2s ease;
+  }
+  .story-album-control:hover:not(:disabled) {
+    border-color: rgba(246, 227, 180, .5);
+    background: rgba(227, 194, 124, .07);
+    color: var(--gold-100);
+    transform: translateY(-1px);
+  }
+  .story-album-control:disabled {
+    cursor: not-allowed;
+    opacity: .3;
+  }
+  .story-album-control-next {
+    color: var(--gold-300);
+  }
+  .story-album-dot {
+    width: 6px;
+    height: 6px;
+    border: 1px solid rgba(227, 194, 124, .38);
+    border-radius: 999px;
+    background: transparent;
+    transition: width .2s ease, background-color .2s ease, border-color .2s ease;
+  }
+  .story-album-dot:hover,
+  .story-album-dot.is-active {
+    width: 19px;
+    border-color: var(--gold-300);
+    background: var(--gold-300);
+  }
+  .story-album-adjacent {
+    min-height: 62px;
+    border: 1px solid rgba(227, 194, 124, .14);
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: rgba(20, 16, 28, .68);
+    transition: border-color .2s ease, background-color .2s ease, transform .2s ease;
+  }
+  .story-album-adjacent:hover:not(:disabled) {
+    border-color: rgba(246, 227, 180, .4);
+    background: rgba(29, 22, 38, .85);
+    transform: translateY(-1px);
+  }
+  .story-album-adjacent.is-locked {
+    cursor: not-allowed;
+    opacity: .35;
+  }
+
+  @media (max-width: 760px) {
+    .story-album-page,
+    .story-album-page-cover {
+      min-height: auto;
+      grid-template-columns: 1fr;
+    }
+    .story-album-art {
+      min-height: 250px;
+      max-height: 46vh;
+    }
+    .story-album-art::after {
+      border-right: 0;
+      border-bottom: 1px solid rgba(248, 233, 192, .16);
+      box-shadow: inset 0 -20px 36px rgba(0, 0, 0, .28);
+    }
+    .story-album-copy {
+      min-height: 360px;
+    }
+    .story-album-control {
+      padding: 0 10px;
+      font-size: 10px;
+      letter-spacing: .08em;
+    }
+    .story-album-dot:nth-child(n + 9) {
+      display: none;
+    }
+  }
 }
+
+
+  /* 世界地图浮层导航：保持地图可见，同时让抽屉入口与世界材质统一。 */
+  .world-map-action {
+    display: inline-flex;
+    height: 2.25rem;
+    align-items: center;
+    gap: .45rem;
+    border: 1px solid rgba(227, 194, 124, .24);
+    border-radius: 999px;
+    background: rgba(12, 10, 19, .78);
+    padding: 0 .85rem;
+    color: var(--gold-100);
+    font-size: 11px;
+    letter-spacing: .08em;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+    backdrop-filter: blur(12px);
+    transition: border-color .2s ease, background-color .2s ease, color .2s ease, transform .2s ease;
+  }
+  .world-map-action:hover {
+    border-color: rgba(246, 227, 180, .6);
+    background: rgba(29, 22, 38, .9);
+    color: var(--gold-300);
+    transform: translateY(-1px);
+  }
+  .world-map-action:focus-visible,
+  .world-map-link:focus-visible {
+    outline: 2px solid var(--gold-300);
+    outline-offset: 2px;
+  }
+  .world-map-link {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    border: 1px solid rgba(227, 194, 124, .18);
+    border-radius: .8rem;
+    background: rgba(12, 10, 19, .55);
+    padding: .7rem .85rem;
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: .08em;
+    transition: border-color .2s ease, background-color .2s ease, color .2s ease;
+  }
+  .world-map-link:hover {
+    border-color: rgba(227, 194, 124, .42);
+    background: rgba(227, 194, 124, .07);
+    color: var(--gold-100);
+  }
 
 @layer utilities {
   .text-shadow-none {

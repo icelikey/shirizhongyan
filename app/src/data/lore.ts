@@ -30,6 +30,8 @@ export interface LoreVolume {
   quote: string
   /** 卷首横幅插画（21:9 或大陆裁切），无图卷为 undefined */
   banner?: string
+  /** 画册主视觉（16:9）；由美术资产生成后写入，缺省回退到 banner */
+  albumArt?: string
   /** 解锁条件 */
   lock: LoreLock
   /** 正文 3-6 段 */
@@ -43,6 +45,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     title: '十日凌空',
     quote: '十日并出，天地如烙',
     banner: '/lore-suns.png',
+    albumArt: '/assets/story-album/volume-01-ten-suns.jpg',
     lock: { kind: 'free' },
     paragraphs: [
       '第一日，十轮太阳同时升起，大地如烙。人们仰着头，以为那是神迹——十枚金色的瞳孔悬在天幕上，不眨，也不移。老人说，古书里写过这样的天象，书页却在那一日被晒成了灰。',
@@ -58,6 +61,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     title: '牌局之间',
     quote: '夹缝之中，灯火不熄',
     banner: '/lore-gambit.png',
+    albumArt: '/assets/story-album/volume-02-between-tables.jpg',
     lock: { kind: 'free' },
     paragraphs: [
       '世界与世界之间有一道缝。缝里没有昼夜，没有风雨，只有一间深不见底的牌室：天鹅绒的桌面吸走所有声响，黄铜灯盏里的烛火，已经燃了无人记得的年岁。',
@@ -73,6 +77,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     title: '影从契约',
     quote: '以名为契，以忆为绊',
     banner: '/lore-contract.png',
+    albumArt: '/assets/story-album/volume-03-shadow-contract.jpg',
     lock: { kind: 'fragments', cost: { club: 20 } },
     paragraphs: [
       '没有一个旅人能独自走完十个十日。于是有了契约——以名为契，以忆为绊，旅人交出一段记忆，影从交出一生的陪伴。',
@@ -88,6 +93,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     title: '玄渊之夜',
     quote: '月落玄渊，谎言生光',
     banner: '/continent-spade.png',
+    albumArt: '/assets/story-album/volume-04-xuanyuan-night.jpg',
     lock: { kind: 'fragments', cost: { spade: 30 } },
     paragraphs: [
       '玄渊是四大陆中最先入夜的地方。峡谷深得没有底，玄武岩的城寨悬在雾里，一轮黑桃形状的巨月低垂，把每个人的影子都照得像在说谎。',
@@ -102,6 +108,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     title: '青野之算',
     quote: '算珠落处，万物可数',
     banner: '/continent-club.png',
+    albumArt: '/assets/story-album/volume-05-qingye-calculation.png',
     lock: { kind: 'fragments', cost: { club: 30 } },
     paragraphs: [
       '青野没有城墙，只有一望无际的算庭。巨石的算珠悬浮在极光下，风一吹，亿万颗珠子同时轻响，像整片大陆在低声演算。',
@@ -115,6 +122,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     numeral: '陆',
     title: '丹丘之约',
     quote: '丹丘雾锁，心字难书',
+    albumArt: '/assets/story-album/volume-06-danqiu-pact.png',
     paragraphs: [
       '丹丘的雾是有温度的。朱砂宫殿沉在赤色丘陵之间，万盏红灯笼彻夜不熄，心形的湖泊映着晚霞，把每一张脸都照得像藏了一段情话，或一场骗局。',
       '这里是心理与谈判的大陆。丹丘人结盟不用纸笔，用一盏茶：茶凉了还续，是盟约未断；茶满而不再斟，是散场的信号。青囊的药箱里据说收着三百种「读心」的方子，最贵的一味，叫「先动心者输」。',
@@ -128,6 +136,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     numeral: '柒',
     title: '金壤之赌',
     quote: '金壤之下，万物有价',
+    albumArt: '/assets/story-album/volume-07-jinrang-gamble.png',
     paragraphs: [
       '金壤的河是金色的。淘金的河道在琥珀晶簇间蜿蜒，菱形巨石阵下埋着数不清的矿脉，连空气里都浮着细碎的金尘，吸一口，野心就重一分。',
       '这里是资源与竞逐的大陆。金壤人衡量一切用同一杆秤：门票、筹码、情报、人心，万物有价。烛阴是这里最大的庄家，衔烛之龙睁眼为昼、闭眼为夜——他说，真正的富有不是拥有筹码，是拥有让别人不得不上桌的东西。',
@@ -141,6 +150,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     numeral: '捌',
     title: '升阶试炼',
     quote: '生肖齐鸣，玉玺启封',
+    albumArt: '/assets/story-album/volume-08-ascension-trial.png',
     paragraphs: [
       '十二生肖，是牌局之间最古老的计时。每胜三场，点亮一枚生肖；十二枚齐亮，一块大陆的轮回在你掌心闭合，升阶试炼之门才会缓缓开启。',
       '试炼不在牌桌上。玄渊试你识破，青野试你计算，丹丘试你动心，金壤试你取舍——四大陆的生肖各自齐鸣一次，位阶的玉玺才会落下新的篆字。黄阶立身，玄阶窥影，地阶言出即注，天阶之上，十日亦需让路。',
@@ -155,6 +165,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     title: '终焉之刻',
     quote: '世界如牌，散作星尘',
     banner: '/lore-ending.png',
+    albumArt: '/assets/story-album/volume-09-endgame-hour.png',
     lock: { kind: 'fragments', cost: { spade: 50, club: 50 } },
     paragraphs: [
       '第十日的最后一个时辰，所有大陆同时安静。玄渊的雾停在半空，青野的算珠不再相击，丹丘的灯笼一盏盏转暗，金壤的河水凝成固体的金。',
@@ -169,6 +180,7 @@ export const LORE_VOLUMES: LoreVolume[] = [
     numeral: '拾',
     title: '洪荒之扉',
     quote: '洪荒门外，执笔之人',
+    albumArt: '/assets/story-album/volume-10-honghuang-gate.png',
     paragraphs: [
       '四阶之上，尚有一阶，名曰洪荒。玉玺谱里它的那一页是空白的，只有一道虹彩的雾，和三个无人能读的字。白泽说那三个字是「不可说」，讹兽坚持是「别去读」，璇玑算了一百遍，说概率上是「等你来」。',
       '传说洪荒之扉立在所有十日之外。门前没有守卫，没有门槛，只有一张空着的牌桌和一支搁在墨上的笔。走到这里的旅人会忽然明白：所谓十日终焉，所谓洗牌重启，不过是一局被写了很久很久的牌谱——而门内的那位，一直在等有人推门进去，接过笔。',

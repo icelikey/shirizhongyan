@@ -15,7 +15,7 @@ import type { Tier } from '@/data/tiers'
 import { gsap, ScrollTrigger } from '@/lib/gsap'
 import PageFooter from '@/components/PageFooter'
 import { VolumeCard, UnlockModal } from '@/components/content/lore-shelf'
-import ReadingView from '@/components/content/lore-reading'
+import StoryAlbum from '@/components/content/story-album'
 
 const READ_KEY = 'ten-days-gambit-lore-read'
 
@@ -220,7 +220,7 @@ export default function Lore() {
           >
             {/* 烛光阅读壳：背景压暗 */}
             <div className="absolute inset-0 -z-10 bg-abyss/70" />
-            <ReadingView
+            <StoryAlbum
               key={activeVolume.id}
               volume={activeVolume}
               unlockedIds={LORE_VOLUMES.filter((v) => isUnlocked(v)).map((v) => v.id)}

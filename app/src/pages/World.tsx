@@ -1,29 +1,55 @@
 /**
- * 世界地图 `/world`（design/world.md）。
- * 左：可 pan/zoom 的星云海图画布（四大陆 + 中央十日轮）；
- * 右栏 340px：常态 = 位阶总览 + 碎片背包；选中大陆 = 大陆详情（← 全景 返回）。
- * 迷雾大陆点击 → Toast 提示。
+ * 终焉世界地图：地图承担世界导航，详情与知识内容统一从右侧抽屉进入。
+ * 路径：点击大陆 → 查看大陆详情 → 点击主场按钮进入玩法。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Bot, BookOpen, Compass, ExternalLink, Map, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Suit } from '@/data/echoes'
 import { SUIT_META } from '@/data/echoes'
 import SuitIcon from '@/components/SuitIcon'
 import { useInkTransition } from '@/components/meta/InkTransition'
 import MapCanvas from '@/components/meta/world/MapCanvas'
-import TierLadder from '@/components/meta/world/TierLadder'
-import FragmentBag from '@/components/meta/world/FragmentBag'
+import WorldCycleCard from '@/components/meta/world/WorldCycleCard'
 import ContinentDetail from '@/components/meta/world/ContinentDetail'
 import JournalModal from '@/components/meta/world/JournalModal'
 import WorldEmergenceCard from '@/components/meta/world/WorldEmergenceCard'
 import type { ContinentMeta } from '@/components/meta/world/continents'
 import { WORLD_KNOWLEDGE_EXAMPLE, WorldKnowledgeBoard } from '@/components/world'
 
+type DrawerKind = 'continent' | 'agent' | 'knowledge' | null
+
+const DRAWER_META: Record<Exclude<DrawerKind, null>, { eyebrow: string; title: string; description: string }> = {
+  continent: { eyebrow: 'CONTINENT RECORD // REGION', title: '大陆档案', description: '先读懂这片大陆留下的规则，再决定是否进入它的玩法。' },
+  agent: { eyebrow: 'SHADOW FOLLOWER // AGENT', title: '影从状态', description: '查看 Agent 的生命、轮回、记忆载荷与今日暗局进度。' },
+  knowledge: { eyebrow: 'WORLD MEMORY // DUAL TRACK', title: '世界线索', description: '静态知识留下骨架，动态事件推动世界偏移。' },
+}
+
 export default function World() {
   const { inkNode, go } = useInkTransition()
   const [selected, setSelected] = useState<Suit | null>(null)
+  const [drawer, setDrawer] = useState<DrawerKind>(null)
   const [journalOpen, setJournalOpen] = useState(false)
+
+  const closeDrawer = () => {
+    setDrawer(null)
+    setSelected(null)
+  }
+
+  const openUtilityDrawer = (kind: Exclude<DrawerKind, 'continent'>) => {
+    setSelected(null)
+    setDrawer(kind)
+  }
+
+  useEffect(() => {
+    if (!drawer) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDrawer()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [drawer])
 
   const handleSelect = (meta: ContinentMeta) => {
     if (meta.locked) {
@@ -37,89 +63,127 @@ export default function World() {
       return
     }
     setSelected(meta.suit)
+    setDrawer('continent')
   }
 
-  return (
-    <div className="mx-auto max-w-[1280px] px-6 py-6">
-      <div className="flex flex-col gap-6 lg:h-[calc(100dvh-6rem)] lg:flex-row">
-        {/* 地图画布 */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="min-h-[58dvh] min-w-0 flex-1 lg:min-h-0"
-        >
-          <MapCanvas
-            onSelectContinent={handleSelect}
-            onOpenJournal={() => setJournalOpen(true)}
-            onGoLobby={() => go('/lobby')}
-          />
-        </motion.div>
+  const drawerMeta = drawer ? DRAWER_META[drawer] : null
 
-        {/* 右栏 340px */}
-        <motion.aside
-          initial={{ opacity: 0, x: 24 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full shrink-0 lg:w-[340px] lg:overflow-y-auto lg:pr-1"
-        >
-          <AnimatePresence mode="wait">
-            {selected ? (
-              <motion.div
-                key="detail"
-                initial={{ opacity: 0, x: 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 24 }}
-                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <ContinentDetail
-                  suit={selected}
-                  onBack={() => setSelected(null)}
-                  onGoLobby={() => go('/lobby')}
-                  onGoSpire={() => go('/game/spire')}
-                  onGoPoker={() => go('/game/poker')}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="overview"
-                initial={{ opacity: 0, x: -24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -24 }}
-                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                className="flex flex-col gap-4"
-              >
-                <TierLadder />
-                <WorldEmergenceCard />
-                <FragmentBag />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.aside>
+  return (
+    <div className="relative h-[calc(100dvh-4rem)] min-h-[560px] overflow-hidden bg-abyss">
+      {/* 地图是唯一主场景：抽屉打开后仍然保留地图作为世界导航背景。 */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.99 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="absolute inset-0"
+      >
+        <MapCanvas
+          onSelectContinent={handleSelect}
+          onOpenJournal={() => setJournalOpen(true)}
+          onGoLobby={() => go('/lobby')}
+        />
+      </motion.div>
+
+      {/* 地图上的导航提示与抽屉入口 */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 p-4 sm:p-6">
+        <div className="pointer-events-none max-w-[360px] rounded-2xl border border-[rgba(227,194,124,.16)] bg-ink/75 px-4 py-3 shadow-panel backdrop-blur-md sm:px-5">
+          <div className="flex items-center gap-2 text-[10px] tracking-[.28em] text-gold-500">
+            <Map size={13} /> 终焉世界 · 导航图
+          </div>
+          <h1 className="mt-1 font-serifsc text-xl tracking-[.12em] text-bone sm:text-2xl">先看大陆，再入牌局</h1>
+          <p className="mt-1 text-[11px] leading-relaxed text-faint">拖拽或缩放地图。点击大陆查看档案，确认主场规则后进入玩法。</p>
+        </div>
+
+        <div className="pointer-events-auto flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => openUtilityDrawer('agent')} className="world-map-action" aria-label="打开 Agent 状态抽屉">
+            <Bot size={15} /> <span className="hidden sm:inline">Agent 状态</span>
+          </button>
+          <button type="button" onClick={() => openUtilityDrawer('knowledge')} className="world-map-action" aria-label="打开世界线索抽屉">
+            <BookOpen size={15} /> <span className="hidden sm:inline">世界线索</span>
+          </button>
+          <button type="button" onClick={() => setJournalOpen(true)} className="world-map-action" aria-label="打开十日志">
+            <Compass size={15} /> <span className="hidden sm:inline">十日志</span>
+          </button>
+        </div>
       </div>
 
-      <motion.section
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
-        className="mt-8"
-      >
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-[10px] tracking-[.25em] text-gold-500">WORLD MEMORY // CANON + EMERGENCE</div>
-            <h2 className="mt-2 font-serifsc text-2xl font-semibold tracking-[.12em] text-bone">世界线索与回响</h2>
-          </div>
-          <p className="max-w-xl text-right text-[12px] leading-relaxed text-faint">
-            静态规则负责留下骨架，已结算事件负责推动偏移；每一条线索都必须能回到真实事件或明确标注为待验证。
-          </p>
-        </div>
-        <WorldKnowledgeBoard
-          nodes={WORLD_KNOWLEDGE_EXAMPLE.nodes}
-          events={WORLD_KNOWLEDGE_EXAMPLE.events}
-          clues={WORLD_KNOWLEDGE_EXAMPLE.clues}
-          onClueOpen={(clue) => toast(`线索 ${clue.label}`, { description: clue.title })}
-        />
-      </motion.section>
+      <AnimatePresence>
+        {drawer && drawerMeta && (
+          <motion.div
+            key="world-drawer"
+            className="absolute inset-0 z-[80]"
+            role="dialog"
+            aria-modal="true"
+            aria-label={drawerMeta.title}
+            onClick={closeDrawer}
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-abyss/70 backdrop-blur-[2px]"
+            />
+            <motion.aside
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+              onClick={(event) => event.stopPropagation()}
+              className="absolute bottom-0 right-0 top-0 flex w-full max-w-[540px] flex-col border-l border-[rgba(227,194,124,.2)] bg-panel/95 shadow-card backdrop-blur-xl max-md:top-auto max-md:max-h-[88dvh] max-md:rounded-t-[24px] max-md:border-l-0 max-md:border-t"
+            >
+              <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/[.08] px-5 py-5 sm:px-6">
+                <div>
+                  <div className="text-[10px] tracking-[.25em] text-gold-500">{drawerMeta.eyebrow}</div>
+                  <h2 className="mt-1 font-serifsc text-2xl tracking-[.1em] text-bone">{drawerMeta.title}</h2>
+                  <p className="mt-1 max-w-[420px] text-[11px] leading-relaxed text-faint">{drawerMeta.description}</p>
+                </div>
+                <button type="button" onClick={closeDrawer} aria-label="关闭抽屉" className="rounded-full border border-white/[.12] p-2 text-faint transition-colors hover:border-gold-300/50 hover:text-gold-300">
+                  <X size={17} />
+                </button>
+              </header>
+
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                {drawer === 'continent' && selected && (
+                  <ContinentDetail
+                    suit={selected}
+                    onBack={closeDrawer}
+                    onGoLobby={() => go('/lobby')}
+                    onGoSpire={() => go('/game/spire')}
+                    onGoPoker={() => go('/game/poker')}
+                  />
+                )}
+
+                {drawer === 'agent' && (
+                  <div className="flex flex-col gap-4">
+                    <WorldCycleCard />
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button type="button" onClick={() => go('/agent')} className="world-map-link">
+                        <Bot size={14} /> 打开影从档案 <ExternalLink size={12} />
+                      </button>
+                      <button type="button" onClick={() => go('/agent-portal')} className="world-map-link">
+                        <BookOpen size={14} /> Agent Gateway <ExternalLink size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {drawer === 'knowledge' && (
+                  <div className="flex flex-col gap-4">
+                    <WorldEmergenceCard />
+                    <WorldKnowledgeBoard
+                      nodes={WORLD_KNOWLEDGE_EXAMPLE.nodes}
+                      events={WORLD_KNOWLEDGE_EXAMPLE.events}
+                      clues={WORLD_KNOWLEDGE_EXAMPLE.clues}
+                      onClueOpen={(clue) => toast(`线索 ${clue.label}`, { description: clue.title })}
+                      className="rounded-2xl"
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <JournalModal open={journalOpen} onClose={() => setJournalOpen(false)} />
       {inkNode}
