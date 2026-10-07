@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionScopeForGameAction, scopeContains } from "./worldCoi";
+import { actionScopeForGameAction, DEFAULT_COI_BUDGET, scopeContains } from "./worldCoi";
 
 const grant = {
   scope: { worldIds: ["tdg-world"], gameIds: ["superpowerBilliards"], matchIds: ["ABC123"], floorRange: [1, 12] as [number, number] },
@@ -22,5 +22,10 @@ describe("world CoI", () => {
     expect(scopeContains(grant, { worldId: "tdg-world", gameId: "guess-core", matchId: "ABC123", floor: 6, action: "use_ability" })).toBe(false);
     expect(scopeContains(grant, { worldId: "tdg-world", gameId: "superpowerBilliards", matchId: "ABC123", floor: 20, action: "use_ability" })).toBe(false);
     expect(scopeContains(grant, { worldId: "tdg-world", gameId: "superpowerBilliards", matchId: "ABC123", floor: 6, action: "speak" })).toBe(false);
+  });
+
+  it("budgets a full daily dark-match cycle with retry headroom", () => {
+    expect(DEFAULT_COI_BUDGET.actionsPerDay).toBeGreaterThanOrEqual(600);
+    expect(DEFAULT_COI_BUDGET.externalRequestsPerDay).toBeGreaterThanOrEqual(3000);
   });
 });

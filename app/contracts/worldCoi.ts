@@ -59,8 +59,10 @@ export type CoiGrant = z.infer<typeof coiGrantSchema>;
 export const DEFAULT_COI_BUDGET = {
   // Worker 默认每 5 秒轮询房间列表和观测；预算必须覆盖常驻运行而不是只覆盖人工点击。
   observationsPerDay: 100_000,
-  actionsPerDay: 300,
-  externalRequestsPerDay: 100,
+  // 三场 200 轮 Agent-only 暗局需要约 600 次动作，并为重试保留余量。
+  actionsPerDay: 1_200,
+  // Worker 每轮会产生发现、观测、入座和命令请求；预算覆盖三场并保留故障重试余量。
+  externalRequestsPerDay: 5_000,
   thinkingSecondsPerAction: 30,
 } as const;
 

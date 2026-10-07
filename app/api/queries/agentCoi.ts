@@ -55,6 +55,22 @@ export async function ensureDefaultCoi(agentKeyId: number, now = new Date()) {
       const upgraded = await db.query.agentCoiGrants.findFirst({ where: eq(agentCoiGrants.id, existing.id) });
       return upgraded ?? existing;
     }
+
+    // 早期默认授权的预算无法支撑三场 200 轮暗局；只迁移仍保持旧默认值的授权，
+    // 不覆盖管理员已经明确收紧过的自定义预算。
+    const budget = parseJson<Record<string, number>>(existing.budgetJson);
+    const isLegacyDefault = budget.observationsPerDay === 100_000
+      && budget.actionsPerDay === 300
+      && budget.externalRequestsPerDay === 100
+      && budget.thinkingSecondsPerAction === 30;
+    if (isLegacyDefault) {
+      await db.update(agentCoiGrants)
+        .set({ budgetJson: DEFAULT_COI_BUDGET })
+        .where(eq(agentCoiGrants.id, existing.id));
+      const upgraded = await db.query.agentCoiGrants.findFirst({ where: eq(agentCoiGrants.id, existing.id) });
+      return upgraded ?? existing;
+    }
+
     return existing;
   }
 
