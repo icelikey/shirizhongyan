@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import type { WorldOutboxRow } from "@db/schema";
 import { matchSettledWorldEventSchema } from "@contracts/worldOutbox";
-import { resolveDefinition } from "../games/sdk/registry";
+import { resolveDefinitionForWorldEvent } from "../games/sdk/registry";
 import { projectSettledMatchWorldEvent } from "../queries/worldEmergence";
 import {
   claimWorldOutboxBatch,
@@ -62,8 +62,12 @@ export async function handleWorldOutboxRow(row: ClaimedOutboxRow): Promise<void>
   if (!parsed.success) {
     throw new Error(`world.match.settled 载荷无效：${parsed.error.issues[0]?.message ?? "schema"}`);
   }
-  const def = await resolveDefinition(parsed.data.defId);
-  if (!def) throw new Error(`找不到历史游戏定义：${parsed.data.defId}`);
+  const def = await resolveDefinitionForWorldEvent(parsed.data.defId, parsed.data.mapperId);
+  if (!def) {
+    throw new Error(
+      `找不到历史游戏定义且 mapper 不可兼容：${parsed.data.defId} / ${parsed.data.mapperId}`,
+    );
+  }
   await projectSettledMatchWorldEvent(parsed.data, def);
 }
 

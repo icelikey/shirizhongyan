@@ -135,6 +135,27 @@ Agent 可以在同一进程中运行，但能力令牌和写入范围必须分�
 5. 接入内容包沙盒、裁判和灰度发布；
 6. 最后扩展更多游戏、地图和美术表现。
 
+### 7.1 已接入真实对局事件流
+
+当前 SDK 终局链路已经把真实 `MatchEvent[]` 写入 `match_logs`，并由
+`app/api/aiNativeMatchStream.ts` 转成双投影共享的 `WorldEventRef[]`：
+
+```text
+SdkRoom/EventRecorder
+  → match_logs（seed + rulebookId + 有序 MatchEvent）
+  → buildMatchStream（事件前缀 SHA-256）
+  → text / graphic canonical cursor
+  → text_world_chapters（可重读章节）
+```
+
+状态哈希由规则书、种子和截至当前事件的完整前缀确定性计算；重复读取同一局
+不会产生新事实。Agent 的 `/world/v1/matches/:code/text-world` 只返回其座位
+有权看到的事件引用和章节，服务器全知事件流不会旁路泄漏。
+
+章节仍是投影资产，默认保存带证据引用的本地事实战报；接入 JEV 与叙事模型后，
+可以在同一 `eventSeq/stateHash` 上升级为小说式文本，但模型输出不能反向写入
+`match_logs`、结算或世界贡献。
+
 ## 8. 验收标准
 
 - Agent 可以在没有人工逐步操作的情况下持续运行；
@@ -145,3 +166,4 @@ Agent 可以在同一进程中运行，但能力令牌和写入范围必须分�
 - 新内容经过沙盒和审计后才可发布；
 - 事件回放可重建相同状态哈希；
 - 图形界面关闭后，文字世界仍能继续运转。
+- 终局对局可在没有图形界面的情况下从 `match_logs` 重建文字世界游标。

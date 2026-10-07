@@ -158,6 +158,35 @@ describe("落库信封", () => {
     rec.matchStart([{ index: 0, name: "旅人", kind: "human" }]);
     expect(rec.envelope().endedAt).toBeNull();
   });
+
+  it("可以从进行中的事件前缀恢复 seq 与 round", () => {
+    const original = recorder();
+    original.matchStart([{ index: 0, name: "旅人", kind: "human" }]);
+    original.roundBegin(3);
+    original.action(0, "guess", 33);
+
+    const restored = new EventRecorder({
+      seed: "seed-test",
+      rulebookId: "rb-guess",
+      startedAt: 1_700_000_000_000,
+      events: original.all,
+    });
+    restored.action(0, "guess", 34);
+
+    expect(restored.all.map(event => event.seq)).toEqual([0, 1, 2, 3]);
+    expect(restored.all.at(-1)?.round).toBe(3);
+  });
+
+  it("拒绝不连续的恢复事件序号", () => {
+    const original = recorder();
+    original.matchStart([{ index: 0, name: "旅人", kind: "human" }]);
+    const broken = [{ ...original.all[0], seq: 2 }];
+    expect(() => new EventRecorder({
+      seed: "seed-test",
+      rulebookId: "rb-guess",
+      events: broken,
+    })).toThrow("seq 必须从 0 连续递增");
+  });
 });
 
 /* ------------------------------------------------------------------ */

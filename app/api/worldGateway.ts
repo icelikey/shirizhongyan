@@ -46,8 +46,14 @@ import { actionScopeForGameAction } from "@contracts/worldCoi";
 import { listAgentCoi, coiUsageSummary, requireCoi } from "./queries/agentCoi";
 import { getAgentWorldContext } from "./queries/agentWorld";
 import { findEnvelopeForViewer } from "./queries/matchLogs";
+import { listTextWorldChapters } from "./queries/textWorldChapters";
+import { buildMatchStream } from "./aiNativeMatchStream";
+import { createAiNativeWorldRuntimeFromEnvelope } from "./aiNativeWorldRuntime";
+import { runNarrativePipeline } from "./narrativePipeline";
+import { createConfiguredNarrativeAdapters } from "./narrativeAdapters";
+import { getWorldEpoch, getWorldId } from "./queries/worldEmergence";
 import { SPECTATOR, type MatchLogEnvelope } from "@contracts/matchLog";
-import { buildBattleReportBrief, buildBattleReportPrompt, renderBattleReportText } from "@contracts/battleReport";
+import { buildBattleReportBrief, buildBattleReportPrompt } from "@contracts/battleReport";
 import type { MatchMode } from "@contracts/matchMode";
 
 /** TDG-WP v0.1 的 HTTP/JSON 适配层；网页内部 tRPC 入口另行保留。 */
@@ -64,6 +70,49 @@ function inferMatchMode(envelope: MatchLogEnvelope): MatchMode {
   if (humans === 0 && agents >= 2) return "agent-v-agent";
   if (humans > 0 && agents > 0) return "human-v-agent";
   return "human-v-human";
+}
+
+/**
+ * 所有对外战报都经过同一条可审计流水线：MatchEvent → TacticalDigest →
+ * NarrativePlan → 文本。当前未配置外部 JEV/叙事模型时，流水线自动使用
+ * 确定性事实兜底；以后接入模型只替换适配器，不改变路由和事实边界。
+ */
+async function auditedNarrativeForEnvelope(input: {
+  envelope: MatchLogEnvelope;
+  matchLogId: number;
+  viewer: number | typeof SPECTATOR;
+  rulebookVersion?: string;
+}) {
+  const stream = buildMatchStream({
+    envelope: input.envelope,
+    worldId: getWorldId(),
+    cycle: getWorldEpoch(),
+    matchId: String(input.matchLogId),
+    rulebookVersion: input.rulebookVersion ?? "v1.0.0",
+  });
+  const allowedSeqs = input.viewer === SPECTATOR
+    ? null
+    : new Set(input.envelope.events.map(event => event.seq));
+  const eventRefs = allowedSeqs
+    ? stream.refs.filter(ref => allowedSeqs.has(ref.eventSeq) && ref.visibility === "public")
+    : stream.refs;
+  const events = allowedSeqs
+    ? input.envelope.events.filter(event => allowedSeqs.has(event.seq))
+    : input.envelope.events;
+  const world = eventRefs[0] ?? stream.refs[0];
+  if (!world) throw new TRPCError({ code: "NOT_FOUND", message: "事件流没有可投影的世界锚点" });
+  const mode = inferMatchMode(input.envelope);
+  const narrative = await runNarrativePipeline({
+    events,
+    eventRefs,
+    world,
+    viewer: input.viewer,
+    mode,
+    matchId: input.matchLogId,
+    digestId: `digest:${input.matchLogId}:${stream.refs.at(-1)?.eventSeq ?? 0}`,
+    ...createConfiguredNarrativeAdapters(),
+  });
+  return { mode, stream, narrative };
 }
 
 class GatewayError extends Error {
@@ -111,6 +160,7 @@ function descriptor(c: Context) {
       matches: `${origin}/world/v1/matches`,
       createMatch: `${origin}/world/v1/matches`,
       matchReport: `${origin}/world/v1/matches/:code/report`,
+      textWorld: `${origin}/world/v1/matches/:code/text-world`,
       publicMatchReport: `${origin}/world/v1/public/matches/:code/report`,
     },
     authentication: {
@@ -134,6 +184,7 @@ function descriptor(c: Context) {
         enforcement: "uncompleted games become life-score time debt at day boundary",
       },
       worldIntel: true,
+      textWorld: true,
       memoryCards: true,
       officialSkills: true,
       tacticCards: true,
@@ -689,15 +740,135 @@ worldGateway.get("/world/v1/matches/:code/report", async (c) => {
     if (!envelope) {
       throw new TRPCError({ code: "NOT_FOUND", message: "找不到这局的完整事件流" });
     }
-    const mode = inferMatchMode(envelope);
+    const projection = await auditedNarrativeForEnvelope({
+      envelope,
+      matchLogId,
+      viewer: SPECTATOR,
+    });
+    const mode = projection.mode;
     const brief = buildBattleReportBrief({ events: envelope.events, mode, matchId: matchLogId });
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       matchLogId,
       mode,
-      report: renderBattleReportText(brief),
+      report: projection.narrative.text,
       brief,
       prompt: buildBattleReportPrompt(brief),
+      narrative: {
+        usedFallback: projection.narrative.usedFallback,
+        audit: projection.narrative.audit,
+        digest: projection.narrative.digest,
+        plan: projection.narrative.plan,
+      },
+    });
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/**
+ * AI 原生文字世界入口：Agent 不需要打开图形界面即可读取自己的世界上下文、
+ * 当前对局观测和已发生的文字战报。这里仍然读取内核状态和 match log，
+ * 不接受叙事文本反向写入世界。
+ */
+worldGateway.get("/world/v1/matches/:code/text-world", async (c) => {
+  try {
+    const { key, room, seat } = await agentSeat(c);
+    await requireCoi({
+      agentKeyId: key.id,
+      gameId: room.def.id,
+      matchId: room.code,
+      read: "own_observation",
+    });
+    const world = await getAgentWorldContext(key.userId);
+    const state = room.getState();
+    let battle: {
+      matchLogId: number;
+      mode: MatchMode;
+      report: string;
+      brief: ReturnType<typeof buildBattleReportBrief>;
+    } | null = null;
+    let canonicalProjection: {
+      cursor: ReturnType<typeof buildMatchStream>["cursor"];
+      refs: ReturnType<typeof buildMatchStream>["refs"];
+      source: "match_logs";
+    } | null = null;
+    let chapters: Awaited<ReturnType<typeof listTextWorldChapters>> = [];
+    if (state.matchLogId) {
+      // 文字世界对 Agent 只返回它被授权看到的事件；全知事件流只用于
+      // 构建同一个 canonical 游标，不直接旁路返回给 Agent。
+      const fullEnvelope = await findEnvelopeForViewer(state.matchLogId, SPECTATOR);
+      const viewerEnvelope = await findEnvelopeForViewer(state.matchLogId, seat.index);
+      if (fullEnvelope && viewerEnvelope) {
+        const projection = await auditedNarrativeForEnvelope({
+          envelope: viewerEnvelope,
+          matchLogId: state.matchLogId,
+          viewer: seat.index,
+        });
+        const mode = projection.mode;
+        const brief = buildBattleReportBrief({ events: viewerEnvelope.events, mode, matchId: state.matchLogId });
+        battle = {
+          matchLogId: state.matchLogId,
+          mode,
+          report: projection.narrative.text,
+          brief,
+        };
+        const book = ruleBookForTemplate(room.def.template);
+        const runtime = createAiNativeWorldRuntimeFromEnvelope({
+          envelope: fullEnvelope,
+          worldId: getWorldId(),
+          cycle: getWorldEpoch(),
+          matchId: String(state.matchLogId),
+          rulebookVersion: `v${book?.version ?? 1}.0.0`,
+        });
+        const fullProjection = runtime.project("text");
+        const visibleSeqs = new Set(viewerEnvelope.events.map(event => event.seq));
+        const refs = runtime.eventRefs.filter(ref => visibleSeqs.has(ref.eventSeq));
+        const latest = refs.at(-1);
+        canonicalProjection = {
+          source: "match_logs",
+          refs,
+          cursor: latest && fullProjection.cursor
+            ? { ...fullProjection.cursor, projection: "text", eventSeq: latest.eventSeq, stateHash: latest.stateHash }
+            : null,
+        };
+        try {
+          chapters = await listTextWorldChapters({
+            worldId: getWorldId(),
+            matchId: String(state.matchLogId),
+            projection: "text",
+          });
+        } catch (error) {
+          // 老数据库尚未执行 db:push 时，实时观测仍可用；章节将在表补齐后重建。
+          console.error("[text-world] chapters unavailable", error);
+        }
+      }
+    }
+    return c.json({
+      protocolVersion: PROTOCOL_VERSION,
+      projection: "text",
+      world: {
+        context: world.worldContext,
+        intel: world.worldIntel,
+      },
+      match: {
+        code: room.code,
+        gameId: room.def.id,
+        template: room.def.template,
+        status: state.status,
+        round: state.round,
+        phase: state.phase,
+        observation: room.view(seat.seatToken!),
+      },
+      battle,
+      canonical: canonicalProjection,
+      chapters,
+      continuity: {
+        eventSeq: canonicalProjection?.cursor?.eventSeq ?? null,
+        stateHash: canonicalProjection?.cursor?.stateHash ?? null,
+        source: canonicalProjection?.source ?? "live-room",
+        narrativeMayExplainOnly: true,
+      },
     });
   } catch (error) {
     return errorResponse(c, error);
@@ -725,16 +896,27 @@ worldGateway.get("/world/v1/public/matches/:code/report", async (c) => {
     if (!envelope) {
       throw new TRPCError({ code: "NOT_FOUND", message: "找不到这局的完整事件流" });
     }
-    const mode = inferMatchMode(envelope);
+    const projection = await auditedNarrativeForEnvelope({
+      envelope,
+      matchLogId: state.matchLogId,
+      viewer: SPECTATOR,
+    });
+    const mode = projection.mode;
     const brief = buildBattleReportBrief({ events: envelope.events, mode, matchId: state.matchLogId });
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       public: true,
       matchLogId: state.matchLogId,
       mode,
-      report: renderBattleReportText(brief),
+      report: projection.narrative.text,
       brief,
       prompt: buildBattleReportPrompt(brief),
+      narrative: {
+        usedFallback: projection.narrative.usedFallback,
+        audit: projection.narrative.audit,
+        digest: projection.narrative.digest,
+        plan: projection.narrative.plan,
+      },
     });
   } catch (error) {
     return errorResponse(c, error);

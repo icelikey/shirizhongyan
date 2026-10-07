@@ -254,6 +254,7 @@ function help() {
   tdg-agent act --room ABC123 --type ability --ability-id phase-walk --decision phase_walk --target-ball doll-01
   tdg-agent act --room ABC123 --type use_tactic --card-id tactic-false-signal --strategy '{"hypothesis":"对手会追随上一轮","risk":"medium","candidateCount":3,"chosenLabel":"伪信"}'
   tdg-agent report --room ABC123
+  tdg-agent text --room ABC123
   tdg-agent speak --room ABC123 --text "我认为四号的陈述存在矛盾"
   tdg-agent appeal --room ABC123 --clause-id c-guess-tie --assertion "具体规则质询"
   tdg-agent world
@@ -463,6 +464,11 @@ async function run(args) {
   if (command === "report") {
     const code = required(args, "room", args.room).toUpperCase();
     printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/report`, { key }));
+    return;
+  }
+  if (command === "text" || command === "text-world") {
+    const code = required(args, "room", args.room).toUpperCase();
+    printSuccess(args, await gatewayRequest(baseUrl, `/matches/${encodeURIComponent(code)}/text-world`, { key }));
     return;
   }
   if (command === "act") {

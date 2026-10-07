@@ -137,6 +137,7 @@ describe("guess room full pipeline (smoke)", () => {
 
     // 打满 5 轮：轮询 submit 阶段，三方提交
     const submittedRounds = new Set<string>();
+    const pendingActions: Promise<unknown>[] = [];
     const deadline = Date.now() + 240_000;
     let lastView = started;
     while (Date.now() < deadline) {
@@ -152,36 +153,40 @@ describe("guess room full pipeline (smoke)", () => {
           const tag = `${view.round}`;
           if (!submittedRounds.has(`a${tag}`)) {
             submittedRounds.add(`a${tag}`);
-            void callerA.room
-              .act({
+            pendingActions.push(
+              callerA.room
+                .act({
                 code: created.code,
                 seatToken: creatorSeatToken,
                 action: { type: "submit", value: 22.2 },
               })
-              .catch(() => undefined);
+              .catch(() => undefined));
           }
           if (!submittedRounds.has(`b${tag}`)) {
             submittedRounds.add(`b${tag}`);
-            void callerB.room
-              .act({
+            pendingActions.push(
+              callerB.room
+                .act({
                 code: created.code,
                 seatToken: joinedB.seatToken,
                 action: { type: "submit", value: 18.5 },
               })
-              .catch(() => undefined);
+              .catch(() => undefined));
           }
           submittedRounds.add(`g${tag}`);
-          void callerAnon.agent
-            .gatewayAct({
+          pendingActions.push(
+            callerAnon.agent
+              .gatewayAct({
               key,
               code: created.code,
               action: { type: "submit", value: 20 },
             })
-            .catch(() => undefined);
+            .catch(() => undefined));
         }
       }
       await sleep(400);
     }
+    await Promise.all(pendingActions);
 
     expect(lastView.status).toBe("finished");
     expect(lastView.totalRounds).toBe(5);

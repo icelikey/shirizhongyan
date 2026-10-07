@@ -608,7 +608,7 @@ export default function FlyOnline() {
                     </div>
                   ) : (
                     <div className="mx-auto flex items-center gap-4">
-                      <GoldButton variant="gold" size="lg" onClick={() => navigate(LOGIN_PATH)}>
+                      <GoldButton variant="gold" size="lg" onClick={() => navigate(`${LOGIN_PATH}?returnTo=${encodeURIComponent(window.location.pathname)}`)}>
                         <Cloud size={16} /> 云登录后入座
                       </GoldButton>
                       <span className="text-[12px] text-dim">

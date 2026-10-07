@@ -110,7 +110,7 @@ export const roomRouter = createRouter({
       z.object({
         roomName: z.string().min(1).max(32).optional(),
         autoStart: z.boolean().optional(),
-        defId: z.string().min(1).max(24).optional(),
+        defId: z.string().min(1).max(48).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

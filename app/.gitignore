@@ -10,7 +10,8 @@ dist
 *.db
 *.sqlite
 *.sqlite3
-db/migrations/*.sql
+# Schema migrations are release artifacts and must be present in a clean
+# GitHub checkout used by Docker/Cloud Run. Keep generated SQL versioned.
 # TypeScript cache
 *.tsbuildinfo
 # Build outputs

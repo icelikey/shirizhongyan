@@ -12,6 +12,7 @@ import GameTopBar from '@/components/game/GameTopBar'
 import GoldButton from '@/components/GoldButton'
 import SeatKindBadge from '@/components/online/SeatKindBadge'
 import OnlineScorePanel from '@/components/online/OnlineScorePanel'
+import BeastRaceScene from '@/components/game/BeastRaceScene'
 import { seatTokenKey } from '@/components/online/OnlineLobbySection'
 import { GAME_INTROS } from '@/data/gameIntros'
 import { cn } from '@/lib/utils'
@@ -152,21 +153,13 @@ export default function OfficialTemplateOnline({ template }: { template: Officia
         <div className="flex items-center gap-2 text-[12px] tracking-[.2em] text-gold-300"><Swords size={15} /> 金壤 · 赛道状态</div>
         <span className="font-mono text-[11px] text-faint">{race?.trackLength ?? 48} 格终点</span>
       </div>
-      <div className="relative h-28 rounded-xl border border-gold-300/15 bg-[#1a1220] p-4">
-        <div className="absolute inset-x-5 top-1/2 h-px bg-gradient-to-r from-gold-300/20 via-gold-300/60 to-suit-club" />
-        {(race?.racers ?? []).map((racer) => (
-          <div key={racer.seat} className="absolute top-1/2 -translate-y-1/2 transition-all duration-700" style={{ left: `calc(20px + ${(Math.min(racer.visiblePosition, race?.trackLength ?? 48) / (race?.trackLength ?? 48)) * 88}%)` }}>
-            <div className={cn('flex h-8 w-8 items-center justify-center rounded-full border text-[10px] font-bold', racer.seat === mySeat ? 'border-gold-100 bg-gold-300/20 text-gold-100' : 'border-[#9B7FE8]/70 bg-[#2b2360] text-[#e2dcff]')}>{racer.beastId.slice(0, 2)}</div>
-            <span className="absolute left-1/2 top-9 -translate-x-1/2 whitespace-nowrap text-[9px] text-faint">{racer.position}格 · {racer.finishRank ? `第${racer.finishRank}` : `席${racer.seat + 1}`}</span>
-          </div>
-        ))}
-        <span className="absolute right-3 top-2 text-[9px] tracking-[.2em] text-suit-club">终点</span>
-      </div>
+      {race ? <BeastRaceScene race={race} reveal={raceView?.lastReveal ?? null} mySeat={mySeat} /> : <div className="flex h-[310px] items-center justify-center rounded-2xl border border-gold-300/15 text-[12px] text-faint sm:h-[410px]">赛道正在生成……</div>}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {(race?.racers ?? []).map((racer) => (
           <div key={racer.seat} className={cn('rounded-xl border p-3 text-[11px]', racer.seat === mySeat ? 'border-gold-100/40 bg-gold-300/5' : 'border-bone/10 bg-ink/30')}>
             <div className="flex items-center justify-between"><span className="text-bone">席位 {racer.seat + 1} · {racer.beastId}</span><span className="font-mono text-gold-300">{racer.handCount} 张牌</span></div>
-            <p className="mt-1 text-dim">{racer.position}/{race?.trackLength ?? 48} 格 · {racer.stunnedRounds ? '停行' : racer.slowedNextRound ? '下轮减速' : '可行动'}</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/30"><div className="h-full rounded-full bg-gradient-to-r from-gold-300/70 to-suit-diamond" style={{ width: `${Math.min(100, (racer.visiblePosition / (race?.trackLength ?? 48)) * 100)}%` }} /></div>
+            <p className="mt-1 text-dim">{racer.position}/{race?.trackLength ?? 48} 格 · {racer.finishRank ? `第 ${racer.finishRank} 名` : racer.stunnedRounds ? '停行' : racer.slowedNextRound ? '下轮减速' : '可行动'}</p>
           </div>
         ))}
       </div>
@@ -225,7 +218,7 @@ export default function OfficialTemplateOnline({ template }: { template: Officia
     <div className="relative z-[55] -mt-16 flex h-[100dvh] flex-col overflow-hidden bg-abyss text-bone">
       <GameTopBar suit={template === 'beastRace' ? 'diamond' : 'heart'} intro={template === 'beastRace' ? GAME_INTROS.race : GAME_INTROS.werewolf} room={`${template === 'beastRace' ? '金壤·超能力赛马' : '月影村·十二席证言'} · ${view?.roomName ?? CODE} · ${CODE}`} phase={<span>{status === 'playing' ? `${PHASE_LABEL[subPhase ?? ''] ?? '行动窗口'} · ${Math.ceil(timeLeft)}s` : status === 'waiting' ? '待开局' : '已终局'}</span>} pool={view ? view.rewards.winner + view.rewards.runnerUp + view.rewards.participation : 130} onExit={() => navigate('/lobby')} />
       <main className="relative z-10 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
-        {status === 'waiting' && <section className="panel-bg rounded-2xl p-5 text-center"><p className="mb-4 text-[13px] tracking-[.18em] text-dim">{template === 'beastRace' ? '六兽已在金壤边界列阵' : '十二席已封入月影村，等待影从落座'}</p>{isHost ? <GoldButton variant="gold" size="lg" disabled={actMutation.isPending} onClick={() => act({ type: 'start' })}><Play size={16} /> 开局 · 由影从补席</GoldButton> : mySeat != null ? <span className="text-[13px] text-dim">已入座 · 静候房主开局</span> : isAuthenticated ? <GoldButton variant="suit" suit={template === 'beastRace' ? 'diamond' : 'heart'} size="lg" onClick={() => { triedJoin.current = true; joinMutation.mutate({ code: CODE }) }}><DoorOpen size={16} /> 入座此局</GoldButton> : <GoldButton variant="gold" size="lg" onClick={() => navigate(LOGIN_PATH)}><Cloud size={16} /> 云登录后入座</GoldButton>}</section>}
+        {status === 'waiting' && <section className="panel-bg rounded-2xl p-5 text-center"><p className="mb-4 text-[13px] tracking-[.18em] text-dim">{template === 'beastRace' ? '六兽已在金壤边界列阵' : '十二席已封入月影村，等待影从落座'}</p>{isHost ? <GoldButton variant="gold" size="lg" disabled={actMutation.isPending} onClick={() => act({ type: 'start' })}><Play size={16} /> 开局 · 由影从补席</GoldButton> : mySeat != null ? <span className="text-[13px] text-dim">已入座 · 静候房主开局</span> : isAuthenticated ? <GoldButton variant="suit" suit={template === 'beastRace' ? 'diamond' : 'heart'} size="lg" onClick={() => { triedJoin.current = true; joinMutation.mutate({ code: CODE }) }}><DoorOpen size={16} /> 入座此局</GoldButton> : <GoldButton variant="gold" size="lg" onClick={() => navigate(`${LOGIN_PATH}?returnTo=${encodeURIComponent(window.location.pathname)}`)}><Cloud size={16} /> 云登录后入座</GoldButton>}</section>}
         {template === 'beastRace' ? renderRaceBoard() : renderWerewolfBoard()}
         {template === 'beastRace' ? renderRaceControls() : renderWerewolfControls()}
         {status === 'finished' && <section className="panel-bg rounded-2xl p-6 text-center"><h2 className="font-serifsc text-[20px] text-gold-100">这一局已经封存</h2><p className="mt-2 text-[12px] text-dim">终局事实已进入战报与世界贡献流。</p><div className="mt-4 flex justify-center gap-3"><GoldButton variant="gold" onClick={() => setFinishedOpen(true)}><BookOpen size={15} /> 查看小说战报</GoldButton><GoldButton variant="ghost" onClick={() => navigate('/lobby')}><RotateCcw size={14} /> 返回大厅</GoldButton></div></section>}

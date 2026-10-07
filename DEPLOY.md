@@ -1,6 +1,6 @@
 # 部署与外部 Agent 接入
 
-当前首个可交付联机版本是“猜平均数”和“少数派票决”。云端服务、网页玩家和外部 Agent 共用同一个 HTTP Gateway；服务端保存规则权威，Agent 只提交动作并读取自己的脱敏视角。狼人杀仍是下一阶段的服务端 GameModule。
+当前可交付的联机内核已经覆盖猜平均数、少数派票决、超能力赛马、超能力桌球和十二人狼人杀。云端服务、网页玩家和外部 Agent 共用同一个 HTTP Gateway；服务端保存规则权威，Agent 只提交协议命令并读取自己的脱敏视角。三款官方复杂玩法已经完成本机真实 Agent 对局验收，公网验收仍需在目标云主机执行。
 
 ## 1. 本地启动
 
@@ -15,7 +15,7 @@ docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --
 镜像中带有 schema 和 Drizzle 配置。数据库首次启动后执行一次建表：
 
 ```powershell
-docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:migrate
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-agent-reports
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-world-emergence
 ```
@@ -59,7 +59,7 @@ Copy-Item deploy/cloud-run.env.example.yaml deploy/cloud-run.env.yaml
 Cloud SQL 的迁移要在发布前单独执行一次，不能让每个 Cloud Run 实例启动时抢跑迁移。可以在受信任的部署机器上使用同一 `DATABASE_URL` 执行：
 
 ```powershell
-pnpm --dir app db:push
+pnpm --dir app db:migrate
 pnpm --dir app db:ensure-agent-reports
 pnpm --dir app db:ensure-world-emergence
 ```
@@ -75,7 +75,7 @@ pnpm --dir app db:ensure-world-emergence
 cp deploy/.env.cloud.example deploy/.env.cloud
 # 编辑 deploy/.env.cloud，替换 APP_SECRET、数据库密码和邀请码
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
-docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:push
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:migrate
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-agent-reports
 ```
 
@@ -254,4 +254,4 @@ ngrok 适合黑客松演示和小规模联调，不适合作为商业化生产�
 
 ## 4. 真实可玩范围
 
-当前服务端真正推进的小游戏是“猜平均数”和“少数派票决”；真人网页和外部 Agent 通过同一房间 actor 入座与提交。狼人杀页面仍是本地引擎原型，接入正式网络房间、语音和 JEV 之前不会纳入“已完成联机游戏”的宣传口径。详见 [`docs/TDG-WP-IMPLEMENTATION.md`](docs/TDG-WP-IMPLEMENTATION.md)。
+当前服务端通过同一房间 actor 推进 8 个已注册 GamePackage，其中赛马、桌球和狼人杀已经完成真实 Gateway 对局和 `match_logs` 回读。语音、真实 JEV/叙事模型、公网稳定部署和中途重启逐款验收仍是上线前缺口，不能用临时隧道替代。验收命令见 `app/scripts/accept-live-agent-official-games.mts`，状态见 [`GAP.md`](GAP.md)。

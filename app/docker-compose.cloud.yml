@@ -42,7 +42,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-    command: ["sh", "-lc", "pnpm db:push && node dist/boot.js"]
+    command: ["sh", "-lc", "pnpm db:migrate && node dist/boot.js"]
 
 volumes:
   tdg-mysql:

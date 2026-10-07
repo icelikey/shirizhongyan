@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { processClaimedWorldOutboxRows } from "./worldOutboxWorker";
+import { compatibilityDefinitionForWorldMapper } from "../games/sdk/registry";
 
 const row = (overrides: Partial<{
   id: number;
@@ -17,6 +18,26 @@ const row = (overrides: Partial<{
 });
 
 describe("world outbox worker", () => {
+  it("历史 poll-duel mapper 可以重建兼容定义", () => {
+    const definition = compatibilityDefinitionForWorldMapper(
+      "ugc_deleted_poll",
+      "poll-duel/v1",
+    );
+
+    expect(definition).toMatchObject({
+      id: "ugc_deleted_poll",
+      template: "pollDuel",
+      isOfficial: false,
+      worldContributionMapperId: "poll-duel/v1",
+    });
+  });
+
+  it("未知 mapper 不会被猜测成可执行定义", () => {
+    expect(
+      compatibilityDefinitionForWorldMapper("ugc_unknown", "unknown/v99"),
+    ).toBeNull();
+  });
+
   it("成功事件只发布一次，并保留批次统计", async () => {
     const published = vi.fn(async () => undefined);
     const failed = vi.fn(async () => undefined);

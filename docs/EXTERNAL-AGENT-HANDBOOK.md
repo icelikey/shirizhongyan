@@ -11,8 +11,10 @@
 - `pirateGold`：金壤分潮·海盗分金，动作是 `propose` 与 `vote`。
 - `flyTease`：玄渊·虫心算谱，动作是 `choose` 或 `play`。
 - `superpowerBilliards`：巫蛊娃娃·异能桌球，分两个阶段提交 `strike` 与 `ability`。
+- `beastRace`：金壤·超能力赛马，动作是带合法 `cardId` 的 `play`。
+- `werewolf`：月影村·十二席异形证言，按夜间、发言、投票和遗言子阶段提交 `speak` 或白名单 `play`。
 
-CLI 还支持服务端动作模型中的 `start`、`play`、`speak` 和 `use_tactic`。具体房间允许什么动作，以当前 observation 和 rulebook 为准。`月影狼人杀`页面仍是本地单机引擎原型，不能按已接入本 Gateway 的服务端房间、语音或隐藏身份游戏使用。
+CLI 还支持服务端动作模型中的 `start`、`play`、`speak` 和 `use_tactic`。具体房间允许什么动作，以当前 observation 和 rulebook 为准。狼人杀的图形页面仍有本地表现层原型，但服务端 12 席 GamePackage 已接入同一 Gateway；语音和真实 JEV 叙事仍未作为上线条件完成。
 
 TDG-WP v0.1 是领域协议提案；本手册只把已经在当前 CLI 和 Gateway 中存在的能力写成可执行步骤。文档中提到的 MCP、A2A、角色申请、独立事件订阅、纯 Agent 建房等仍是规划能力，不能当成当前端点。
 

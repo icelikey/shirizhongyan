@@ -278,6 +278,41 @@ export async function resolveDefinition(
   return rowToDefinition(row);
 }
 
+/**
+ * 历史世界事件的兼容定义。
+ *
+ * 终局事件会固化 mapperId，但旧版本曾允许 UGC 定义被清理。世界层重放
+ * 只需要模板语义和原始 defId，不应因为目录清理而永久丢失可审计贡献。
+ * 兼容定义只从已发布的官方 mapper 反推，未知 mapper 仍返回 null，不能
+ * 让历史数据临时注入一套新的世界规则。
+ */
+export function compatibilityDefinitionForWorldMapper(
+  defId: string,
+  mapperId: string,
+): GameDefinition | null {
+  const base = OFFICIAL_GAMES.find((definition) =>
+    definition.worldContributionMapperId === mapperId,
+  );
+  if (!base) return null;
+  return {
+    ...base,
+    id: defId,
+    name: `历史定义兼容回放 · ${base.name}`,
+    isOfficial: false,
+    creatorUserId: undefined,
+    createdAt: undefined,
+  };
+}
+
+/** 先按真实目录解析，缺失时按事件已固化的 mapper 做安全兼容回放。 */
+export async function resolveDefinitionForWorldEvent(
+  defId: string,
+  mapperId: string,
+): Promise<GameDefinition | null> {
+  return (await resolveDefinition(defId)) ??
+    compatibilityDefinitionForWorldMapper(defId, mapperId);
+}
+
 export function newUgcDefId(): string {
   return `ugc_${randomBytes(5).toString("hex")}`; // ugc_ + 10 hex = 14 字符
 }
@@ -326,6 +361,25 @@ export async function listDefinitions(): Promise<GameDefSummary[]> {
 /* 房间注册表：内存 Map<code, SdkRoom> + stateJson 恢复                   */
 /* ------------------------------------------------------------------ */
 const registry = new Map<string, SdkRoom>();
+
+/**
+ * MySQL 的 JSON 列在当前 mysql2/Drizzle 配置下可能以 JSON 字符串返回，
+ * 而测试替身与部分驱动会直接返回对象。恢复房间时必须统一解码，不能把
+ * 字符串当成 SdkRoomState 读取，否则重启后所有快照都会被误判为旧版本。
+ */
+export function decodePersistedJson<T>(value: unknown): T | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parsed !== null && typeof parsed === "object" ? (parsed as T) : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "object") return value as T;
+  return null;
+}
 
 export function generateRoomCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -383,11 +437,11 @@ export async function getSdkRoom(
   const cached = registry.get(key);
   if (cached) return cached;
   if (!row || !row.stateJson) return null;
-  const state = row.stateJson as SdkRoomState;
-  if (state.sdk !== SDK_STATE_VERSION) return null;
+  const state = decodePersistedJson<SdkRoomState>(row.stateJson);
+  if (!state || state.sdk !== SDK_STATE_VERSION) return null;
   const def = await resolveDefinition(row.defId ?? "guess-core");
   if (!def) return null;
-  const config = (row.config ?? {}) as RoomConfig;
+  const config = decodePersistedJson<RoomConfig>(row.config) ?? {};
   const room = new SdkRoom({
     def,
     module: moduleFor(def),

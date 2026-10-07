@@ -66,6 +66,25 @@ function kimiJwks() {
   return jwks;
 }
 
+function safeReturnTo(value: string | undefined): string {
+  return value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/api/")
+    ? value
+    : "/";
+}
+
+function parseOAuthState(state: string): { redirectUri: string; returnTo: string } {
+  const decoded = atob(state);
+  try {
+    const parsed = JSON.parse(decoded) as { redirectUri?: unknown; returnTo?: unknown };
+    if (typeof parsed.redirectUri === "string") {
+      return { redirectUri: parsed.redirectUri, returnTo: safeReturnTo(typeof parsed.returnTo === "string" ? parsed.returnTo : undefined) };
+    }
+  } catch {
+    // 兼容已经发出的旧版 state：旧版只编码 redirectUri。
+  }
+  return { redirectUri: decoded, returnTo: "/" };
+}
+
 async function verifyAccessToken(
   accessToken: string,
 ): Promise<{ userId: string; clientId: string }> {
@@ -105,12 +124,18 @@ export function createOAuthCallbackHandler() {
 
     if (error) {
       if (error === "access_denied") {
-        return c.redirect("/", 302);
+        return c.redirect("/login", 302);
       }
-      return c.json(
-        { error, error_description: errorDescription },
-        400,
-      );
+      let returnTo = "/";
+      if (state) {
+        try { returnTo = parseOAuthState(state).returnTo; } catch { /* ignore malformed state */ }
+      }
+      const params = new URLSearchParams({
+        oauth_error: error,
+        oauth_error_description: errorDescription || "云端 OAuth 客户端配置无效",
+        returnTo,
+      });
+      return c.redirect(`/login?${params.toString()}`, 302);
     }
 
     if (!code || !state) {
@@ -118,7 +143,7 @@ export function createOAuthCallbackHandler() {
     }
 
     try {
-      const redirectUri = atob(state);
+      const { redirectUri, returnTo } = parseOAuthState(state);
       const tokenResp = await exchangeAuthCode(code, redirectUri);
       const { userId } = await verifyAccessToken(tokenResp.access_token);
       const userProfile = await kimiUsers.getProfile(tokenResp.access_token);
@@ -144,7 +169,7 @@ export function createOAuthCallbackHandler() {
         maxAge: Session.maxAgeMs / 1000,
       });
 
-      return c.redirect("/", 302);
+      return c.redirect(safeReturnTo(returnTo), 302);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       return c.json({ error: "OAuth callback failed" }, 500);

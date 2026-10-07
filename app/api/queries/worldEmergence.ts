@@ -1,4 +1,4 @@
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, lt } from "drizzle-orm";
 import { worldContributions, worldEpochs } from "@db/schema";
 import {
   aggregateWorldEpoch,
@@ -28,8 +28,20 @@ function parseJson<T>(value: JsonColumn): T | null {
 }
 
 function duplicateKey(error: unknown): boolean {
-  const candidate = error as { code?: string; errno?: number };
-  return candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062;
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    const candidate = current as { code?: string; errno?: number; message?: string; cause?: unknown };
+    if (
+      candidate.code === "ER_DUP_ENTRY" ||
+      candidate.errno === 1062 ||
+      candidate.message?.includes("Duplicate entry") ||
+      candidate.message?.includes("ER_DUP_ENTRY")
+    ) {
+      return true;
+    }
+    current = candidate.cause;
+  }
+  return false;
 }
 
 export function getWorldId(): string {
@@ -159,14 +171,22 @@ async function persistEpoch(world: string, epoch: number) {
     })
     .filter((item): item is WorldContribution => item !== null);
 
-  const previousRow = await getDb()
-    .select()
-    .from(worldEpochs)
-    .where(eq(worldEpochs.worldId, world))
-    .orderBy(desc(worldEpochs.epoch))
-    .limit(1);
-  const previous = previousRow[0]
-    ? parseJson<WorldEpochSnapshot>(previousRow[0].snapshotJson)
+  const [currentRows, previousRows] = await Promise.all([
+    getDb()
+      .select()
+      .from(worldEpochs)
+      .where(and(eq(worldEpochs.worldId, world), eq(worldEpochs.epoch, epoch)))
+      .limit(1),
+    getDb()
+      .select()
+      .from(worldEpochs)
+      .where(and(eq(worldEpochs.worldId, world), lt(worldEpochs.epoch, epoch)))
+      .orderBy(desc(worldEpochs.epoch))
+      .limit(1),
+  ]);
+  const currentRow = currentRows[0];
+  const previous = previousRows[0]
+    ? parseJson<WorldEpochSnapshot>(previousRows[0].snapshotJson)
     : null;
   const aggregate = aggregateWorldEpoch(contributions, previous ?? undefined);
   const publicSnapshot = makeWorldSnapshot({
@@ -179,7 +199,7 @@ async function persistEpoch(world: string, epoch: number) {
   });
   const snapshotJson = { ...aggregate, checksum: publicSnapshot.checksum };
 
-  if (previousRow[0]?.epoch === epoch) {
+  if (currentRow) {
     await getDb()
       .update(worldEpochs)
       .set({
@@ -188,7 +208,7 @@ async function persistEpoch(world: string, epoch: number) {
         snapshotJson: snapshotJson as never,
         checksum: publicSnapshot.checksum,
       })
-      .where(eq(worldEpochs.id, previousRow[0].id));
+      .where(eq(worldEpochs.id, currentRow.id));
   } else {
     await getDb().insert(worldEpochs).values({
       worldId: world,

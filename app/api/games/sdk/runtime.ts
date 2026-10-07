@@ -5,6 +5,7 @@
  * 由 v3 api/games/guessRoom.ts 重构泛化：
  * - 内存实例由 registry.ts 的 Map<code, SdkRoom> 持有，每次状态变更写回
  *   rooms.stateJson，进程重启后可从 DB 恢复（timers 按剩余时间重建）。
+ *   进行中的事件前缀也随快照保存，恢复后继续写入同一条 match log。
  * - 规则细节（提交校验/揭晓/计分/bot 决策）委托给 TemplateModule；
  *   本类负责：入座（human/external-agent）、seatToken、echo-bot 填充、
  *   提交窗计时、揭晓编排、持久化快照、按 def.rewards/entryFee 通用结算。
@@ -34,6 +35,9 @@ import type {
   BeastRaceRoomView,
   WerewolfRoomView,
 } from "@contracts/gameSdk";
+import type { MatchEvent } from "@contracts/matchLog";
+import type { MatchMode } from "@contracts/matchMode";
+import { buildBattleReportBrief, renderBattleReportText } from "@contracts/battleReport";
 import { cricketMoodFor, type FlyTeaseParams, type FlyTeaseReveal } from "@contracts/flyTease";
 import { visiblePosition, type RaceMatchState, type RaceReveal } from "@contracts/beastRace";
 import { projectWerewolf12State, type Werewolf12MatchState } from "@contracts/werewolf12";
@@ -56,6 +60,8 @@ import {
 } from "@contracts/tacticCards";
 import type { TacticCard } from "@contracts/cards";
 import { EventRecorder, newMatchSeed } from "./eventRecorder";
+import { buildMatchStream } from "../../aiNativeMatchStream";
+import { insertTextWorldChapter } from "../../queries/textWorldChapters";
 import type { RoundEntry, TemplateModule } from "./templates";
 import { FLY_ATLAS } from "./flybrain/atlas.generated";
 import {
@@ -97,6 +103,15 @@ function botLevel(seed: string, seat: number): number {
   }
   const fraction = (hash >>> 0) / 0xffffffff;
   return 1.6 + fraction * 2;
+}
+
+function inferMatchMode(events: readonly MatchEvent[]): MatchMode {
+  const seats = events.find(event => event.t === "matchStart")?.seats ?? [];
+  const humans = seats.filter(seat => seat.kind === "human").length;
+  const agents = seats.filter(seat => seat.kind === "external-agent").length;
+  if (humans === 0 && agents >= 2) return "agent-v-agent";
+  if (humans > 0 && agents > 0) return "human-v-agent";
+  return "human-v-human";
 }
 
 /* ------------------------------------------------------------------ */
@@ -164,6 +179,8 @@ export interface SdkRoomState {
   seed?: string;
   /** 已落库的 match_logs.id（终局后写入，观战页据此取事件流） */
   matchLogId?: number | null;
+  /** 进行中事件前缀；服务重启后用于重建 EventRecorder。 */
+  eventLog?: MatchEvent[];
   /** 盘外招的公开审计投影；卡牌使用不直接写入胜负函数。 */
   tacticLedger?: TacticLedgerEntry[];
   /** 观测层可见的假信号/证据/节奏提示。 */
@@ -197,13 +214,7 @@ export class SdkRoom {
   private botTimers: Set<ReturnType<typeof setTimeout>> = new Set();
   /** bot 座位号 → level-k 层级（1.6–3.6 随机人设，pollDuel 忽略） */
   private botLevels: Map<number, number> = new Map();
-  /**
-   * 事件记录器。开局时创建，终局时落库。
-   *
-   * 为何不持久化：事件流在内存中累积，进程重启则本局记录丢失。
-   * 这是刻意的取舍——完整方案要每个事件都写库（一局数十次写），
-   * 而重启中断的对局本身已无法继续，其部分事件流也无回放价值。
-   */
+  /** 事件记录器；事件前缀由 touch() 同步进房间快照。 */
   private recorder: EventRecorder | null = null;
 
   constructor(opts: {
@@ -252,6 +263,21 @@ export class SdkRoom {
     this.state.tacticSignals ??= [];
     this.state.suppressedAbilitySeats ??= [];
     this.state.tacticUses ??= {};
+    if (this.state.seed && this.state.eventLog?.length) {
+      const book = ruleBookForTemplate(this.def.template);
+      try {
+        this.recorder = new EventRecorder({
+          seed: this.state.seed,
+          rulebookId: book?.id ?? `rb-${this.def.template}`,
+          startedAt: this.state.startedAt ?? Date.now(),
+          events: this.state.eventLog,
+        });
+      } catch (error) {
+        // 损坏快照不能阻止服务启动；该房间会保留状态但不继续伪造战报。
+        console.error(`[sdkRoom] restore event log ${this.code} failed`, error);
+        this.recorder = null;
+      }
+    }
   }
 
   private get seatCount(): number {
@@ -283,6 +309,9 @@ export class SdkRoom {
   /** 状态变更后写回 rooms 表（fire-and-forget，挂在队列尾） */
   private touch() {
     this.state.version += 1;
+    if (this.recorder) {
+      this.state.eventLog = [...this.recorder.all];
+    }
     const snapshot = JSON.parse(JSON.stringify(this.state)) as SdkRoomState;
     this.enqueue(() =>
       persistRoomState(this.code, this.state.status, snapshot).catch((err) => {
@@ -314,6 +343,14 @@ export class SdkRoom {
           code: "FORBIDDEN",
           message: "此局只容智能体入座",
         });
+      }
+      // 浏览器刷新、OAuth 重登或本机试玩重新建立会话时，恢复原真人席位。
+      // 否则同一用户会被重复分配到第二席，房主无法继续开局。
+      const existing = this.state.seats.find(
+        (candidate) => candidate?.kind === "human" && candidate.userId === user.id,
+      );
+      if (existing?.seatToken) {
+        return { code: this.code, seatToken: existing.seatToken, seatIndex: existing.index };
       }
       const index = this.state.seats.findIndex((s) => s === null);
       if (index === -1) {
@@ -1041,12 +1078,50 @@ export class SdkRoom {
     });
     this.state.matchLogId = logId;
     this.touch();
+    await this.persistTextWorldChapter(rec, logId);
     } catch (err) {
       console.error(`[sdkRoom] ${this.code} 事件流落库失败`, err);
       return; // 落库失败则不发卡：卡牌应可溯源到具体一局
     }
 
     await this.grantEggCards(rec);
+  }
+
+  /**
+   * 终局后把真实 MatchEvent 转成文字世界的首个可重读章节。
+   * 章节只引用事件流；叙事模型未来可以在同一游标上生成升级版文本，
+   * 但不能改变这里的事实证据或结算结果。
+   */
+  private async persistTextWorldChapter(rec: EventRecorder, matchLogId: number): Promise<void> {
+    try {
+      const envelope = rec.envelope();
+      const book = ruleBookForTemplate(this.def.template);
+      const stream = buildMatchStream({
+        envelope,
+        worldId: getWorldId(),
+        cycle: getWorldEpoch(),
+        matchId: String(matchLogId),
+        rulebookVersion: `v${book?.version ?? 1}.0.0`,
+      });
+      const anchor = stream.refs.at(-1);
+      if (!anchor) return;
+      const mode = inferMatchMode(envelope.events);
+      const brief = buildBattleReportBrief({ events: envelope.events, mode, matchId: matchLogId });
+      await insertTextWorldChapter({
+        chapterId: `text:${matchLogId}:${anchor.eventSeq}`,
+        worldId: getWorldId(),
+        matchId: String(matchLogId),
+        matchLogId,
+        anchor,
+        title: `${this.def.name} · 终局记录`,
+        body: renderBattleReportText(brief),
+        evidence: stream.refs,
+        status: "fallback",
+      });
+    } catch (error) {
+      // 章节是投影资产；表不可用时不能回滚已经完成的游戏结算。
+      console.error(`[sdkRoom] ${this.code} 文字世界章节投影失败`, error);
+    }
   }
 
   /**

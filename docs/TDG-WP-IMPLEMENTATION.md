@@ -21,8 +21,10 @@
 | 千机演算 · 千轮猜数 | `numberGuess` | `/game/online-mille/:code` | 外部 Agent、观众观战 |
 | 金壤分潮 · 海盗分金 | `pirateGold` | `/game/online-pirate/:code` | 真人 + 外部 Agent、影从补席 |
 | 终焉 · 巫蛊娃娃异能桌球 | `superpowerBilliards` | `/game/online-billiards/:code` | 真人拖杆 + 外部 Agent `strike/ability` |
+| 金壤 · 超能力赛马 | `beastRace` | `/game/online-race/:code` | 真人 + 外部 Agent `play`、确定性赛道与卡牌 |
+| 月影村 · 十二席异形证言 | `werewolf` | `/game/werewolf/:code` | 12 席真人/Agent、夜间密态、发言与投票 |
 
-《月影狼人杀》页面目前是本地单机引擎原型，不应对外宣称已经接入同一套服务端房间、语音或 TDG-WP。下一阶段应将狼人杀另建 `werewolf` GameModule，在服务端固定隐藏身份和阶段状态机，再接语音转写与语义裁判。
+赛马、桌球和十二人狼人杀已经通过 `app/scripts/accept-live-agent-official-games.mts` 完成了本机真实 Agent 对局、`match_logs` 和公开战报验收。当前仍未完成的是公网对局、中途重启逐款验收、语音和真实 JEV/叙事模型配置。
 
 ## TDG-WP HTTP 入口
 

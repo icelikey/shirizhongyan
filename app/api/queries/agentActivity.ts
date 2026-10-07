@@ -5,6 +5,7 @@ import {
   agentKeys,
   playerCards,
   travelerProfiles,
+  worldOutbox,
 } from "@db/schema";
 import { getDb } from "./connection";
 import {
@@ -15,6 +16,7 @@ import {
   type WorldCycleState,
 } from "@contracts/worldCycle";
 import { coiUsageSummary } from "./agentCoi";
+import { matchSettledWorldEventSchema, type MatchSettledWorldEvent } from "@contracts/worldOutbox";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -64,28 +66,62 @@ export async function listAgentActivities(agentKeyId: number, limit = 80) {
     .limit(Math.max(1, Math.min(200, limit)));
 }
 
-function summarize(
-  activities: Awaited<ReturnType<typeof listAgentActivities>>,
+export interface SettledAgentMatchFact {
+  matchLogId: number;
+  defId: string;
+  settledAt: Date;
+  seat: number;
+  result: "win" | "loss";
+}
+
+export interface AgentActivitySummaryInput {
+  kind: string;
+  payloadJson: unknown;
+  occurredAt: Date;
+}
+
+function parseSettlement(value: unknown): MatchSettledWorldEvent | null {
+  const parsed = parseJsonColumn<unknown>(value);
+  const result = matchSettledWorldEventSchema.safeParse(parsed);
+  return result.success ? result.data : null;
+}
+
+export function settledAgentMatchFacts(
+  rows: readonly { payloadJson: unknown }[],
+  agentKeyId: number,
+  start: Date,
+  end: Date,
+): SettledAgentMatchFact[] {
+  const facts: SettledAgentMatchFact[] = [];
+  for (const row of rows) {
+    const event = parseSettlement(row.payloadJson);
+    if (!event) continue;
+    const settledAt = new Date(event.settledAt);
+    if (settledAt < start || settledAt >= end) continue;
+    const seat = event.seats.find((item) => item?.agentKeyId === agentKeyId);
+    const rank = seat ? event.rankings.indexOf(seat.index) : -1;
+    if (!seat || rank < 0) continue;
+    facts.push({
+      matchLogId: event.matchLogId,
+      defId: event.defId,
+      settledAt,
+      seat: seat.index,
+      result: rank === 0 ? "win" : "loss",
+    });
+  }
+  return facts;
+}
+
+export function summarizeAgentActivities(
+  activities: readonly AgentActivitySummaryInput[],
   reportDate: string,
+  settledFacts: readonly SettledAgentMatchFact[] = [],
+  actionCount = 0,
 ) {
-  const actionCount = activities.filter((item) => item.kind === "action").length;
   const matches = new Set(
-    activities
-      .map((item) => {
-        const payload = item.payloadJson as { code?: string; gameName?: string } | null;
-        return payload?.code ? `${payload.code}:${payload.gameName ?? ""}` : null;
-      })
-      .filter(Boolean),
+    settledFacts.map((fact) => fact.matchLogId),
   );
-  const darkMatches = new Set(
-    activities
-      .map((item) => {
-        const payload = item.payloadJson as { code?: string; darkMatch?: boolean } | null;
-        return payload?.darkMatch && payload.code ? payload.code : null;
-      })
-      .filter(Boolean),
-  );
-  const wins = activities.filter((item) => item.kind === "victory").length;
+  const wins = settledFacts.filter((fact) => fact.result === "win").length;
   const encounters = activities.filter((item) => item.kind === "encounter").length;
   const games = [...new Set(
     activities
@@ -98,10 +134,10 @@ function summarize(
     events: activities.length,
     actions: actionCount,
     matches: matches.size,
-    darkMatches: darkMatches.size,
+    darkMatches: matches.size,
     requiredDarkMatches: 3,
-    remainingDarkMatches: Math.max(0, 3 - darkMatches.size),
-    darkMatchesFulfilled: darkMatches.size >= 3,
+    remainingDarkMatches: Math.max(0, 3 - matches.size),
+    darkMatchesFulfilled: matches.size >= 3,
     victories: wins,
     encounters,
     games,
@@ -111,20 +147,28 @@ function summarize(
 
 export async function buildDailyReport(agentKeyId: number, reportDate = dateKey(new Date())) {
   const { start, end } = dayRange(reportDate);
-  const activities = await getDb()
-    .select()
-    .from(agentActivities)
-    .where(
-      and(
-        eq(agentActivities.agentKeyId, agentKeyId),
-        gte(agentActivities.occurredAt, start),
-        lte(agentActivities.occurredAt, end),
-      ),
-    )
-    .orderBy(desc(agentActivities.occurredAt), desc(agentActivities.id));
+  const [activities, settlementRows, coi] = await Promise.all([
+    getDb()
+      .select()
+      .from(agentActivities)
+      .where(
+        and(
+          eq(agentActivities.agentKeyId, agentKeyId),
+          gte(agentActivities.occurredAt, start),
+          lte(agentActivities.occurredAt, end),
+        ),
+      )
+      .orderBy(desc(agentActivities.occurredAt), desc(agentActivities.id)),
+    getDb()
+      .select({ payloadJson: worldOutbox.payloadJson })
+      .from(worldOutbox)
+      .where(eq(worldOutbox.eventType, "world.match.settled")),
+    coiUsageSummary(agentKeyId, start),
+  ]);
+  const settledFacts = settledAgentMatchFacts(settlementRows, agentKeyId, start, end);
   const stats = {
-    ...summarize(activities, reportDate),
-    coi: await coiUsageSummary(agentKeyId, start),
+    ...summarizeAgentActivities(activities, reportDate, settledFacts, coi.usage.action ?? 0),
+    coi,
   };
   const summary = stats.events === 0
     ? `第 ${reportDate} 日，影从尚未留下新的活动；今日暗局进度 ${stats.darkMatches}/3。`

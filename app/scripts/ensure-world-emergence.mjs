@@ -6,6 +6,12 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required");
 
 const db = await mysql.createConnection(databaseUrl);
 try {
+  // 旧部署把 GamePackage ID 限制为 24 字符，完整官方 ID
+  // superpower-billiards-core 为 25 字符，会出现“目录可见、房间无法创建”。
+  // 这条 MODIFY 是幂等的，兼容已经存在的旧数据库；新数据库由迁移直接创建 48 字符列。
+  await db.query("ALTER TABLE `game_defs` MODIFY COLUMN `defId` varchar(48) NOT NULL");
+  await db.query("ALTER TABLE `rooms` MODIFY COLUMN `defId` varchar(48) NOT NULL DEFAULT 'guess-core'");
+
   await db.query(`CREATE TABLE IF NOT EXISTS \`world_outbox\` (
     \`id\` bigint unsigned NOT NULL AUTO_INCREMENT,
     \`eventId\` varchar(192) NOT NULL,
@@ -75,7 +81,30 @@ try {
     KEY \`world_epochs_latest_idx\` (\`worldId\`, \`epoch\`)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-  console.log("World emergence schema ready");
+  // 文字世界章节是已结算事件的投影，不参与胜负计算；
+  // 与世界涌现一起确保，避免终局投影因缺表被静默降级。
+  await db.query(`CREATE TABLE IF NOT EXISTS \`text_world_chapters\` (
+    \`id\` bigint unsigned NOT NULL AUTO_INCREMENT,
+    \`chapterId\` varchar(192) NOT NULL,
+    \`worldId\` varchar(64) NOT NULL,
+    \`matchId\` varchar(160) NOT NULL,
+    \`matchLogId\` bigint unsigned NULL,
+    \`projection\` varchar(16) NOT NULL DEFAULT 'text',
+    \`eventSeq\` int NOT NULL,
+    \`stateHash\` varchar(64) NOT NULL,
+    \`rulebookVersion\` varchar(32) NOT NULL,
+    \`title\` varchar(200) NOT NULL,
+    \`body\` text NOT NULL,
+    \`evidenceJson\` json NOT NULL,
+    \`status\` enum('fallback','generated') NOT NULL DEFAULT 'fallback',
+    \`createdAt\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (\`id\`),
+    UNIQUE KEY \`text_world_chapters_chapter_id_idx\` (\`chapterId\`),
+    UNIQUE KEY \`text_world_chapters_match_cursor_idx\` (\`worldId\`, \`matchId\`, \`projection\`, \`eventSeq\`),
+    KEY \`text_world_chapters_match_log_idx\` (\`matchLogId\`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+  console.log("World emergence/text projection schema ready");
 } finally {
   await db.end();
 }

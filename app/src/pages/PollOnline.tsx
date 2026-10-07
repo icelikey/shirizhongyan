@@ -465,7 +465,7 @@ export default function PollOnline() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-4 mx-auto">
-                      <GoldButton variant="gold" size="lg" onClick={() => navigate(LOGIN_PATH)}>
+                      <GoldButton variant="gold" size="lg" onClick={() => navigate(`${LOGIN_PATH}?returnTo=${encodeURIComponent(window.location.pathname)}`)}>
                         <Cloud size={16} /> 云登录后入座
                       </GoldButton>
                       <span className="text-[12px] text-dim">旁观中 · 联机入座以 Kimi 云端档案为凭</span>

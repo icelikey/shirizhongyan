@@ -2,6 +2,8 @@
 
 > 当前范围冻结与世界 Agent / 分布式裁判运行模型见 [DEVELOPMENT-GOAL.md](DEVELOPMENT-GOAL.md) 和 [docs/WORLD-AGENT-OPERATING-MODEL.md](docs/WORLD-AGENT-OPERATING-MODEL.md)。本文保留底层实现盘点。
 
+> AI 原生文字世界、图形交互投影、统一事件账本与 Agent 自扩张闭环见 [docs/AI-NATIVE-WORLD-ARCHITECTURE.md](docs/AI-NATIVE-WORLD-ARCHITECTURE.md)。图形界面是可选投影，文字世界和 Agent 协议是主运行面。
+
 > 本文档从现有代码反向抽取 + 补全构想。凡标注 ✅ 的是已实现并通过类型检查的部分，
 > 标注 🚧 的是有契约无实现，标注 📋 的是待设计。
 
@@ -310,16 +312,17 @@ score  数值评分      → 主张的论据强度
 
 | 优先级 | 缺口 | 影响 |
 |---|---|---|
-| P0 | **事件流生产端** | `SdkRoom` 不产 `MatchEvent`，`match_logs` 仍未被写入 |
-| P0 | **跨层原子提交** | `command_receipts`/`world_outbox` 已存在，但房间 actor、完整事件流和收据尚未纳入同一提交边界 |
+| P0 | **跨层原子提交** | `match_logs` 与 `world_outbox` 已在同一数据库事务写入；房间 actor 的内存快照仍需进一步收口为可恢复提交边界 |
+| P0 | **持久化文字世界** | 终局章节已写入 `text_world_chapters`；JEV/大模型章节升级和实时中局章节仍待接入 |
 | P1 | 狼人杀联机化 | 最有观赏性的游戏只能单机跑 |
 | P1 | 观战页 / 裁判席 UI | 后端已就绪，前端无入口 |
 | P1 | 狼人杀与赛马模板 | 规则契约或前端原型已有基础，缺完整服务端 `TemplateModule` 与整局回放 |
 | P2 | 异能进化路径 | 构想 6 只有一半（有异能，无进化） |
 | P2 | 异能扩充 8→48 | 契约支持，数据只有 8 条 |
 
-**P0 的核心仍是**：`SdkRoom` → `MatchEvent` → `match_logs` 这条链，并把它与已有的 `command_receipts`/`world_outbox` 收口到可恢复的提交边界。
-落库查询层和最小命令收据层已就绪，缺的是在 `runtime.ts` 里埋点产出完整事件、写入 `match_logs`，再由 outbox 消费者驱动通知、叙事和高光。
+**P0 的核心现在是**：`SdkRoom` → `MatchEvent` → `match_logs` →
+`buildMatchStream` → `text_world_chapters` 已经贯通；下一步把命令收据、房间快照、
+事件流和章节投影收口到可恢复的提交边界，并把中局事件增量推送给文字世界。
 
-注：质询目前用「房间码 + 开局时刻」派生种子。事件流落地后应改用
-对局真实 seed，使裁判团与回放严格一致。
+注：对局事件流现在写入真实 `seed`；文字世界游标的 `stateHash` 由该种子和事件
+前缀计算。仍需补上跨进程实时订阅和中断恢复后的增量投影验收。

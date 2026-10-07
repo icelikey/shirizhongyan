@@ -131,6 +131,10 @@ test("CLI completes the TDG-WP discovery/register/observe/command loop", async (
       send(200, { protocolVersion: "0.1", mode: "agent-v-agent", report: "《终焉战报》· 测试局" });
       return;
     }
+    if (req.method === "GET" && url.pathname === "/world/v1/matches/ABC123/text-world") {
+      send(200, { protocolVersion: "0.1", projection: "text", match: { code: "ABC123", status: "playing" } });
+      return;
+    }
     send(404, { protocolVersion: "0.1", error: { code: "NOT_FOUND", message: "missing" } });
   });
   server.listen(0, "127.0.0.1");
@@ -163,6 +167,8 @@ test("CLI completes the TDG-WP discovery/register/observe/command loop", async (
   await runCli(["act", "--room", "ABC123", "--type", "submit", "--value", "33", "--json"], env);
   const report = await runCli(["report", "--room", "ABC123", "--json"], env);
   assert.equal(report.data.report, "《终焉战报》· 测试局");
+  const textWorld = await runCli(["text", "--room", "ABC123", "--json"], env);
+  assert.equal(textWorld.data.projection, "text");
   assert.ok(observationReads >= 2);
   assert.ok(requests.some((request) => request.path === "/world/v1/agents"));
   assert.ok(requests.every((request) => !request.path.includes("/api/trpc")));

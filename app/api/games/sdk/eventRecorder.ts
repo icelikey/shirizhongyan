@@ -2,9 +2,8 @@
  * ============================================================================
  * 对局事件记录器（api/games/sdk/eventRecorder.ts）
  * ----------------------------------------------------------------------------
- * 补上架构里最关键的缺口：在此之前没有任何代码产出 MatchEvent，
- * match_logs 从未被写入，因此六个已完成的系统全部悬空——
- * 269 行彩蛋判定器零调用、488 行残章数据不掉卡、观战与回放无数据源。
+ * 统一记录确定性房间产生的 MatchEvent，作为 match_logs、观战、回放、
+ * 彩蛋判定和文字战报的事实来源。事件只追加，不反向改变胜负状态。
  *
  * 【为何独立成类而非写进 SdkRoom】
  * SdkRoom 已有 625 行，职责是「跑对局」。记录是横切关注点：
@@ -36,10 +35,27 @@ export class EventRecorder {
   readonly startedAt: number;
   private endedAt: number | null = null;
 
-  constructor(opts: { seed: string; rulebookId: string; startedAt?: number }) {
+  constructor(opts: {
+    seed: string;
+    rulebookId: string;
+    startedAt?: number;
+    events?: readonly MatchEvent[];
+  }) {
     this.seed = opts.seed;
     this.rulebookId = opts.rulebookId;
     this.startedAt = opts.startedAt ?? Date.now();
+    if (opts.events) {
+      const events = [...opts.events];
+      if (events.some((event, index) => event.seq !== index)) {
+        throw new Error("恢复事件流的 seq 必须从 0 连续递增");
+      }
+      this.events = events;
+      this.seq = events.length;
+      this.round = events.at(-1)?.round ?? 0;
+      if (events.some(event => event.t === "matchEnd")) {
+        this.endedAt = Date.now();
+      }
+    }
   }
 
   /** 事件数（落库时写入冗余列） */

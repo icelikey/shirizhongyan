@@ -220,7 +220,7 @@ export type AgentDailyReportRow = typeof agentDailyReports.$inferSelect;
 export type InsertAgentDailyReportRow = typeof agentDailyReports.$inferInsert;
 
 /* ---------------------------------------------------------------------------
- * ⑤ rooms —— 联机房间（当前仅 'guess' 猜平均数），stateJson 为权威房间状态
+ * ⑤ rooms —— 联机 SDK 房间，stateJson 为权威房间状态
  * ------------------------------------------------------------------------- */
 export const rooms = mysqlTable(
   "rooms",
@@ -231,7 +231,9 @@ export const rooms = mysqlTable(
     code: varchar("code", { length: 8 }).notNull(),
     game: varchar("game", { length: 16 }).notNull().default("guess"),
     /** v4 SDK：关联 game_defs.defId；旧 guess 行默认 'guess-core' */
-    defId: varchar("defId", { length: 24 }).notNull().default("guess-core"),
+    // 官方内容包 ID 允许携带完整语义（例如 superpower-billiards-core）。
+    // 不能用旧的 24 字符上限截断，否则注册表可见但房间无法落库。
+    defId: varchar("defId", { length: 48 }).notNull().default("guess-core"),
     status: varchar("status", { length: 16 }).notNull().default("waiting"),
     config: json("config"),
     stateJson: json("stateJson"),
@@ -264,7 +266,7 @@ export const gameDefs = mysqlTable(
     id: bigint("id", { mode: "number", unsigned: true })
       .autoincrement()
       .primaryKey(),
-    defId: varchar("defId", { length: 24 }).notNull(),
+    defId: varchar("defId", { length: 48 }).notNull(),
     name: varchar("name", { length: 48 }).notNull(),
     template: varchar("template", { length: 24 }).notNull(),
     /** NumberGuessParams | PollDuelParams（见 contracts/gameSdk.ts） */
@@ -323,6 +325,46 @@ export const matchLogs = mysqlTable(
 
 export type MatchLogRow = typeof matchLogs.$inferSelect;
 export type InsertMatchLogRow = typeof matchLogs.$inferInsert;
+
+/* ---------------------------------------------------------------------------
+ * ⑦.1 text_world_chapters —— 文字世界章节投影
+ *     章节只保存已落库事件的事实摘要和证据游标。它不是胜负输入，
+ *     也不能反向修改 match_logs；删除章节不会影响回放和结算。
+ * ------------------------------------------------------------------------- */
+export const textWorldChapters = mysqlTable(
+  "text_world_chapters",
+  {
+    id: bigint("id", { mode: "number", unsigned: true })
+      .autoincrement()
+      .primaryKey(),
+    chapterId: varchar("chapterId", { length: 192 }).notNull(),
+    worldId: varchar("worldId", { length: 64 }).notNull(),
+    matchId: varchar("matchId", { length: 160 }).notNull(),
+    matchLogId: bigint("matchLogId", { mode: "number", unsigned: true }),
+    projection: varchar("projection", { length: 16 }).notNull().default("text"),
+    eventSeq: int("eventSeq").notNull(),
+    stateHash: varchar("stateHash", { length: 64 }).notNull(),
+    rulebookVersion: varchar("rulebookVersion", { length: 32 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    evidenceJson: json("evidenceJson").notNull(),
+    status: mysqlEnum("status", ["fallback", "generated"]).notNull().default("fallback"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    chapterIdIdx: uniqueIndex("text_world_chapters_chapter_id_idx").on(table.chapterId),
+    matchCursorIdx: uniqueIndex("text_world_chapters_match_cursor_idx").on(
+      table.worldId,
+      table.matchId,
+      table.projection,
+      table.eventSeq,
+    ),
+    matchLogIdx: index("text_world_chapters_match_log_idx").on(table.matchLogId),
+  }),
+);
+
+export type TextWorldChapterRow = typeof textWorldChapters.$inferSelect;
+export type InsertTextWorldChapterRow = typeof textWorldChapters.$inferInsert;
 
 /* ---------------------------------------------------------------------------
  * ⑧ command_receipts —— Gateway 命令幂等收据

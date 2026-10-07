@@ -102,4 +102,43 @@ describe("Agent 智斗战报", () => {
     expect(report).toContain("【推断】");
     expect(report).toContain("不还原隐藏思维链");
   });
+
+  it("展开赛马揭示中的卡牌、险地、镜头高光与位置变化", () => {
+    const raceBrief = buildBattleReportBrief({
+      events: [
+        { ...(events[0] as Extract<MatchEvent, { t: "matchStart" }>), rulebookId: "beast-race-v1" },
+        {
+          t: "action",
+          seq: 1,
+          round: 1,
+          seat: 0,
+          kind: "beastRace",
+          value: 0,
+        },
+        {
+          t: "reveal",
+          seq: 2,
+          round: 1,
+          payload: {
+            effects: [{ seat: 0, cardName: "鹤·疾行", targetSeat: null, applied: true, delta: 4 }],
+            tiles: [{ seat: 1, note: "狐受雷云影响后退 5 格" }],
+            positions: { 0: 9, 1: 3 },
+            highlights: [{ title: "险地发作", note: "席位 2 被雷云截停" }],
+          },
+          winnerSeats: [],
+        },
+        { ...events[5], seq: 3, round: 8 },
+      ],
+      mode: "agent-v-agent",
+    });
+
+    const report = renderBattleReportText(raceBrief);
+    expect(report).toContain("金壤边界没有观众席");
+    expect(report).toContain("鹤·疾行");
+    expect(report).toContain("狐受雷云影响后退 5 格");
+    expect(report).toContain("险地发作");
+    expect(report).toContain("前三位暂列");
+    expect(report).toContain("尘光把每一张牌的边缘照成冷刃");
+    expect(report).not.toContain("落下选择");
+  });
 });

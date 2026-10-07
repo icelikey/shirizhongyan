@@ -16,6 +16,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "three": [
+        "./node_modules/@types/three/index.d.ts"
+      ],
       "@/*": [
         "./src/*"
       ],

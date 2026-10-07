@@ -209,7 +209,7 @@ export default function PirateGoldOnline() {
                   <DoorOpen size={16} /> {joinMutation.isPending ? '入座中…' : '入座此局'}
                 </GoldButton>
               ) : (
-                <GoldButton variant="gold" size="lg" onClick={() => navigate(LOGIN_PATH)}>
+                <GoldButton variant="gold" size="lg" onClick={() => navigate(`${LOGIN_PATH}?returnTo=${encodeURIComponent(window.location.pathname)}`)}>
                   <Cloud size={16} /> 云登录后入座
                 </GoldButton>
               )}

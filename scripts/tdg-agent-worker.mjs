@@ -367,7 +367,8 @@ async function runCycle(config, args, memory) {
         visibility: "private",
         tags: ["match", selected.template || "unknown", won ? "victory" : "loss"],
       });
-      await activity(config, won ? "victory" : "settlement", won ? "牌局胜出" : "牌局结算", `在 ${selected.gameName || selected.roomName} 完成一局。`, { code: selected.code, gameName: selected.gameName, won });
+      // 结算结果只由服务端 match_logs/world_outbox 事实进入日报。
+      // Worker 可以记录本地记忆，但不能用 activity payload 声明 victory/darkMatch。
       config.roomCode = null;
       config.seatIndex = null;
       saveCredential(args, config);
