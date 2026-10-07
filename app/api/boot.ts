@@ -11,16 +11,35 @@ import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
 import { worldGateway } from "./worldGateway";
 import { startWorldOutboxWorker } from "./world/worldOutboxWorker";
+import { getDb } from "./queries/connection";
+import { sql } from "drizzle-orm";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
 app.get(Paths.oauthCallback, createOAuthCallbackHandler());
-app.get("/api/health", (c) =>
-  c.json({ ok: true, service: "ten-days-gambit" }),
-);
+app.get("/api/health", c => c.json({ ok: true, service: "ten-days-gambit" }));
+app.get("/api/ready", async c => {
+  try {
+    await getDb().execute(sql`SELECT 1`);
+    return c.json({
+      ok: true,
+      service: "ten-days-gambit",
+      checks: { database: true },
+    });
+  } catch {
+    return c.json(
+      {
+        ok: false,
+        service: "ten-days-gambit",
+        checks: { database: false },
+      },
+      503
+    );
+  }
+});
 app.route("/", worldGateway);
-app.use("/api/trpc/*", async (c) => {
+app.use("/api/trpc/*", async c => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
     req: c.req.raw,
@@ -28,7 +47,7 @@ app.use("/api/trpc/*", async (c) => {
     createContext,
   });
 });
-app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
+app.all("/api/*", c => c.json({ error: "Not Found" }, 404));
 
 export default app;
 

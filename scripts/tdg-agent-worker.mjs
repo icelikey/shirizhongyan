@@ -11,6 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { MemoryStore } from "../pi-tdg-agent/src/memory.mjs";
 
 const DEFAULT_INTERVAL_MS = 5000;
@@ -47,6 +48,7 @@ function loadCredential(args) {
 
 function saveCredential(args, credential) {
   const path = credentialPath(args);
+  if (args.persist === false) return path;
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(credential, null, 2)}\n`, "utf8");
   return path;
@@ -83,11 +85,16 @@ async function jsonRequest(url, { key = "", method = "GET", body } = {}) {
   if (body !== undefined) {
     headers["content-type"] = "application/json";
   }
-  const response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  let response;
+  try {
+    response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  } catch (error) {
+    throw new Error(redact(error));
+  }
   const text = await response.text();
   let payload = {};
   try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text.slice(0, 400) }; }
-  if (!response.ok) throw new Error(payload?.error?.message || payload?.message || `HTTP ${response.status}`);
+  if (!response.ok) throw new Error(redact(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
   return payload;
 }
 
@@ -151,6 +158,16 @@ async function createMatch(config, gameId) {
       roomName: `${config.name || "影从"} · 自动暗局`,
     },
   });
+}
+
+function worldOrigin(config) {
+  const url = new URL(endpoint(config));
+  const pathname = url.pathname.replace(/\/world\/v1\/?$/i, "").replace(/\/$/, "");
+  return `${url.origin}${pathname}`;
+}
+
+async function discover(config) {
+  return jsonRequest(`${worldOrigin(config)}/.well-known/tdg-world.json`);
 }
 
 async function world(config) {
@@ -280,11 +297,21 @@ function chooseAction(match, view) {
 }
 
 async function runCycle(config, args, memory) {
+  await discover(config);
   const worldPayload = await world(config);
   const sighting = await recordWorldSighting(config, args, worldPayload, memory);
   const requestedCode = args.room || process.env.TDG_MATCH_CODE || config.roomCode;
   let roomList = await matches(config);
-  if (requestedCode) roomList = roomList.filter((room) => room.code === String(requestedCode).toUpperCase());
+  if (requestedCode) {
+    roomList = roomList.filter((room) => room.code === String(requestedCode).toUpperCase());
+  } else if (process.env.TDG_JOIN_OPEN_MATCHES === "true") {
+    // 显式开启后才加入无人类席位的公共暗局，避免新 Worker 落到别人的 1 号席。
+    // 旧 Gateway 若没有 seatBreakdown，保留兼容行为；新 Gateway 会明确 human 数量。
+    roomList = roomList.filter((room) => !room.seatBreakdown || room.seatBreakdown.human === 0);
+  } else {
+    // 默认召集自己的 Agent-only 牌局，保证单个 Worker 可以独立完成每日暗局。
+    roomList = [];
+  }
   if (!roomList.length) {
     const autoCreate = !requestedCode && args.create_match !== "false" && process.env.TDG_AUTO_CREATE_MATCH !== "false";
     if (autoCreate) {
@@ -412,9 +439,9 @@ function reportText(report) {
 }
 
 async function sendDailyReport(config, memory) {
-  const webhook = process.env.TDG_REPORT_WEBHOOK_URL;
-  if (!webhook) return;
   const report = await jsonRequest(`${endpoint(config)}/agents/${config.agentId}/report`, { key: config.key });
+  const webhook = process.env.TDG_REPORT_WEBHOOK_URL;
+  if (!webhook) return report;
   const text = reportText(report);
   memory.remember({
     kind: "working",
@@ -433,10 +460,37 @@ async function sendDailyReport(config, memory) {
   console.log(`日报已推送至 ${channel === "wecom" ? "企业微信" : "飞书"}。`);
 }
 
+export async function runOnce({ config, args = {}, fetchImpl = globalThis.fetch, memory, webhookUrl } = {}) {
+  if (!config?.baseUrl || !config?.key || !config?.agentId) {
+    throw new Error("runOnce 需要 baseUrl、key 和 agentId");
+  }
+  const previousFetch = globalThis.fetch;
+  const previousWebhook = process.env.TDG_REPORT_WEBHOOK_URL;
+  globalThis.fetch = fetchImpl;
+  if (webhookUrl !== undefined) {
+    if (webhookUrl) process.env.TDG_REPORT_WEBHOOK_URL = webhookUrl;
+    else delete process.env.TDG_REPORT_WEBHOOK_URL;
+  }
+  try {
+    const store = memory || new MemoryStore({
+      path: args.memory || process.env.TDG_AGENT_MEMORY || null,
+    });
+    const result = await runCycle(config, args, store);
+    await sendDailyReport(config, store);
+    return result;
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (webhookUrl !== undefined) {
+      if (previousWebhook === undefined) delete process.env.TDG_REPORT_WEBHOOK_URL;
+      else process.env.TDG_REPORT_WEBHOOK_URL = previousWebhook;
+    }
+  }
+}
+
 async function main() {
   const args = argsOf(process.argv.slice(2));
   if (args.help || args.h) {
-    console.log(`终焉 Agent Worker v${VERSION}\n\nnode scripts/tdg-agent-worker.mjs --base-url https://your-domain --once\n\n环境变量：TDG_BASE_URL、TDG_AGENT_KEY、TDG_AGENT_NAME、TDG_INVITE_CODE、TDG_AGENT_GAME_ID、TDG_AUTO_CREATE_MATCH、TDG_INTERVAL_MS、TDG_AGENT_MEMORY、TDG_REPORT_CHANNEL、TDG_REPORT_WEBHOOK_URL`);
+    console.log(`终焉 Agent Worker v${VERSION}\n\nnode scripts/tdg-agent-worker.mjs --base-url https://your-domain --once\n\n环境变量：TDG_BASE_URL、TDG_AGENT_KEY、TDG_AGENT_NAME、TDG_INVITE_CODE、TDG_AGENT_GAME_ID、TDG_AUTO_CREATE_MATCH、TDG_INTERVAL_MS、TDG_AGENT_MEMORY、TDG_JOIN_OPEN_MATCHES、TDG_REPORT_CHANNEL、TDG_REPORT_WEBHOOK_URL`);
     return;
   }
   let config = loadCredential(args) || {};
@@ -446,7 +500,7 @@ async function main() {
   if (!config.baseUrl) config.baseUrl = normalizeBaseUrl(args.base_url || process.env.TDG_BASE_URL || config.baseUrl);
   const memory = new MemoryStore({ path: memoryPath(args) });
   const interval = Math.max(1000, Number(args.interval || process.env.TDG_INTERVAL_MS || DEFAULT_INTERVAL_MS));
-  let lastReportDate = "";
+  let lastReportDate = config.lastReportDate || "";
   let stopped = false;
   process.on("SIGINT", () => { stopped = true; });
   process.on("SIGTERM", () => { stopped = true; });
@@ -456,9 +510,11 @@ async function main() {
       const result = await runCycle(config, args, memory);
       console.log(`探索 ${result.status}${result.code ? ` · ${result.code}` : ""}${result.action ? ` · ${result.action}` : ""}`);
       const reportDate = new Date().toISOString().slice(0, 10);
-      if (reportDate !== lastReportDate && process.env.TDG_REPORT_WEBHOOK_URL) {
+      if (reportDate !== lastReportDate) {
         await sendDailyReport(config, memory);
         lastReportDate = reportDate;
+        config.lastReportDate = reportDate;
+        saveCredential(args, config);
       }
     } catch (error) {
       console.error(`Worker 本轮暂停：${redact(error)}`);
@@ -468,7 +524,9 @@ async function main() {
   } while (!stopped);
 }
 
-main().catch((error) => {
-  console.error(`Worker 启动失败：${redact(error)}`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(`Worker 启动失败：${redact(error)}`);
+    process.exitCode = 1;
+  });
+}

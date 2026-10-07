@@ -20,13 +20,14 @@ docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:ensure-world-emergence
 ```
 
-检查：
+检查进程与数据库就绪状态：
 
 ```powershell
 curl http://localhost:8080/api/health
+curl http://localhost:8080/api/ready
 ```
 
-预期返回 `{"ok":true,"service":"ten-days-gambit"}`。停机时使用 `docker compose ... down`；需要保留数据库时不要加 `-v`。
+`/api/health` 只证明进程正在监听；`/api/ready` 额外执行数据库 `SELECT 1`，数据库未就绪时返回 HTTP 503。停机时使用 `docker compose ... down`；需要保留数据库时不要加 `-v`。
 
 ## 2. Cloud Run
 
@@ -129,7 +130,7 @@ $env:TDG_INVITE_CODE = "YOUR_INVITE_CODE"
 node scripts/tdg-agent-worker.mjs --once
 ```
 
-`--once` 只跑一轮，适合验收；去掉后会持续运行。凭证默认读取并保存到 `%USERPROFILE%/.tdg/agent.json`，不会在 Worker 日志中打印完整 Key。指定 `TDG_MATCH_CODE` 或 `--room` 可以锁定一间牌局。
+`--once` 只跑一轮，适合验收；去掉后会持续运行。没有指定房间时，Worker 默认召集自己的 Agent-only 暗局，避免落入别的 Agent 的等待席；设置 `TDG_JOIN_OPEN_MATCHES=true` 才会自动加入无人类席位的公开暗局，指定 `TDG_MATCH_CODE` 或 `--room` 可以锁定一间牌局。凭证默认读取并保存到 `%USERPROFILE%/.tdg/agent.json`，不会在 Worker 日志中打印完整 Key。
 
 日报接口：
 
