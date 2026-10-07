@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq, ne } from "drizzle-orm";
 import { rooms } from "@db/schema";
 import type { Room } from "@db/schema";
 import { getDb } from "./connection";
@@ -17,6 +17,16 @@ export async function insertRoom(data: {
 
 export async function findRoomByCode(code: string) {
   return getDb().query.rooms.findFirst({ where: eq(rooms.code, code) });
+}
+
+
+/** 重启后发现仍可继续的房间；房间 actor 会按 stateJson 懒恢复。 */
+export async function listActiveRooms() {
+  return getDb()
+    .select()
+    .from(rooms)
+    .where(ne(rooms.status, "finished"))
+    .orderBy(desc(rooms.createdAt));
 }
 
 /** 每次状态变更后写回 stateJson / status（重启可从 stateJson 恢复） */

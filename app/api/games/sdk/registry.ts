@@ -5,8 +5,8 @@
  * - OFFICIAL_GAMES：官方游戏定义常量（guess-core / poll-duel-core），不入库。
  * - UGC 定义存 game_defs 表（defId 形如 'ugc_xxxxxxxx'）。
  * - 房间注册表：内存 Map<code, SdkRoom> + rooms.stateJson 恢复。
- *   兼容说明：v3 旧房间的 stateJson 无 sdk 标记，进程重启后不再恢复
- *   （旧房间随服务重启归档清理——与 v3 一致，列表本就只扫描内存注册表）。
+ *   房间列表优先读取数据库中的 active rows，再懒恢复 actor；兼容说明：v3 旧房间的
+ *   stateJson 无 sdk 标记，进程重启后不再恢复。
  * ============================================================================
  */
 import { randomBytes } from "node:crypto";
@@ -44,6 +44,7 @@ import { superpowerBilliardsModule } from "./superpowerBilliards";
 import { beastRaceTemplateModule } from "./beastRace";
 import { werewolf12TemplateModule } from "./werewolf12Template";
 import { WORLD_CONTRIBUTION_MAPPER_IDS } from "@contracts/worldContributionMapper";
+import { listActiveRooms } from "../../queries/rooms";
 
 /* ------------------------------------------------------------------ */
 /* 官方定义（guess-core = v3 众念锚定默认参数；poll-duel-core = 红眼病官方版）*/
@@ -458,37 +459,39 @@ export async function getSdkRoom(
 }
 
 /** 进行/等待中的房间摘要（内存注册表扫描；状态变更都会写库） */
-export function listRoomSummaries(): RoomSummary[] {
-  return [...registry.values()]
-    .filter((r) => r.status !== "finished")
-    .map((r) => {
-      const seatBreakdown = r.getState().seats.reduce(
-        (counts, seat) => {
-          if (seat?.kind === "human") counts.human += 1;
-          if (seat?.kind === "external-agent") counts.agent += 1;
-          if (seat?.kind === "echo-bot") counts.echo += 1;
-          return counts;
-        },
-        { human: 0, agent: 0, echo: 0 },
-      );
-      return {
-        code: r.code,
-        roomName: r.roomName,
-        game: moduleFor(r.def).gameKind,
-        status: r.status,
-        seatsTotal: r.def.seats,
-        seatsTaken: r.seatsTaken(),
-        hasAgentSeat: r.hasAgentSeat(),
-        createdAt: r.createdAt,
-        defId: r.def.id,
-        template: r.def.template,
-        gameName: r.def.name,
-        isOfficial: r.def.isOfficial,
-        entryFee: r.def.entryFee,
-        seatBreakdown,
-      };
-    })
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+export async function listRoomSummaries(): Promise<RoomSummary[]> {
+  const rows = await listActiveRooms();
+  const summaries: RoomSummary[] = [];
+  for (const row of rows) {
+    const room = await getSdkRoom(row.code, row);
+    if (!room || room.status === "finished") continue;
+    const seatBreakdown = room.getState().seats.reduce(
+      (counts, seat) => {
+        if (seat?.kind === "human") counts.human += 1;
+        if (seat?.kind === "external-agent") counts.agent += 1;
+        if (seat?.kind === "echo-bot") counts.echo += 1;
+        return counts;
+      },
+      { human: 0, agent: 0, echo: 0 },
+    );
+    summaries.push({
+      code: room.code,
+      roomName: room.roomName,
+      game: moduleFor(room.def).gameKind,
+      status: room.status,
+      seatsTotal: room.def.seats,
+      seatsTaken: room.seatsTaken(),
+      hasAgentSeat: room.hasAgentSeat(),
+      createdAt: room.createdAt,
+      defId: room.def.id,
+      template: room.def.template,
+      gameName: room.def.name,
+      isOfficial: room.def.isOfficial,
+      entryFee: room.def.entryFee,
+      seatBreakdown,
+    });
+  }
+  return summaries.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 /** 测试辅助：清空注册表 */

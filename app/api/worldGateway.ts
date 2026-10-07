@@ -469,7 +469,7 @@ worldGateway.get("/world/v1/matches", async (c) => {
   try {
     const key = await requireAgent(c);
     await requireCoi({ agentKeyId: key.id, read: "world_discovery" });
-    return c.json({ protocolVersion: PROTOCOL_VERSION, matches: listRoomSummaries() });
+    return c.json({ protocolVersion: PROTOCOL_VERSION, matches: await listRoomSummaries() });
   } catch (error) {
     return errorResponse(c, error);
   }
