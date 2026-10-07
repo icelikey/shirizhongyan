@@ -702,6 +702,7 @@ worldGateway.get("/world/v1/matches/:code/observation", async (c) => {
       matchId: room.code,
       read: "own_observation",
     });
+    await room.waitForFinalization();
     const world = await getAgentWorldContext(key.userId);
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
@@ -732,6 +733,7 @@ worldGateway.get("/world/v1/matches/:code/report", async (c) => {
       matchId: room.code,
       read: "public_events",
     });
+    await room.waitForFinalization();
     const matchLogId = room.getState().matchLogId;
     if (!matchLogId) {
       throw new TRPCError({ code: "CONFLICT", message: "对局尚未结束或事件流尚未落库" });
@@ -780,6 +782,7 @@ worldGateway.get("/world/v1/matches/:code/text-world", async (c) => {
       matchId: room.code,
       read: "own_observation",
     });
+    await room.waitForFinalization();
     const world = await getAgentWorldContext(key.userId);
     const state = room.getState();
     let battle: {

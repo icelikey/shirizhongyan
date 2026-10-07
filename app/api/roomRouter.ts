@@ -163,6 +163,7 @@ export const roomRouter = createRouter({
     )
     .query(async ({ input }) => {
       const room = await requireRoom(input.code);
+      await room.waitForFinalization();
       return room.view(input.seatToken);
     }),
 

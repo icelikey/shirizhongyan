@@ -216,6 +216,8 @@ export class SdkRoom {
   private botLevels: Map<number, number> = new Map();
   /** 事件记录器；事件前缀由 touch() 同步进房间快照。 */
   private recorder: EventRecorder | null = null;
+  /** 终局状态已公开后，等待奖励、账本与投影完成的屏障。 */
+  private finalization: Promise<void> | null = null;
 
   constructor(opts: {
     def: GameDefinition;
@@ -1010,16 +1012,28 @@ export class SdkRoom {
     this.state.rankings = this.computeRankings();
     this.state.winner = this.state.rankings[0] ?? null;
     this.touch();
-    await this.settleRewards();
-    // 房间已进入 finished，UGC 开局统计先于较重的事件流/彩蛋后处理落库，
-    // 让大厅的作品热度与玩家结算在同一个可观测终点完成。
-    if (!this.def.isOfficial) {
-      await incrementGameDefPlays(this.def.id).catch((err) =>
-        console.error(`[sdkRoom] plays++ ${this.def.id} failed`, err),
-      );
-    }
-    // 事件流落库 + 彩蛋判定，须在发奖后——彩蛋读的 fragmentsDelta 由发奖决定
-    await this.persistMatchLog();
+
+    // 终局状态对内立即可见，保持内存房间和观战动画的确定性；
+    // 外部 Agent/API 通过 waitForFinalization 等待下面的事实链屏障。
+    const finalization = (async () => {
+      await this.settleRewards();
+      // 房间已进入 finished，UGC 开局统计先于较重的事件流/彩蛋后处理落库，
+      // 让大厅的作品热度与玩家结算在同一个可观测终点完成。
+      if (!this.def.isOfficial) {
+        await incrementGameDefPlays(this.def.id).catch((err) =>
+          console.error(`[sdkRoom] plays++ ${this.def.id} failed`, err),
+        );
+      }
+      // 事件流落库 + 彩蛋判定，须在发奖后——彩蛋读的 fragmentsDelta 由发奖决定
+      await this.persistMatchLog();
+    })();
+    this.finalization = finalization;
+    await finalization;
+  }
+
+  /** 公共查询在展示 finished 前等待终局事实链落稳。 */
+  async waitForFinalization(): Promise<void> {
+    await this.finalization;
   }
 
   /**

@@ -327,6 +327,7 @@ export const agentRouter = createRouter({
       );
       const room = await requireRoom(input.code);
       await requireCoi({ agentKeyId: key.id, gameId: room.def.id, matchId: room.code, read: "own_observation" });
+      await room.waitForFinalization();
       const state = room.getState();
       const seat = state.seats.find(
         (s) => s?.kind === "external-agent" && s.agentKeyId === key.id,
