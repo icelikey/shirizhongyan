@@ -218,6 +218,9 @@ export class SdkRoom {
   private recorder: EventRecorder | null = null;
   /** 终局状态已公开后，等待奖励、账本与投影完成的屏障。 */
   private finalization: Promise<void> | null = null;
+  /** 数据库快照独立串行写入；不与 actor 队列互相等待，避免嵌套 enqueue 死锁。 */
+  private persistenceQueue: Promise<void> = Promise.resolve();
+  private lastPersistence: Promise<void> = Promise.resolve();
 
   constructor(opts: {
     def: GameDefinition;
@@ -308,18 +311,27 @@ export class SdkRoom {
     return run;
   }
 
-  /** 状态变更后写回 rooms 表（fire-and-forget，挂在队列尾） */
+  /** 状态变更后写回 rooms 表；写入由独立链串行化，动作响应可等待其完成。 */
   private touch() {
     this.state.version += 1;
     if (this.recorder) {
       this.state.eventLog = [...this.recorder.all];
     }
     const snapshot = JSON.parse(JSON.stringify(this.state)) as SdkRoomState;
-    this.enqueue(() =>
-      persistRoomState(this.code, this.state.status, snapshot).catch((err) => {
+    const write = this.persistenceQueue.then(async () => {
+      try {
+        await persistRoomState(this.code, this.state.status, snapshot);
+      } catch (err) {
         console.error(`[sdkRoom] persist ${this.code} failed`, err);
-      }),
-    );
+      }
+    });
+    this.lastPersistence = write;
+    this.persistenceQueue = write;
+  }
+
+
+  private async waitForPersistence(): Promise<void> {
+    await this.lastPersistence;
   }
 
   private clearTimers() {
@@ -413,7 +425,7 @@ export class SdkRoom {
   /* 动作（start 通用；submit/choose 由模板校验）                         */
   /* ---------------------------------------------------------------- */
   async act(seatToken: string, action: GameAction) {
-    return this.enqueue(async () => {
+    const result = await this.enqueue(async () => {
       const seat = this.state.seats.find(
         (s) => s && s.seatToken === seatToken,
       );
@@ -434,6 +446,8 @@ export class SdkRoom {
       const payload = typeof normalized === "number" ? { value: normalized } : normalized;
       return this.submitInternal(seat, payload.value, payload.payload);
     });
+    await this.waitForPersistence();
+    return result;
   }
 
   /**
@@ -1026,6 +1040,8 @@ export class SdkRoom {
       }
       // 事件流落库 + 彩蛋判定，须在发奖后——彩蛋读的 fragmentsDelta 由发奖决定
       await this.persistMatchLog();
+      // persistMatchLog 会再次 touch，必须等最终 eventLog 快照真正落库。
+      await this.waitForPersistence();
     })();
     this.finalization = finalization;
     await finalization;
