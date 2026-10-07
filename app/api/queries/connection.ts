@@ -16,3 +16,10 @@ export function getDb() {
   }
   return instance;
 }
+
+
+export async function closeDb(): Promise<void> {
+  if (!instance) return;
+  const client = (instance as unknown as { $client?: { end?: () => Promise<void> } }).$client;
+  if (client?.end) await client.end();
+}

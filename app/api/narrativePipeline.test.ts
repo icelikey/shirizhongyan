@@ -259,4 +259,23 @@ describe("narrative pipeline", () => {
     );
     expect(result.text).not.toContain("hidden");
   });
+
+  it("bounds long-match fallback facts without discarding replay refs", async () => {
+    const input = base();
+    input.plan = undefined;
+    input.jev = undefined;
+    input.narrative = undefined;
+    input.events = Array.from({ length: 200 }, (_, index) => ({
+      ...input.events[index % input.events.length],
+      seq: index,
+    }));
+    input.eventRefs = input.events.map(event => ref(event.seq));
+
+    const result = await runNarrativePipeline(input);
+
+    expect(result.digest?.facts).toHaveLength(128);
+    expect(result.digest?.eventRefs).toHaveLength(200);
+    expect(result.audit.errors.join(" ")).toContain("未配置 JEV");
+    expect(result.audit.errors.join(" ")).not.toContain("Too big");
+  });
 });

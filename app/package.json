@@ -21,7 +21,9 @@
     "db:seed": "tsx db/seed.ts",
     "accept:live-agent-billiards": "tsx scripts/accept-live-agent-billiards.mts",
     "accept:live-agent-cli": "node scripts/accept-live-agent-cli.mjs",
-    "accept:world-agent-smoke": "node scripts/accept-world-agent-smoke.mjs"
+    "accept:world-agent-smoke": "node scripts/accept-world-agent-smoke.mjs",
+    "accept:live-agent-worker-daily": "tsx scripts/accept-live-agent-worker-daily.mts",
+    "accept:live-agent-worker-daily-test": "tsx scripts/accept-live-agent-worker-daily.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",

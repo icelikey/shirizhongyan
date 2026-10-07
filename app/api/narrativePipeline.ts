@@ -223,6 +223,10 @@ export function buildFallbackTacticalDigest(input: {
     text: `${moment.headline}：${moment.facts.join(" ")}`,
     evidenceSeqs: unique(moment.evidenceSeqs),
   }));
+  // 长局可能有数百个事件，但 TacticalDigest 的事实列表有固定上限。
+  // 保留事件引用全量供回放和审计使用，事实文本只保留前 128 条，避免
+  // fallback 本身因 schema 超限而失去可读战报。
+  const boundedFacts = facts.slice(0, 128);
   const inferences = brief.strategyProfiles.flatMap(profile =>
     profile.inferredSignals.map(signal => ({
       text: `席位 ${profile.seat}：${signal.text}`,
@@ -240,6 +244,9 @@ export function buildFallbackTacticalDigest(input: {
     ...(inferences.length > 0
       ? []
       : ["没有可公开的策略摘要，只能依据已记录动作复盘。"]),
+    ...(facts.length > boundedFacts.length
+      ? [`事实摘要已截取前 ${boundedFacts.length} 条，完整事件仍保留在回放证据中。`]
+      : []),
   ];
 
   return tacticalDigestSchema.parse({
@@ -249,9 +256,9 @@ export function buildFallbackTacticalDigest(input: {
     world: input.world,
     eventRefs: refs,
     evidenceSeqs: eventSeqs.length > 0 ? eventSeqs : [input.world.eventSeq],
-    facts,
+    facts: boundedFacts,
     inferences,
-    publicFacts: facts.map(fact => fact.text),
+    publicFacts: boundedFacts.map(fact => fact.text),
     turningPointSeqs: brief.turningPoints.map(moment => moment.seq),
     strategyLabels: uniqueStrings([
       ...brief.strategyProfiles.flatMap(profile => profile.confirmedSignals),

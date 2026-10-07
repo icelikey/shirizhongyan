@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -111,6 +111,9 @@ export class MemoryStore {
     mkdirSync(dirname(this.path), { recursive: true });
     const tempPath = `${this.path}.${process.pid}.tmp`;
     writeFileSync(tempPath, `${JSON.stringify(this.state, null, 2)}\n`, "utf8");
+    // Windows 的 renameSync 不能覆盖已有目标文件；先移除旧文件，
+    // 保留 POSIX 下的原子 rename 路径，保证常驻 Worker 在各平台可恢复。
+    if (process.platform === "win32") rmSync(this.path, { force: true });
     renameSync(tempPath, this.path);
   }
 

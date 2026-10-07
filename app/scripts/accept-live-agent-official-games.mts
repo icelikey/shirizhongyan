@@ -7,7 +7,7 @@
  */
 import "dotenv/config";
 import { eq } from "drizzle-orm";
-import { getDb } from "../api/queries/connection";
+import { closeDb, getDb } from "../api/queries/connection";
 import { matchLogs, users } from "../db/schema";
 import { env } from "../api/lib/env";
 import { signSessionToken } from "../api/kimi/session";
@@ -225,7 +225,11 @@ async function runGame(gameId: GameId) {
 }
 
 const results: unknown[] = [];
-for (const gameId of games) {
-  results.push(await runGame(gameId));
+try {
+  for (const gameId of games) {
+    results.push(await runGame(gameId));
+  }
+  console.log(JSON.stringify({ baseUrl, results }, null, 2));
+} finally {
+  await closeDb();
 }
-console.log(JSON.stringify({ baseUrl, results }, null, 2));
