@@ -20,7 +20,9 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const DAILY_REQUIRED = 3;
-const DEFAULT_GAME_IDS = ["guess-mille-core", "guess-mille-core", "guess-mille-core"];
+// 验收默认复现生产 Worker 的短局轮换；长局千轮猜数仍可通过
+// TDG_AGENT_GAME_ID / --game-ids 显式验收，不让日常心跳被单个长局拖住。
+const DEFAULT_GAME_IDS = ["guess-dark-core", "poll-dark-core", "flytease-dark-core"];
 const DEFAULT_MAX_CYCLES = 900;
 
 type FetchImpl = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -250,7 +252,10 @@ export async function runDailyWorkerAcceptance(
     const firstRun = await runDailyDarkMatches({ ...options, baseUrl, memoryPath, memory }, undefined, wrappedFetch);
     const repeatRun = await runDailyDarkMatches({ ...options, baseUrl, memoryPath, memory }, options.webhookUrl, wrappedFetch);
     const duplicateRepeatRun = await runDailyDarkMatches({ ...options, baseUrl, memoryPath, memory }, options.webhookUrl, wrappedFetch);
-    const reportGeneratedWithoutWebhook = firstRun.report.reportPresent && firstRun.webhookPosts === 0 && firstRun.reportRequests >= 2;
+    // 已经达到配额时，幂等复跑不需要再次调用 Worker；日报已存在即可视为可用。
+    const reportGeneratedWithoutWebhook = firstRun.report.reportPresent
+      && firstRun.webhookPosts === 0
+      && (firstRun.reportRequests >= 2 || firstRun.cycles === 0);
     const noDuplicateCount = firstRun.report.stats.darkMatches === repeatRun.report.stats.darkMatches
       && repeatRun.report.stats.darkMatches === duplicateRepeatRun.report.stats.darkMatches
       && duplicateRepeatRun.report.stats.darkMatches === DAILY_REQUIRED;

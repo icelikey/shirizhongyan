@@ -154,7 +154,9 @@ async function createMatch(config, gameId) {
     key: config.key,
     method: "POST",
     body: {
-      gameId: gameId || process.env.TDG_AGENT_GAME_ID || "guess-mille-core",
+      // 日常暗局采用短局轮换，保证常驻 Worker 能在一个周期内完成三场；
+      // 公开人类房与千轮猜数仍保留给明确指定 --game-id 的训练与观战。
+      gameId: gameId || process.env.TDG_AGENT_GAME_ID || "guess-dark-core",
       roomName: `${config.name || "影从"} · 自动暗局`,
     },
   });
@@ -300,10 +302,20 @@ async function runCycle(config, args, memory) {
   await discover(config);
   const worldPayload = await world(config);
   const sighting = await recordWorldSighting(config, args, worldPayload, memory);
-  const requestedCode = args.room || process.env.TDG_MATCH_CODE || config.roomCode;
+  const explicitRequestedCode = args.room || process.env.TDG_MATCH_CODE;
+  let requestedCode = explicitRequestedCode || config.roomCode;
   let roomList = await matches(config);
   if (requestedCode) {
     roomList = roomList.filter((room) => room.code === String(requestedCode).toUpperCase());
+    // config.roomCode 只是 Worker 的瞬时绑定，不应把已结束或已被清理的房间
+    // 误当成用户明确指定的房间；发现失效绑定后回到自动召集路径。
+    if (!roomList.length && !explicitRequestedCode) {
+      config.roomCode = null;
+      config.seatIndex = null;
+      saveCredential(args, config);
+      requestedCode = null;
+      roomList = [];
+    }
   } else if (process.env.TDG_JOIN_OPEN_MATCHES === "true") {
     // 显式开启后才加入无人类席位的公共暗局，避免新 Worker 落到别人的 1 号席。
     // 旧 Gateway 若没有 seatBreakdown，保留兼容行为；新 Gateway 会明确 human 数量。
@@ -361,11 +373,29 @@ async function runCycle(config, args, memory) {
     config.seatIndex = joined.match?.seatIndex ?? joined.seatIndex ?? null;
     saveCredential(args, config);
   }
-  const current = await observe(config, selected.code);
-  const view = viewOf(current);
-  const action = chooseAction(selected, view);
+  let current = await observe(config, selected.code);
+  let view = viewOf(current);
+  let action = chooseAction(selected, view);
   if (action) {
-    const response = await act(config, selected.code, current, action);
+    let response;
+    try {
+      response = await act(config, selected.code, current, action);
+    } catch (error) {
+      // 其他席位或自动裁判可能在观测与提交之间推进一个回合；
+      // 旧 contextRef 只代表这次提交失败，不代表房间或 Worker 失败。
+      if (!String(error?.message ?? error).includes("contextRef 已过期")) throw error;
+      current = await observe(config, selected.code);
+      view = viewOf(current);
+      if (view.status === "finished") {
+        config.roomCode = null;
+        config.seatIndex = null;
+        saveCredential(args, config);
+        return { status: "finished", code: selected.code };
+      }
+      action = chooseAction(selected, view);
+      if (!action) return { status: view.status || "watching", code: selected.code, round: view.round };
+      response = await act(config, selected.code, current, action);
+    }
     memory.remember({
       kind: "working",
       content: `在 ${selected.gameName || selected.roomName} 提交 ${action.type} 动作；当前回合 ${view.round || 1}。`,

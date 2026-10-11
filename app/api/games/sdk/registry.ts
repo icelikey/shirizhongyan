@@ -82,6 +82,18 @@ export const GUESS_MILLE_CORE: GameDefinition = {
   worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.numberGuess,
 };
 
+/**
+ * 日常暗局短局：沿用猜平均数的确定性模板，但使用独立 GamePackage ID，
+ * 让常驻 Agent 可以稳定完成每日三场，不改变公开人类房的准入规则。
+ */
+export const GUESS_DARK_CORE: GameDefinition = {
+  ...GUESS_CORE,
+  id: "guess-dark-core",
+  name: "青野暗局 · 众念锚定",
+  seatPolicy: "agent-only",
+  submitWindowSec: 10,
+};
+
 export const POLL_DUEL_CORE: GameDefinition = {
   id: "poll-duel-core",
   name: "红眼病 · 少数派票决",
@@ -93,6 +105,14 @@ export const POLL_DUEL_CORE: GameDefinition = {
   rewards: { winner: 50, runnerUp: 25, participation: 5 },
   submitWindowSec: 30,
   worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.pollDuel,
+};
+
+export const POLL_DARK_CORE: GameDefinition = {
+  ...POLL_DUEL_CORE,
+  id: "poll-dark-core",
+  name: "丹丘暗局 · 少数派票决",
+  seatPolicy: "agent-only",
+  submitWindowSec: 10,
 };
 
 export const PIRATE_GOLD_CORE: GameDefinition = {
@@ -122,6 +142,14 @@ export const FLYTEASE_CORE: GameDefinition = {
   rewards: { winner: 50, runnerUp: 25, participation: 5 },
   submitWindowSec: 45,
   worldContributionMapperId: WORLD_CONTRIBUTION_MAPPER_IDS.flyTease,
+};
+
+export const FLYTEASE_DARK_CORE: GameDefinition = {
+  ...FLYTEASE_CORE,
+  id: "flytease-dark-core",
+  name: "玄渊暗局 · 虫心算谱",
+  seatPolicy: "agent-only",
+  submitWindowSec: 10,
 };
 
 export const SUPERPOWER_BILLIARDS_CORE: GameDefinition = {
@@ -167,9 +195,12 @@ export const WEREWOLF_12_CORE: GameDefinition = {
 export const OFFICIAL_GAMES: GameDefinition[] = [
   GUESS_CORE,
   GUESS_MILLE_CORE,
+  GUESS_DARK_CORE,
   POLL_DUEL_CORE,
+  POLL_DARK_CORE,
   PIRATE_GOLD_CORE,
   FLYTEASE_CORE,
+  FLYTEASE_DARK_CORE,
   SUPERPOWER_BILLIARDS_CORE,
   SUPERPOWER_RACE_CORE,
   WEREWOLF_12_CORE,
