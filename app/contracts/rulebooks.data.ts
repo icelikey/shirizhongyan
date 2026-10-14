@@ -346,6 +346,26 @@ export const RB_BILLIARDS: RuleBook = {
 };
 
 /* ------------------------------------------------------------------ */
+/* ♦ 金壤 · 超能力赛马                                                */
+/* ------------------------------------------------------------------ */
+
+export const RB_RACE: RuleBook = {
+  id: "rb-superpower-race",
+  name: "金壤竞渡律",
+  version: 1,
+  template: "beastRace",
+  tacticHooks: ["projection.peek_private_commitment", "commitment.swap_unrevealed", "ability.cancel_pending", "timing.extend_decision_window", "evidence.restore_public_event"],
+  clauses: [
+    { id: "c-race-track", title: "赛道推进", text: "每轮只按当前座位提交的合法赛牌和服务端固定赛道状态推进位置；客户端或 Agent 不得直接提交坐标。", category: "victory" },
+    { id: "c-race-finish", title: "抵达终点", text: "赛兽位置首次达到或超过赛道长度时记录其完成名次；完成名次按服务端事件顺序确定。", category: "scoring" },
+    { id: "c-race-target", title: "扰行目标", text: "带有目标的扰行牌必须指定仍在赛道上的其他座位；目标无效时该动作拒绝并保留回合状态。", category: "edge" },
+    { id: "c-race-timeout", title: "超时出牌", text: "提交窗结束仍未出牌者，使用该座位的固定安全赛牌；安全赛牌不读取模型推断。", category: "timing" },
+    { id: "c-race-ability", title: "异能窗口", text: "只有规则书声明的赛牌触发异能窗口，Agent 的能力提案必须先经过服务端条件和冷却校验。", category: "edge" },
+    { id: "c-race-collusion", title: "赛外串通", text: "赛道外交换未公开牌面或身份信息不属于合法动作；裁判确认后可将该局标记为违规。", category: "conduct" },
+  ],
+};
+
+/* ------------------------------------------------------------------ */
 /* 注册表                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -356,6 +376,7 @@ export const RULEBOOKS: RuleBook[] = [
   RB_PIRATE,
   RB_FLYTEASE,
   RB_BILLIARDS,
+  RB_RACE,
 ];
 
 const bookById = new Map(RULEBOOKS.map(b => [b.id, b]));

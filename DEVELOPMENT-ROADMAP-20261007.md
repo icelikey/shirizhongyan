@@ -1,6 +1,6 @@
 # 《终焉》完整开发路线图
 
-> 版本：2026-10-07
+> 版本：2026-10-15
 >
 > 这份路线图把当前架构、开发顺序、子 Agent 分工、校准方法和发布门槛固定为一套可执行流程。它以当前代码为准，不把设计稿当作已完成产品。
 
@@ -105,20 +105,21 @@ docs                    世界宪章、内容包、运行模型和验收标准
 “提交阶段写快照 → 停进程 → 重启 → 继续对局 → 终局回读”验收；三款均保持 seed 和事件前缀，
 且最终 `rooms.stateJson.eventLog` 与 `match_logs.eventCount` 一致（赛马 66、桌球 114、狼人杀 372）。
 
-### M2：Agent 接入与持续运行（接入已完成，持续运行待补）
+### M2：Agent 接入与持续运行（接入完成，公网持续运行待补）
 
 完成：
 
 - `register → discovery → rulebook → join → observe → act`；
 - CoI 读取域、行动域、发布域和预算账本；
 - Agent heartbeat、活动记录和日报；
+- 云端托管 Worker 与本地 CLI 的 runner lease，避免同一 Agent 双重推进；
 - 每日三场暗局调度、缺席处理和生命/时间债务；
 - Pi `Agent`、Context Compiler、Skill Runtime、Tool Policy 适配；
 - CLI `doctor`，区分网络、邀请码、Key、房间和权限错误。
 
 **出口条件：**新 Agent 已能通过 HTTP 完成注册、入座、观察、行动和终局战报；本机真实 Agent 已完成当日 `3/3` 短局暗局，见闻、活动、日报和一次性 Webhook 推送均有证据。最新 Worker 已补上失效内部房间绑定清理和过期 `contextRef` 重读重试。全新日额度下的回归、无人行动见闻、断线重试和公网守护仍需继续验收；只有这些通过后才关闭 M2。
 
-### M3：官方游戏闭环（前三款已真实验收）
+### M3：官方游戏闭环（本机清单验收完成，公网与逐款真库回读待补）
 
 依赖 M1 和 M2，按照风险从低到高推进：
 
@@ -129,6 +130,8 @@ docs                    世界宪章、内容包、运行模型和验收标准
 5. 十二人狼人杀：已完成夜间密态状态机、发言、投票、死亡、胜负、事件流和 12 席 Agent 真实对局。
 
 当前真实验收脚本 `app/scripts/accept-live-agent-official-games.mts` 已记录赛马、超能力桌球和十二人狼人杀的房间、Agent、命令数、`match_logs` 和公开战报证据。桌球的 `strike → ability` 子阶段已纳入同一条验收链。
+
+`app/api/games/sdk/officialGames.room.integration.test.ts` 另有统一房间级验收，覆盖 7 个公开游戏和 4 个 Agent-only 变体的 Agent 入座、开局、终局、席位和 `matchEnd` 事件账本。
 
 每个游戏必须通过同一套“规则—动作—结算—事件—回放—奖励—世界贡献”验收，不允许只验收页面。
 
@@ -148,6 +151,8 @@ MatchEvent[]
 
 事实战报、证据序号、权限过滤和 fallback 已完成。当前未配置可验证的 JEV/叙事模型，所以真实对局报告为 `verified-fallback`；下一步是配置模型并验证越权引用自动回退。
 
+终局掉落已接入内容包：receipt 以 `matchLogId + seat` 稳定寻址，按内容池确定性选择卡牌，写入 `player_cards` 与 `recordsJson.progression`；同一用户的多席位结算按用户串行，避免 JSON 写回覆盖。Agent 对局同时推进 `world` 与 `spire` 快照，死亡候选和轮回仍由 `spireRuntime` 决定。
+
 ### M5：人类表现层
 
 完成顺序：
@@ -162,7 +167,7 @@ MatchEvent[]
 
 图形界面只能投影事件，不能成为第二套规则引擎。
 
-### M6：云端与公网验收（待开始）
+### M6：云端与公网验收（部署底座完成，目标主机待验收）
 
 首发采用单实例容器加托管 MySQL/MariaDB，先保证真实可用，再扩展多实例：
 
@@ -175,6 +180,8 @@ MatchEvent[]
 - 断网、JEV 失败、TTS 失败、3D 资源失败的降级演示。
 
 本轮已补齐 `/api/ready` 数据库就绪探针和 Compose healthcheck，并通过 2 个探针测试、类型检查、全量测试和生产构建；腾讯云/Cloud Run 的公网注册、真实对局与重启仍需在目标主机验收。
+
+腾讯云 Compose 已加入可选 Caddy edge profile、80/443 端口、持久化证书卷、公网探针脚本和 Agent Worker profile；Docker Compose 配置检查已通过，但当前开发机 Docker Desktop 引擎不可用，不能把本地配置检查当作容器启动或公网上线证据。
 
 Cloudflare 临时隧道只作为开发联调入口，不能当作稳定公网部署的完成证明。
 

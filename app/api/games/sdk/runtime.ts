@@ -69,6 +69,8 @@ import {
   getWorldId,
 } from "../../queries/worldEmergence";
 import { mapperIdForTemplate } from "@contracts/worldContributionMapper";
+import { loadOfficialContentPackages, CONTENT_GAME_ALIASES } from "../../content/runtime";
+import { settleContentProgression } from "../../queries/progression";
 
 export const REVEAL_MS = 5_000;
 /** v4 SDK 房间快照标记（v3 旧快照无此字段 → 不恢复） */
@@ -1108,6 +1110,7 @@ export class SdkRoom {
     });
     this.state.matchLogId = logId;
     this.touch();
+    await this.settleContentDrops(logId);
     await this.persistTextWorldChapter(rec, logId);
     } catch (err) {
       console.error(`[sdkRoom] ${this.code} 事件流落库失败`, err);
@@ -1115,6 +1118,47 @@ export class SdkRoom {
     }
 
     await this.grantEggCards(rec);
+  }
+
+  /**
+   * 内容包掉落是 match log 的派生事实。receipt 写入 traveler_profiles.recordsJson，
+   * 与卡牌同一事务完成；重放相同 matchLogId/seat 不会再次增加卡牌。
+   */
+  private async settleContentDrops(matchLogId: number): Promise<void> {
+    let registry;
+    try {
+      registry = loadOfficialContentPackages();
+    } catch (error) {
+      console.error(`[sdkRoom] content drop registry unavailable ${this.code}`, error);
+      return;
+    }
+    const packageId = CONTENT_GAME_ALIASES[this.def.id] ?? this.def.id;
+    const content = registry.packages.get(packageId);
+    if (!content) return;
+    const rankings = this.state.rankings ?? [];
+    // 同一用户可以在一局里同时拥有真人席与影从席；每个席位都有独立
+    // receipt，但 recordsJson 是同一行，必须按用户串行合并，避免最后写入
+    // 的 receipt 覆盖此前的战绩、world 或 spire 快照。
+    const jobsByUser = new Map<number, Array<() => Promise<unknown>>>();
+    for (const seat of this.state.seats) {
+      if (!seat?.userId || seat.kind === "echo-bot") continue;
+      const userId = seat.userId;
+      const rank = rankings.indexOf(seat.index);
+      const result = rank === 0 ? "win" : "loss";
+      const jobs = jobsByUser.get(userId) ?? [];
+      jobs.push(() => settleContentProgression({
+        userId,
+        eventId: `match:${matchLogId}:seat:${seat.index}`,
+        matchLogId,
+        gameId: content.gameId,
+        result,
+        pool: content.dropPool,
+      }).catch((error) => console.error(`[sdkRoom] content drop settle failed ${this.code}/${seat.index}`, error)));
+      jobsByUser.set(userId, jobs);
+    }
+    await Promise.all([...jobsByUser.values()].map(async (jobs) => {
+      for (const job of jobs) await job();
+    }));
   }
 
   /**
@@ -1214,9 +1258,19 @@ export class SdkRoom {
     this.state.settled = true;
     const rankings = this.state.rankings ?? [];
     const { rewards, entryFee } = this.def;
-    const jobs: Promise<unknown>[] = [];
+    // 同一用户可能同时占真人席和 Agent 席（例如一个用户旁观/驱动自己的
+    // 影从）。两条结算都会合并写 traveler_profiles.recordsJson；若并行读写，
+    // 后写入的一方会覆盖另一方的 game record 或 world/spire 快照。因此按
+    // userId 串行、不同用户之间并行。
+    const jobsByUser = new Map<number, Array<() => Promise<unknown>>>();
+    const enqueueForUser = (userId: number, job: () => Promise<unknown>) => {
+      const jobs = jobsByUser.get(userId) ?? [];
+      jobs.push(job);
+      jobsByUser.set(userId, jobs);
+    };
     for (const seat of this.state.seats) {
       if (!seat || seat.userId == null) continue;
+      const userId = seat.userId;
       const rank = rankings.indexOf(seat.index);
       const reward =
         rank === 0
@@ -1226,21 +1280,23 @@ export class SdkRoom {
             : rewards.participation;
       const delta = reward - entryFee.amount;
       if (seat.kind === "human") {
-        jobs.push(
-          awardGameResult(seat.userId, {
+        enqueueForUser(userId, () => awardGameResult(userId, {
             suit: entryFee.suit,
             delta,
             won: rank === 0,
             recordKey: this.module.recordKey,
-          }).catch((err) => console.error(`[sdkRoom] settle ${this.code} failed`, err)),
-        );
+          }).catch((err) => console.error(`[sdkRoom] settle ${this.code} failed`, err)));
       }
       if (seat.kind === "external-agent" && seat.agentKeyId != null) {
+        const agentKeyId = seat.agentKeyId;
         const result = rank === 0 ? "win" : "loss";
-        jobs.push(
-          recordAgentGameResult({ userId: seat.userId, result })
+        enqueueForUser(userId, () => recordAgentGameResult({
+            userId,
+            result,
+            eventId: `match:${this.code}:seat:${seat.index}`,
+          })
             .then((world) => recordAgentActivity({
-              agentKeyId: seat.agentKeyId!,
+              agentKeyId,
               kind: result === "win" ? "victory" : "match",
               title: `黑暗对局完成 · ${this.def.name}`,
               detail: result === "win" ? "影从赢下本场对局，世界周期获得推进。" : "影从完成本场对局，失败被记录为可携带的经验。",
@@ -1258,7 +1314,9 @@ export class SdkRoom {
         );
       }
     }
-    await Promise.all(jobs);
+    await Promise.all([...jobsByUser.values()].map(async (jobs) => {
+      for (const job of jobs) await job();
+    }));
   }
 
   /** 进程重启后从 stateJson 恢复时重建 timers */

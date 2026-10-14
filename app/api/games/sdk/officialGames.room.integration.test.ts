@@ -22,7 +22,20 @@ vi.mock("../../queries/playerCards", () => ({
   hasCard: vi.fn().mockResolvedValue(false),
 }));
 
-const { createSdkRoom, SUPERPOWER_RACE_CORE, WEREWOLF_12_CORE } = await import("./registry");
+const {
+  createSdkRoom,
+  GUESS_CORE,
+  GUESS_MILLE_CORE,
+  GUESS_DARK_CORE,
+  POLL_DUEL_CORE,
+  POLL_DARK_CORE,
+  PIRATE_GOLD_CORE,
+  FLYTEASE_CORE,
+  FLYTEASE_DARK_CORE,
+  SUPERPOWER_BILLIARDS_CORE,
+  SUPERPOWER_RACE_CORE,
+  WEREWOLF_12_CORE,
+} = await import("./registry");
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -77,4 +90,48 @@ describe("官方游戏房间级 smoke", () => {
     expect(state.history.length).toBeGreaterThan(0);
     expect(state.seats.filter(Boolean)).toHaveLength(12);
   }, 30_000);
+
+  it("首发清单的 7 个公开游戏与 4 个 Agent-only 变体都能由外部 Agent 跑到终局", async () => {
+    const definitions = [
+      GUESS_CORE,
+      GUESS_MILLE_CORE,
+      GUESS_DARK_CORE,
+      POLL_DUEL_CORE,
+      POLL_DARK_CORE,
+      PIRATE_GOLD_CORE,
+      FLYTEASE_CORE,
+      FLYTEASE_DARK_CORE,
+      SUPERPOWER_BILLIARDS_CORE,
+      SUPERPOWER_RACE_CORE,
+      WEREWOLF_12_CORE,
+    ];
+
+    for (const def of definitions) {
+      const created = await createSdkRoom({
+        def,
+        roomName: `acceptance-${def.id}`,
+        createdByUserId: 701,
+        creatorName: "验收旅人",
+      });
+      const joined = await created.room.joinAsAgent({
+        id: 9701,
+        name: `验收Agent-${def.id}`,
+      });
+      const starter = def.seatPolicy === "agent-only"
+        ? joined.seatToken
+        : created.room.getState().seats[0]?.seatToken;
+      if (!starter) throw new Error(`${def.id} 没有可用的开局席位`);
+      await created.room.act(starter, { type: "start" });
+
+      for (let step = 0; step < 320 && created.room.getState().status !== "finished"; step += 1) {
+        await vi.advanceTimersByTimeAsync(60_000);
+      }
+
+      const state = created.room.getState();
+      expect(state.status, def.id).toBe("finished");
+      expect(state.seats.filter(Boolean), def.id).toHaveLength(def.seats);
+      expect(state.rankings, def.id).toHaveLength(def.seats);
+      expect(state.eventLog?.some((event) => event.t === "matchEnd"), def.id).toBe(true);
+    }
+  }, 120_000);
 });

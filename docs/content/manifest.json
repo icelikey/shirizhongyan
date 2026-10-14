@@ -35,7 +35,7 @@
       "template": "numberGuess",
       "recordKey": "guess",
       "rulebookId": "rb-guess",
-      "worldContributionMapperId": "numberGuess/v1"
+      "worldContributionMapperId": "number-guess/v1"
     },
     {
       "contentId": "endings.poll-duel",
@@ -44,7 +44,7 @@
       "template": "pollDuel",
       "recordKey": "pollDuel",
       "rulebookId": "rb-poll",
-      "worldContributionMapperId": "pollDuel/v1"
+      "worldContributionMapperId": "poll-duel/v1"
     },
     {
       "contentId": "endings.pirate-gold",
@@ -52,8 +52,8 @@
       "gameId": "pirate-gold-core",
       "template": "pirateGold",
       "recordKey": "pirate",
-      "rulebookId": "rb-pirate-gold",
-      "worldContributionMapperId": "pirateGold/v1"
+      "rulebookId": "rb-pirate",
+      "worldContributionMapperId": "pirate-gold/v1"
     },
     {
       "contentId": "endings.flytease",
@@ -62,7 +62,7 @@
       "template": "flyTease",
       "recordKey": "flyTease",
       "rulebookId": "rb-flytease",
-      "worldContributionMapperId": "flyTease/v1"
+      "worldContributionMapperId": "fly-tease/v1"
     },
     {
       "contentId": "endings.werewolf12",
@@ -79,7 +79,7 @@
       "gameId": "superpower-billiards-core",
       "template": "superpowerBilliards",
       "recordKey": "superpowerBilliards",
-      "rulebookId": "rb-superpower-billiards-v1",
+      "rulebookId": "rb-superpower-billiards",
       "worldContributionMapperId": "superpower-billiards/v1"
     },
     {
@@ -88,7 +88,7 @@
       "gameId": "superpower-race-core",
       "template": "beastRace",
       "recordKey": "beastRace",
-      "rulebookId": "rb-superpower-race-v1",
+      "rulebookId": "rb-superpower-race",
       "worldContributionMapperId": "beast-race/v1"
     }
   ]

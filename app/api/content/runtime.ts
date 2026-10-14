@@ -1,12 +1,23 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { mapperIdForTemplate } from "@contracts/worldContributionMapper";
+import { ruleBookForTemplate } from "@contracts/rulebooks.data";
 
 const contentEntrySchema = z.object({
   contentId: z.string().min(1),
   file: z.string().regex(/^[A-Za-z0-9._-]+\.json$/),
   gameId: z.string().min(1),
-  template: z.string().min(1),
+  template: z.enum([
+    "numberGuess",
+    "pollDuel",
+    "pirateGold",
+    "flyTease",
+    "superpowerBilliards",
+    "beastRace",
+    "werewolf",
+    "spire",
+  ]),
   recordKey: z.string().min(1),
   rulebookId: z.string().min(1),
   worldContributionMapperId: z.string().min(1),
@@ -107,6 +118,14 @@ export function loadContentPackages(contentDir = resolve(process.cwd(), "content
     const pkg = contentPackageSchema.parse(parseJson(filePath));
     if (pkg.gameId !== entry.gameId || pkg.template !== entry.template || pkg.recordKey !== entry.recordKey) {
       throw new Error(`内容包运行时绑定不一致：${entry.gameId}`);
+    }
+    const rulebook = ruleBookForTemplate(entry.template);
+    if (!rulebook || rulebook.id !== entry.rulebookId) {
+      throw new Error(`内容包规则书绑定不一致：${entry.gameId} / ${entry.rulebookId}`);
+    }
+    const mapperId = mapperIdForTemplate(entry.template);
+    if (mapperId !== entry.worldContributionMapperId) {
+      throw new Error(`内容包世界映射绑定不一致：${entry.gameId} / ${entry.worldContributionMapperId}`);
     }
     assertUniqueIds(pkg);
     if (packages.has(pkg.gameId)) throw new Error(`内容包重复：${pkg.gameId}`);

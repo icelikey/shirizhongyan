@@ -29,6 +29,19 @@ curl http://localhost:8080/api/ready
 
 `/api/health` 只证明进程正在监听；`/api/ready` 额外执行数据库 `SELECT 1`，数据库未就绪时返回 HTTP 503。停机时使用 `docker compose ... down`；需要保留数据库时不要加 `-v`。
 
+### 腾讯云单机 HTTPS 边缘层
+
+腾讯云 CVM 首发使用同一份 Compose。把 `deploy/.env.cloud.example` 复制成 `deploy/.env.cloud`，填写强随机 `APP_SECRET`、数据库密码、邀请码；如果已经把域名解析到 CVM，再填写 `TDG_DOMAIN` 和 `ACME_EMAIL`。应用只暴露 Compose 内部的 8080，Caddy 负责 80/443 和自动证书：
+
+```powershell
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d --build --wait
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml run --rm app pnpm db:migrate
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml --profile edge up -d caddy
+.\deploy\verify-public-endpoint.ps1 -BaseUrl https://$env:TDG_DOMAIN -RequireReady
+```
+
+`edge` profile 未启用时不会启动 Caddy，适合先用 CVM 公网 IP 做 HTTP 联调；启用 HTTPS 前必须让域名 A 记录指向 CVM，并在安全组放行 TCP 80/443。临时 Cloudflare 隧道不能替代这条首发链路。
+
 ## 2. Cloud Run
 
 Cloud Run 只运行无状态 HTTP 服务，数据库使用 Cloud SQL MySQL 8。当前房间状态仍是单实例内存 actor 加数据库快照，因此部署脚本把最大实例数固定为 1；商业化扩容前需要把房间 actor 和事件队列迁移到 Redis/专用状态服务。

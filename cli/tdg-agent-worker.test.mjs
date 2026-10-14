@@ -23,7 +23,7 @@ function response(status, payload) {
   });
 }
 
-function gatewayMock({ webhookUrl = "http://127.0.0.1:9/webhook" } = {}) {
+function gatewayMock({ webhookUrl = "http://127.0.0.1:9/webhook", leaseAcquired = true } = {}) {
   const requests = [];
   let observationReads = 0;
   const fetchImpl = async (input, init = {}) => {
@@ -68,6 +68,9 @@ function gatewayMock({ webhookUrl = "http://127.0.0.1:9/webhook" } = {}) {
     }
     if (url.endsWith("/agents/agent-1/activity") && method === "POST") {
       return response(201, { ok: true });
+    }
+    if (url.endsWith("/agents/agent-1/runner-lease") && method === "POST") {
+      return response(200, { acquired: leaseAcquired, ok: leaseAcquired, runnerId: body.runnerId, leaseUntil: new Date(Date.now() + 30000).toISOString() });
     }
     if (url.endsWith("/agents/agent-1/report")) {
       return response(200, { report: { summary: "mock daily", stats: {} } });
@@ -142,6 +145,16 @@ test("Worker without webhook configuration makes no external webhook request", a
   const mock = gatewayMock();
   await runOnce({ config: baseConfig, args: { once: true, create_match: true, persist: false }, fetchImpl: mock.fetchImpl, webhookUrl: "" });
   assert.equal(mock.requests.some(({ url }) => url.includes("webhook")), false);
+});
+
+test("Worker with a competing lease does not advance a match or publish a daily report", async (t) => {
+  const runOnce = requireWorkerBoundary(t);
+  if (!runOnce) return;
+  const mock = gatewayMock({ leaseAcquired: false });
+  const result = await runOnce({ config: { ...baseConfig }, args: { once: true, create_match: true, persist: false }, fetchImpl: mock.fetchImpl });
+  assert.equal(result.status, "lease-busy");
+  assert.equal(mock.requests.some((request) => request.url.endsWith("/matches") && request.method === "POST"), false);
+  assert.equal(mock.requests.some((request) => request.url.endsWith("/report")), false);
 });
 
 

@@ -74,6 +74,28 @@ services:
     volumes:
       - tdg_agent_data:/data
 
+  # 腾讯云首发可选边缘层：默认 profile 不启动，启用 edge 后由 Caddy
+  # 负责 80/443 与自动证书，应用仍只在 Compose 网络内监听 8080。
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    profiles: ["edge"]
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      TDG_DOMAIN: ${TDG_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - tdg_caddy_data:/data
+      - tdg_caddy_config:/config
+
 volumes:
   tdg_mysql_data:
   tdg_agent_data:
+  tdg_caddy_data:
+  tdg_caddy_config:

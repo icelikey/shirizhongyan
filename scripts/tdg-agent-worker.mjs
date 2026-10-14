@@ -17,6 +17,31 @@ import { MemoryStore } from "../pi-tdg-agent/src/memory.mjs";
 const DEFAULT_INTERVAL_MS = 5000;
 const VERSION = "0.1.0";
 
+function runnerId(config) {
+  return config.runnerId || `runner-${randomUUID()}`;
+}
+
+async function acquireLease(config) {
+  const id = runnerId(config);
+  config.runnerId = id;
+  return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/runner-lease`, {
+    key: config.key, method: "POST", body: { op: "acquire", runnerId: id },
+  });
+}
+
+async function heartbeatLease(config) {
+  return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/runner-lease`, {
+    key: config.key, method: "POST", body: { op: "heartbeat", runnerId: required(config.runnerId, "runnerId") },
+  });
+}
+
+async function releaseLease(config) {
+  if (!config.runnerId) return;
+  return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/runner-lease`, {
+    key: config.key, method: "POST", body: { op: "release", runnerId: config.runnerId },
+  });
+}
+
 function argsOf(argv) {
   const result = { _: [] };
   for (let i = 0; i < argv.length; i += 1) {
@@ -299,6 +324,8 @@ function chooseAction(match, view) {
 }
 
 async function runCycle(config, args, memory) {
+  const lease = await acquireLease(config);
+  if (lease?.acquired === false || lease?.ok === false) return { status: "lease-busy", runnerId: config.runnerId };
   await discover(config);
   const worldPayload = await world(config);
   const sighting = await recordWorldSighting(config, args, worldPayload, memory);
@@ -377,6 +404,7 @@ async function runCycle(config, args, memory) {
   let view = viewOf(current);
   let action = chooseAction(selected, view);
   if (action) {
+    await heartbeatLease(config);
     let response;
     try {
       response = await act(config, selected.code, current, action);
@@ -506,9 +534,10 @@ export async function runOnce({ config, args = {}, fetchImpl = globalThis.fetch,
       path: args.memory || process.env.TDG_AGENT_MEMORY || null,
     });
     const result = await runCycle(config, args, store);
-    await sendDailyReport(config, store);
+    if (result.status !== "lease-busy") await sendDailyReport(config, store);
     return result;
   } finally {
+    try { await releaseLease(config); } catch (error) { console.error(`租约释放失败：${redact(error)}`); }
     globalThis.fetch = previousFetch;
     if (webhookUrl !== undefined) {
       if (previousWebhook === undefined) delete process.env.TDG_REPORT_WEBHOOK_URL;

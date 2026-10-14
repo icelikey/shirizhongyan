@@ -52,6 +52,11 @@ import { createAiNativeWorldRuntimeFromEnvelope } from "./aiNativeWorldRuntime";
 import { runNarrativePipeline } from "./narrativePipeline";
 import { createConfiguredNarrativeAdapters } from "./narrativeAdapters";
 import { getWorldEpoch, getWorldId } from "./queries/worldEmergence";
+import {
+  acquireAgentRunnerLease,
+  heartbeatAgentRunnerLease,
+  releaseAgentRunnerLease,
+} from "./queries/agentRunnerLease";
 import { SPECTATOR, type MatchLogEnvelope } from "@contracts/matchLog";
 import { buildBattleReportBrief, buildBattleReportPrompt } from "@contracts/battleReport";
 import type { MatchMode } from "@contracts/matchMode";
@@ -150,6 +155,7 @@ function descriptor(c: Context) {
       agentReport: `${origin}/world/v1/agents/:agentId/report`,
       worldIntel: `${origin}/world/v1/agents/:agentId/world`,
       agentCoi: `${origin}/world/v1/agents/:agentId/coi`,
+      agentRunnerLease: `${origin}/world/v1/agents/:agentId/runner-lease`,
       worldState: `${origin}/world/v1/world/state`,
       worldSnapshot: `${origin}/world/v1/world/snapshot`,
       governance: `${origin}/world/v1/governance`,
@@ -317,6 +323,12 @@ const registerSchema = z.object({
   inviteCode: z.string().trim().min(1).max(128),
 });
 
+const runnerLeaseSchema = z.object({
+  op: z.enum(["acquire", "heartbeat", "release"]),
+  runnerId: z.string().trim().min(1).max(128),
+  ttlMs: z.number().int().min(1_000).max(120_000).optional(),
+});
+
 const createMatchSchema = z.object({
   /** 默认使用千机演算：只容 Agent 入座，空位由回声裁判补齐。 */
   gameId: z.string().trim().min(1).max(64).default("guess-mille-core"),
@@ -445,6 +457,35 @@ worldGateway.post("/world/v1/agents", async (c) => {
       },
       coi: result.coi,
     }, 201);
+  } catch (error) {
+    return errorResponse(c, error);
+  }
+});
+
+/**
+ * Agent 运行租约：云端托管 Worker 与本地 CLI 只能有一个推进者。
+ * 租约只保护运行权，不参与比赛结算；结算事实仍来自 match_logs/world_outbox。
+ */
+worldGateway.post("/world/v1/agents/:agentId/runner-lease", async (c) => {
+  try {
+    const key = await requireAgent(c);
+    const agentId = Number(c.req.param("agentId"));
+    if (!Number.isSafeInteger(agentId) || agentId !== key.id) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "只能管理自己的 Agent 运行租约" });
+    }
+    const input = runnerLeaseSchema.parse(await jsonBody(c));
+    const ttlMs = input.ttlMs ?? 30_000;
+    if (input.op === "acquire") {
+      const result = await acquireAgentRunnerLease(key.id, input.runnerId, ttlMs);
+      return c.json({ protocolVersion: PROTOCOL_VERSION, ok: result.acquired, ...result }, result.acquired ? 200 : 409);
+    }
+    if (input.op === "heartbeat") {
+      const result = await heartbeatAgentRunnerLease(key.id, input.runnerId, ttlMs);
+      if (!result) throw new TRPCError({ code: "CONFLICT", message: "运行租约不存在、已过期或属于其他 runner" });
+      return c.json({ protocolVersion: PROTOCOL_VERSION, ok: true, ...result });
+    }
+    const released = await releaseAgentRunnerLease(key.id, input.runnerId);
+    return c.json({ protocolVersion: PROTOCOL_VERSION, ok: released, released });
   } catch (error) {
     return errorResponse(c, error);
   }

@@ -184,6 +184,25 @@ export const agentActivities = mysqlTable(
   }),
 );
 
+export const agentRunnerLeases = mysqlTable(
+  "agent_runner_leases",
+  {
+    id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+    agentKeyId: bigint("agentKeyId", { mode: "number", unsigned: true })
+      .notNull().unique().references(() => agentKeys.id, { onDelete: "cascade" }),
+    runnerId: varchar("runnerId", { length: 128 }).notNull(),
+    leaseUntil: datetime("leaseUntil").notNull(),
+    lastHeartbeatAt: datetime("lastHeartbeatAt").notNull(),
+    releasedAt: datetime("releasedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().notNull().$onUpdate(() => new Date()),
+  },
+  table => ({ runnerIdx: index("agent_runner_leases_runner_idx").on(table.runnerId, table.leaseUntil) }),
+);
+
+export type AgentRunnerLeaseRow = typeof agentRunnerLeases.$inferSelect;
+export type InsertAgentRunnerLeaseRow = typeof agentRunnerLeases.$inferInsert;
+
 export type AgentActivityRow = typeof agentActivities.$inferSelect;
 export type InsertAgentActivityRow = typeof agentActivities.$inferInsert;
 
