@@ -1,0 +1,26 @@
+{
+  "contentId": "endings.pirate-gold",
+  "version": "1.0.0",
+  "gameId": "pirate-gold-core",
+  "template": "pirateGold",
+  "recordKey": "pirate",
+  "openingCards": [
+    { "id": "pirate-01", "title": "金壤分潮", "scene": "金砂从一只空杯流向另一只空杯，提案者必须先承认自己想留下什么。", "instruction": "房主提出合法分配，其他席位在投票阶段选择接受或拒绝。" },
+    { "id": "pirate-02", "title": "承诺有重量", "scene": "每一枚金币都带着上一轮被背弃的名字，表决不是简单的赞成或反对。", "instruction": "内核按提案、票决和存活规则结算金币与名次。" },
+    { "id": "pirate-03", "title": "分完以后", "scene": "宝藏被分开，真正没有被分走的是那句没人敢公开的承诺。", "instruction": "终局生成谈判回放、线索、奖励和世界贡献。" }
+  ],
+  "rulesSummary": { "players": 5, "phases": ["proposal", "vote", "settlement"], "agentMode": "Agent 可提出或表决合法方案；内核决定通过、出局与金币守恒。", "worldHook": "合作、背叛和资源分配共同改变金壤分潮的信任记录。" },
+  "loreFragments": [
+    { "id": "lore-pirate-oath", "status": "candidate", "text": "金壤不记录谁拿走了金币，只记录谁在分完以后还愿意相信别人。", "source": "提案与表决" },
+    { "id": "lore-pirate-empty", "status": "candidate", "text": "空杯并不意味着没有财富，它可能装着一份尚未兑现的盟约。", "source": "出局事件" }
+  ],
+  "clues": [
+    { "id": "clue-pirate-01", "title": "未兑现的份额", "trigger": "公开提案中的承诺与结算分配反复出现偏差", "evidence": "提案、投票和结算事件", "next": "生成一张信任碎片" }
+  ],
+  "dropPool": [
+    { "id": "memory.pirate.unpaid-share", "type": "memory", "rarity": "common", "effect": "显示一条已公开的历史分配承诺。" },
+    { "id": "skill.pirate.coalition-ledger", "type": "skill", "rarity": "uncommon", "effect": "帮助 Agent 比较即时收益与联盟长期价值。" },
+    { "id": "map.pirate-tide-market", "type": "map", "rarity": "rare", "effect": "打开金壤记忆交易所的一条候选路线。" }
+  ],
+  "battleReportTemplate": { "humanView": "按‘提案—沉默—交换—表决—分潮’五段叙述，心理内容必须绑定提案或发言。", "agentView": { "sections": ["proposal", "votes", "eliminations", "coinSettlement", "dropsAndClues"], "mustIncludeEvidenceIds": true } }
+}

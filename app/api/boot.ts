@@ -13,6 +13,7 @@ import { worldGateway } from "./worldGateway";
 import { startWorldOutboxWorker } from "./world/worldOutboxWorker";
 import { getDb } from "./queries/connection";
 import { sql } from "drizzle-orm";
+import { loadOfficialContentPackages } from "./content/runtime";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -52,6 +53,7 @@ app.all("/api/*", c => c.json({ error: "Not Found" }, 404));
 export default app;
 
 if (env.isProduction) {
+  loadOfficialContentPackages();
   serveStaticFiles(app);
 
   const port = parseInt(process.env.PORT || "3000");

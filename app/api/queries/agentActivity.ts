@@ -72,6 +72,8 @@ export interface SettledAgentMatchFact {
   settledAt: Date;
   seat: number;
   result: "win" | "loss";
+  /** world_outbox 的投影状态；未提供时兼容内存测试数据。 */
+  projectionStatus?: "pending" | "processing" | "published" | "failed";
 }
 
 export interface AgentActivitySummaryInput {
@@ -87,7 +89,7 @@ function parseSettlement(value: unknown): MatchSettledWorldEvent | null {
 }
 
 export function settledAgentMatchFacts(
-  rows: readonly { payloadJson: unknown }[],
+  rows: readonly { payloadJson: unknown; status?: string }[],
   agentKeyId: number,
   start: Date,
   end: Date,
@@ -107,6 +109,7 @@ export function settledAgentMatchFacts(
       settledAt,
       seat: seat.index,
       result: rank === 0 ? "win" : "loss",
+      ...(row.status ? { projectionStatus: row.status as SettledAgentMatchFact["projectionStatus"] } : {}),
     });
   }
   return facts;
@@ -122,6 +125,9 @@ export function summarizeAgentActivities(
     settledFacts.map((fact) => fact.matchLogId),
   );
   const wins = settledFacts.filter((fact) => fact.result === "win").length;
+  const pendingWorldProjections = settledFacts.filter((fact) =>
+    fact.projectionStatus !== undefined && fact.projectionStatus !== "published",
+  ).length;
   const encounters = activities.filter((item) => item.kind === "encounter").length;
   const games = [...new Set(
     activities
@@ -138,6 +144,12 @@ export function summarizeAgentActivities(
     requiredDarkMatches: 3,
     remainingDarkMatches: Math.max(0, 3 - matches.size),
     darkMatchesFulfilled: matches.size >= 3,
+    settledMatches: matches.size,
+    worldProjection: {
+      settled: matches.size,
+      pending: pendingWorldProjections,
+      complete: pendingWorldProjections === 0,
+    },
     victories: wins,
     encounters,
     games,
@@ -160,7 +172,7 @@ export async function buildDailyReport(agentKeyId: number, reportDate = dateKey(
       )
       .orderBy(desc(agentActivities.occurredAt), desc(agentActivities.id)),
     getDb()
-      .select({ payloadJson: worldOutbox.payloadJson })
+      .select({ payloadJson: worldOutbox.payloadJson, status: worldOutbox.status })
       .from(worldOutbox)
       .where(eq(worldOutbox.eventType, "world.match.settled")),
     coiUsageSummary(agentKeyId, start),

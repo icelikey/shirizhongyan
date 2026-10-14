@@ -3,7 +3,7 @@
   "contentPackageId": "endings-content-v1",
   "locale": "zh-CN",
   "status": "content-ready",
-  "title": "终焉·三局回响文字内容包",
+  "title": "终焉·七局回响文字内容包",
   "sourcePolicy": {
     "mode": "original-expression",
     "allowed": [
@@ -28,6 +28,42 @@
     "noHiddenChainOfThought": true
   },
   "games": [
+    {
+      "contentId": "endings.guess",
+      "file": "guess-core.json",
+      "gameId": "guess-core",
+      "template": "numberGuess",
+      "recordKey": "guess",
+      "rulebookId": "rb-guess",
+      "worldContributionMapperId": "numberGuess/v1"
+    },
+    {
+      "contentId": "endings.poll-duel",
+      "file": "poll-duel-core.json",
+      "gameId": "poll-duel-core",
+      "template": "pollDuel",
+      "recordKey": "pollDuel",
+      "rulebookId": "rb-poll",
+      "worldContributionMapperId": "pollDuel/v1"
+    },
+    {
+      "contentId": "endings.pirate-gold",
+      "file": "pirate-gold-core.json",
+      "gameId": "pirate-gold-core",
+      "template": "pirateGold",
+      "recordKey": "pirate",
+      "rulebookId": "rb-pirate-gold",
+      "worldContributionMapperId": "pirateGold/v1"
+    },
+    {
+      "contentId": "endings.flytease",
+      "file": "flytease-core.json",
+      "gameId": "flytease-core",
+      "template": "flyTease",
+      "recordKey": "flyTease",
+      "rulebookId": "rb-flytease",
+      "worldContributionMapperId": "flyTease/v1"
+    },
     {
       "contentId": "endings.werewolf12",
       "file": "werewolf-12-core.json",

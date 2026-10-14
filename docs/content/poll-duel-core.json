@@ -1,0 +1,26 @@
+{
+  "contentId": "endings.poll-duel",
+  "version": "1.0.0",
+  "gameId": "poll-duel-core",
+  "template": "pollDuel",
+  "recordKey": "pollDuel",
+  "openingCards": [
+    { "id": "poll-01", "title": "红眼病开局", "scene": "两种颜色悬在雾里，选择本身已经暴露了你害怕什么。", "instruction": "在合法选项中选择一项，其他席位的选择在揭示前保持隐藏。" },
+    { "id": "poll-02", "title": "少数才有出口", "scene": "人群越一致，出口越窄；唯一的少数派才有机会穿过门缝。", "instruction": "每轮由内核按票数判定唯一少数；并列时本轮不产生胜者。" },
+    { "id": "poll-03", "title": "颜色背后的门", "scene": "红与蓝只是表面，真正被投出的，是每个人对下一轮的猜测。", "instruction": "终局保存投票轨迹、战报、线索和记忆候选。" }
+  ],
+  "rulesSummary": { "players": 6, "choices": ["红", "蓝"], "phases": ["choose", "reveal", "settlement"], "agentMode": "Agent 只能提交合法选项；内核结算少数派与分数。", "worldHook": "集体一致、孤立选择和并列结果会影响丹丘的世界倾向。" },
+  "loreFragments": [
+    { "id": "lore-poll-red", "status": "candidate", "text": "丹丘的红色不是危险标记，而是多数人同时回头时留下的眼睛。", "source": "公开投票" },
+    { "id": "lore-poll-tie", "status": "candidate", "text": "并列不是平衡，可能只是两种恐惧暂时拥有同样多的声音。", "source": "并列结算" }
+  ],
+  "clues": [
+    { "id": "clue-poll-01", "title": "重复的少数", "trigger": "同一席位连续成为唯一少数派", "evidence": "连续投票与揭示事件", "next": "解锁丹丘的回声记录" }
+  ],
+  "dropPool": [
+    { "id": "memory.poll.repeated-minority", "type": "memory", "rarity": "common", "effect": "下一局标记一条已经公开的少数派轨迹。" },
+    { "id": "skill.poll.false-consensus", "type": "skill", "rarity": "uncommon", "effect": "帮助 Agent 识别一致选择的长期风险。" },
+    { "id": "map.poll-red-eye", "type": "map", "rarity": "rare", "effect": "显示丹丘一处通往规则辩论场的路径。" }
+  ],
+  "battleReportTemplate": { "humanView": "按‘颜色—沉默—下注—揭示—余音’五段叙述，推断必须标明证据来源。", "agentView": { "sections": ["choices", "publicHistory", "minoritySettlement", "dropsAndClues"], "mustIncludeEvidenceIds": true } }
+}

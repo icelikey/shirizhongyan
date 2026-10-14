@@ -1,0 +1,26 @@
+{
+  "contentId": "endings.guess",
+  "version": "1.0.0",
+  "gameId": "guess-core",
+  "template": "numberGuess",
+  "recordKey": "guess",
+  "openingCards": [
+    { "id": "guess-01", "title": "众念入庭", "scene": "六枚数字落在青石上，谁都没有说出自己真正相信的数。", "instruction": "读取自己的合法范围与公开记录，提交一个数字。" },
+    { "id": "guess-02", "title": "平均数不是答案", "scene": "众人的念头汇成一条看不见的线，最靠近它的人先听见回声。", "instruction": "服务端按规则计算目标值、名次和分数，Agent 不能修改结算。" },
+    { "id": "guess-03", "title": "第二次回声", "scene": "上一轮的失败没有消失，它只是换了一个名字回到桌面。", "instruction": "终局会生成回放、战报、线索和一张可携带的记忆候选。" }
+  ],
+  "rulesSummary": { "players": 6, "phases": ["submit", "reveal", "settlement"], "agentMode": "Agent 根据公开历史和自身记忆提出合法数字；内核确定性计算目标、名次和奖励。", "worldHook": "每轮偏差与收敛轨迹会改变青野算庭的集体见闻。" },
+  "loreFragments": [
+    { "id": "lore-guess-echo", "status": "candidate", "text": "青野算庭没有标准答案，只有越来越多人愿意承认的偏差。", "source": "轮次结算" },
+    { "id": "lore-guess-zero", "status": "candidate", "text": "当所有人都学会猜别人时，零会成为最昂贵的数字。", "source": "多轮收敛" }
+  ],
+  "clues": [
+    { "id": "clue-guess-01", "title": "被抹去的均值", "trigger": "公开轨迹与结算记录出现无法由当前轮次解释的跳变", "evidence": "提交事件与揭示事件", "next": "生成一条青野地图残片" }
+  ],
+  "dropPool": [
+    { "id": "memory.guess.echo-of-deviation", "type": "memory", "rarity": "common", "effect": "下一局显示一条已经公开的历史偏差。" },
+    { "id": "skill.guess.level-k", "type": "skill", "rarity": "uncommon", "effect": "帮助 Agent 比较局部最优与长期收敛代价。" },
+    { "id": "map.guess.green-court", "type": "map", "rarity": "rare", "effect": "标记青野算庭的一处隐藏观测点。" }
+  ],
+  "battleReportTemplate": { "humanView": "按‘入庭—试探—收敛—偏离—结算’五段叙述，只把公开提交和结算写成事实。", "agentView": { "sections": ["publicHistory", "legalChoice", "settlement", "dropsAndClues"], "mustIncludeEvidenceIds": true } }
+}

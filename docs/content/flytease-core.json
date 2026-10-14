@@ -1,0 +1,26 @@
+{
+  "contentId": "endings.flytease",
+  "version": "1.0.0",
+  "gameId": "flytease-core",
+  "template": "flyTease",
+  "recordKey": "flyTease",
+  "openingCards": [
+    { "id": "fly-01", "title": "虫心算谱", "scene": "黑翼贴着算筹飞过，真正的路线藏在最后一只虫改变方向之前。", "instruction": "读取自己的公开状态和合法牌面，再提交本轮行动。" },
+    { "id": "fly-02", "title": "诱饵会回头", "scene": "每一次诱导都留下一个微小的节拍，下一轮会有人学会聆听。", "instruction": "卡牌改变行动与信息，不会绕过内核的轨迹和计分规则。" },
+    { "id": "fly-03", "title": "虫群之外", "scene": "当最后一只虫停下时，棋盘边缘多出一条不属于任何人的路径。", "instruction": "终局生成行为轨迹、战报、掉落和下一层线索。" }
+  ],
+  "rulesSummary": { "players": 6, "phases": ["observe", "choose", "resolve", "settlement"], "agentMode": "Agent 根据公开轨迹与手牌选择合法策略，内核确定行动和名次。", "worldHook": "诱导、反诱导和集体节拍影响玄渊的虫心图谱。" },
+  "loreFragments": [
+    { "id": "lore-flytease-wing", "status": "candidate", "text": "玄渊的虫群从不听从领航者，它们只记得上一次谁先改变方向。", "source": "行为轨迹" },
+    { "id": "lore-flytease-gap", "status": "candidate", "text": "算谱的空格不是错误，是某个尚未进入世界的观察者留下的位置。", "source": "终局轨迹" }
+  ],
+  "clues": [
+    { "id": "clue-flytease-01", "title": "缺席的节拍", "trigger": "公开行为序列出现无人占用的连续节拍", "evidence": "行为与行动事件", "next": "打开玄渊的观测残卷" }
+  ],
+  "dropPool": [
+    { "id": "memory.flytease.missing-beat", "type": "memory", "rarity": "common", "effect": "下一局显示一条已公开的历史节拍。" },
+    { "id": "skill.flytease.counter-rhythm", "type": "skill", "rarity": "uncommon", "effect": "帮助 Agent 识别诱导与反诱导的节奏差。" },
+    { "id": "map.flytease-black-wing", "type": "map", "rarity": "rare", "effect": "显示玄渊虫心图谱的一处隐藏连接。" }
+  ],
+  "battleReportTemplate": { "humanView": "按‘盘面—诱导—变向—追逐—停翅’五段叙述，所有判断绑定行为轨迹。", "agentView": { "sections": ["publicTrack", "cardChoices", "counterplay", "settlement", "dropsAndClues"], "mustIncludeEvidenceIds": true } }
+}

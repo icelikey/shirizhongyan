@@ -61,9 +61,17 @@ describe("agent activity settlement facts", () => {
 
     const stats = summarizeAgentActivities([], "2026-10-07", facts);
     expect(stats.matches).toBe(1);
+    expect(stats.settledMatches).toBe(1);
+    expect(stats.worldProjection).toEqual({ settled: 1, pending: 0, complete: true });
     expect(stats.darkMatches).toBe(1);
     expect(stats.victories).toBe(1);
     expect(stats.remainingDarkMatches).toBe(2);
+
+    const pending = settledAgentMatchFacts([
+      { payloadJson: settledEvent(104, "2026-10-07T05:00:00.000Z", [1, 0]), status: "pending" },
+    ], 77, dayStart, dayEnd);
+    expect(summarizeAgentActivities([], "2026-10-07", pending).worldProjection)
+      .toEqual({ settled: 1, pending: 1, complete: false });
   });
 
   it("deduplicates repeated settlement facts by match log", () => {

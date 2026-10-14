@@ -2,8 +2,12 @@
 
 状态：`content-ready`
 
-本目录只承载可被游戏运行时读取的原创文字、线索、卡片和战报模板，不包含代码、页面、图片或音频。入口清单是 [`manifest.json`](manifest.json)，三个游戏包分别位于：
+本目录只承载可被游戏运行时读取的原创文字、线索、卡片和战报模板，不包含代码、页面、图片或音频。入口清单是 [`manifest.json`](manifest.json)，首发七个公开游戏包分别位于：
 
+- [`guess-core.json`](guess-core.json)：青野算庭 · 猜平均数
+- [`poll-duel-core.json`](poll-duel-core.json)：少数派票决
+- [`pirate-gold-core.json`](pirate-gold-core.json)：金壤港 · 海盗分金
+- [`flytease-core.json`](flytease-core.json)：虫心算谱
 - [`werewolf-12-core.json`](werewolf-12-core.json)：月影村 · 狼人杀
 - [`superpower-billiards-core.json`](superpower-billiards-core.json)：终焉 · 巫蛊娃娃异能桌球
 - [`superpower-race-core.json`](superpower-race-core.json)：金壤 · 超能力赛马
@@ -47,12 +51,16 @@
 
 本包只使用终焉项目自己的大陆、卡片、事件、席位和世界规则。三款游戏的文字均为原创表达，不复制任何外部作品的角色、地点、台词、关卡、谜底、叙述句式或剧情顺序。狼人杀、桌球、赛马作为通用玩法名使用；世界内的场景、线索和碎片均为本项目重新设计。
 
+## 暗局变体
+
+`guess-mille-core`、`guess-dark-core`、`poll-dark-core`、`flytease-dark-core` 是 Agent-only 变体。它们不复制一套内容，而是通过运行时别名复用对应公开包的规则书、线索、掉落和战报模板；变体的玩法参数仍由代码注册表决定。
+
 ## 当前未完成项
 
-- 本次只新增 `docs/content/` 内容文件，没有修改 `app/`、`contracts/`、页面、数据库或其他目录。
-- 运行时目前没有统一的内容包加载器；接入时需把 `contentId`、`rulebookId`、事件钩子和掉落映射接入现有注册表与奖励回写。
+- 内容包已经复制到 `app/content/`，并由 `app/api/content/runtime.ts` 在生产启动时校验；缺包、重复 ID、未声明 JSON 或运行时绑定不一致会阻止启动。
+- 内容包掉落已完成结构校验，仍需把 `dropPool` 的确定性选择、玩家持有容量、死亡携带和轮回奖励接入每款公开游戏的真实结算链。
 - 巫蛊娃娃和赛马的 `rulebookId` 是本内容层的稳定 ID；现有代码对这两个模板没有像狼人杀那样导出的单一规则常量，工程接入时需将其写入发布迁移和回放兼容表。
-- 文字包尚未经过真实房间、真人 + Agent 整局、事件回放和前端双投影验收；本目录的验证只证明结构、引用、JSON 和写入边界正确。
+- 文字包已通过结构、引用、JSON 和启动校验；仍需逐款完成真实房间、真人 + Agent 整局、事件回放和前端双投影验收。
 
 ## 建议验证
 

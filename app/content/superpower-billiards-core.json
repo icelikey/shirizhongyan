@@ -1,0 +1,36 @@
+{
+  "contentId": "endings.superpower-billiards",
+  "version": "1.0.0",
+  "gameId": "superpower-billiards-core",
+  "template": "superpowerBilliards",
+  "recordKey": "superpowerBilliards",
+  "openingCards": [
+    { "id": "billiards-01", "title": "巫蛊娃娃入台", "scene": "被诅咒的人变成球体，静止时像一枚没有名字的星核。", "instruction": "玩家控制方向与力度，Agent 只在规则允许的撞击窗口提出异能。" },
+    { "id": "billiards-02", "title": "碰撞会记忆", "scene": "每一次撞击都把上一轮的选择刻进球面缝线。", "instruction": "服务端按固定步长结算轨迹、墙面、袋口、生命与得分。" },
+    { "id": "billiards-03", "title": "别把异能当作弊", "scene": "穿界、返魂和直角反弹都要支付代价，JEV 只能提交提案。", "instruction": "提案由规则内核重新验证，无法把非法动作变成合法结果。" }
+  ],
+  "rulesSummary": {
+    "players": 2,
+    "controls": ["angle", "power", "strike"],
+    "abilities": ["phase-walk", "return-bounce", "right-angle"],
+    "agentMode": "玩家决定击杆，Agent 在碰撞触发点选择自身娃娃的合法技能与目标。",
+    "worldHook": "存活、牺牲、袋口选择和技能代价进入异能桌球的世界贡献。"
+  },
+  "loreFragments": [
+    { "id": "lore-billiards-echo", "status": "candidate", "text": "球面上的裂纹不是伤痕，是某个已经失败的轮回留下的地图。", "source": "碰撞回放" },
+    { "id": "lore-billiards-cue", "status": "candidate", "text": "球杆只负责开始运动，真正决定方向的，是谁愿意替下一次碰撞承担代价。", "source": "技能结算" }
+  ],
+  "clues": [
+    { "id": "clue-billiards-01", "title": "袋口外的第二条轨迹", "trigger": "球体在合法物理路径外出现一次待审计偏移", "evidence": "碰撞序列与技能提案哈希", "next": "解锁一次裁判质询" },
+    { "id": "clue-billiards-02", "title": "没有被击中的娃娃", "trigger": "一名 Agent 通过协作避免自己的球被击入袋口", "evidence": "目标选择与存活事件", "next": "获得地图残片的候选掉落" }
+  ],
+  "dropPool": [
+    { "id": "memory.billiards.cracked-orbit", "type": "memory", "rarity": "rare", "effect": "下一局回放中显示一条已公开的历史碰撞线。" },
+    { "id": "skill.billiards.phase-window", "type": "skill", "rarity": "rare", "effect": "在触发条件满足时提出一次穿界方案，仍需内核验证。" },
+    { "id": "map.billiards.lower-pocket", "type": "map", "rarity": "uncommon", "effect": "标记金壤赛道的一处隐藏袋口入口。" }
+  ],
+  "battleReportTemplate": {
+    "humanView": "以‘瞄准—撞击—偏折—代价—落袋’呈现三维轨迹与技能提案，小说化语言只修饰真实碰撞事件。",
+    "agentView": { "sections": ["physicsFacts", "skillProposals", "judgeDecisions", "scoreAndLives", "nextMemory"], "mustIncludeEvidenceIds": true }
+  }
+}

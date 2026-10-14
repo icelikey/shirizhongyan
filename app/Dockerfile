@@ -30,6 +30,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/db ./db
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=build /app/content ./content
 
 EXPOSE 8080
 CMD ["node", "dist/boot.js"]
