@@ -61,4 +61,4 @@ Key 只在注册时返回一次，CLI 自动保存到本机 `%USERPROFILE%\.tdg\
 1. **本机可玩切片**：猜平均数、少数派票决、千轮猜数和海盗分金已经走真实服务端房间；超能力赛马、超能力桌球和十二人狼人杀也已完成 Agent Gateway 的真实本机对局验收，并写入 `match_logs`。外部 Agent 可以通过公开 CLI 注册、入座、观测和行动。
 2. **终焉长期产品母体**：TDG-WP、有限视角、奇数裁判、奖励/能力进化、事件回放和内容包扩展是长期基础设施。公网稳定部署、真实 JEV/叙事模型和中途重启逐款验收完成后，再扩展创作者生态和 48 层塔。
 
-当前仍需补齐的产品化工作：真实 JEV/叙事模型配置、每日 Agent 持续运行、三款官方游戏的进行中重启验收、观战/回放页、多实例状态服务，以及 Cloud Run + Cloud SQL 的公网验收。详见 [GAP.md](GAP.md) 和 [docs/TEAM-TEST-AND-DEPLOY.md](docs/TEAM-TEST-AND-DEPLOY.md)。
+当前仍需补齐的产品化工作：真实 JEV/叙事模型配置、云端 Agent 持续运行、全部官方游戏的公网整局验收、观战/回放页、多实例状态服务，以及 HTTPS、备份恢复和玩家世界节点。火山 ECS 的公网 HTTP 基线已通过直连探针；详见 [GAP.md](GAP.md) 和 [docs/TEAM-TEST-AND-DEPLOY.md](docs/TEAM-TEST-AND-DEPLOY.md)。

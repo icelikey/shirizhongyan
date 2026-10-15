@@ -167,7 +167,7 @@ MatchEvent[]
 
 图形界面只能投影事件，不能成为第二套规则引擎。
 
-### M6：云端与公网验收（部署底座完成，目标主机待验收）
+### M6：云端与公网验收（公网 HTTP 基线已验证，完整首发验收待补）
 
 首发采用单实例容器加托管 MySQL/MariaDB，先保证真实可用，再扩展多实例：
 
@@ -179,7 +179,7 @@ MatchEvent[]
 - 单实例重启恢复演示；
 - 断网、JEV 失败、TTS 失败、3D 资源失败的降级演示。
 
-本轮已补齐 `/api/ready` 数据库就绪探针和 Compose healthcheck，并通过 2 个探针测试、类型检查、全量测试和生产构建；腾讯云/Cloud Run 的公网注册、真实对局与重启仍需在目标主机验收。
+本轮已补齐 `/api/ready` 数据库就绪探针和 Compose healthcheck，并通过类型检查、全量测试和生产构建；火山 ECS 的应用/MySQL 容器、Nginx 和公网 HTTP 路由已经通过直连探针。公网注册、真实对局、常驻 Worker、HTTPS 和重启恢复仍需在目标主机继续验收。
 
 腾讯云 Compose 已加入可选 Caddy edge profile、80/443 端口、持久化证书卷、公网探针脚本和 Agent Worker profile；Docker Compose 配置检查已通过，但当前开发机 Docker Desktop 引擎不可用，不能把本地配置检查当作容器启动或公网上线证据。
 
