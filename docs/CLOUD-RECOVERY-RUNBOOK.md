@@ -17,9 +17,10 @@ df -h
 docker version
 docker info
 docker compose version
+bash deploy/check-cloud-resources.sh
 ```
 
-宿主机稳定前不要构建镜像、启动 Worker 或执行数据库变更。
+资源预检失败时不要构建镜像、启动 Worker 或执行数据库变更；先扩容、释放构建缓存或配置 Swap，再重新预检。
 
 ### 2. 校验 Compose 配置
 
