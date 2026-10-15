@@ -65,6 +65,14 @@ http://69.5.21.20/.well-known/tdg-world.json
 - `ssh -o BatchMode=yes -o ConnectTimeout=10 tdg-volc "echo ssh_ok"`：banner exchange 超时。
 - 结论：ECS 当前仍需恢复；公网 Agent 注册、Worker、真实整局和重启恢复不能验收。
 
+## 2026-10-16 构建资源事故与防护
+
+- ECS 恢复后，已将 `/opt/ten-days-gambit` 快进到 GitHub 分支的 `740fa1b`，源代码更新成功。
+- 构建前实测：根分区可用约 1.2GB、内存可用约 873MB、Swap 为 0；Docker 构建缓存约 2.17GB，已只清理 BuildKit 构建缓存，未删除 MySQL 卷或其他项目镜像。
+- App 镜像在 Vite 构建阶段再次使 SSH banner 和 HTTP 探针超时；因此新 App 镜像、Worker 镜像和公网运行均未验收，旧容器状态不能代表新代码已部署。
+- 已新增只读预检 `deploy/check-cloud-resources.sh`，默认要求根分区至少 2GB、可用内存至少 1.5GB、Swap 至少 512MB；预检失败时禁止继续构建。
+- 当前没有执行 `down -v`、卷删除或数据库结构变更；MySQL 数据卷仍需在实例恢复后单独回读。
+
 ## 下一条发布证据
 
 下一次更新必须补充：公网 Agent 注册响应（不记录 API Key）、一场真实整局、三场暗局日报、应用重启后的房间回读、数据库备份恢复回读，以及 HTTPS 入口。

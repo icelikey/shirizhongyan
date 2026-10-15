@@ -112,4 +112,5 @@
 - `pnpm --dir app test -- --run`：47 个测试文件、390 个测试用例通过。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。
 - World Node 纯运行时已加入：清单校验、协议/规则/内容包兼容性检查、公开贡献批次规范化与敏感字段拒绝；定向测试 11 个用例通过。
+- ECS 构建前资源预检已加入：磁盘、可用内存、Swap 和 Docker 可用性不足时直接阻止构建。
 - 最新公网复核：`http://69.5.21.20/api/health`、`/api/ready` 和 SSH 均超时；ECS 恢复前不能宣称公网服务健康。
