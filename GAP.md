@@ -107,7 +107,7 @@
 
 ### 2026-10-16 基线证据
 
-- 分支：`codex/cloud-deploy-20260927`，本地恢复手册提交 `e5ca4e5`；GitHub 已通过仓库 API 完成本轮同步。
+- 分支：`codex/cloud-deploy-20260927`，本地已包含 World Node 运行时、ECS 恢复手册和状态对齐；GitHub 已通过仓库 API 完成本轮同步。
 - `pnpm --dir app check`：通过。
 - `pnpm --dir app test -- --run`：47 个测试文件、390 个测试用例通过。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。

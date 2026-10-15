@@ -5,7 +5,7 @@
 ## 代码基线
 
 - 分支：`codex/cloud-deploy-20260927`
-- 提交：本地最新 `e5ca4e5 docs: add ECS recovery runbook`；GitHub 分支已通过仓库 API 完成本轮同步
+- 提交：本地已包含 World Node 运行时、ECS 恢复手册和状态对齐；GitHub 分支已通过仓库 API 完成本轮同步
 - GitHub：`https://github.com/icelikey/shirizhongyan/tree/codex/cloud-deploy-20260927`
 - 工作区：`git diff --check` 通过
 
