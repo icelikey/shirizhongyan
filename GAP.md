@@ -74,7 +74,7 @@
 
 火山 ECS `69.5.21.20` 的公网 HTTP 基线已经通过直连探针：应用和 MySQL 容器为 healthy，Nginx 配置检查通过，80/443/8080 正在监听，以下入口返回 200：`/`、`/agent-portal`、`/world`、`/api/health`、`/api/ready` 和 `/.well-known/tdg-world.json`。MySQL 只在容器网络内暴露。
 
-当前仍未关闭的上线项是正式 HTTPS/域名、云端常驻 Agent Worker、自动备份恢复演练、完整公网 Agent 注册与整局对局、以及公网重启恢复。临时 Cloudflare 隧道不作为稳定上线证据。若本机浏览器经代理访问 IP 返回 502，应使用直连探针或为该 IP 配置代理绕过；这不等同于应用健康检查失败。
+当前仍未关闭的上线项是正式 HTTPS/域名、云端常驻 Agent Worker、自动备份恢复演练、完整公网 Agent 注册与整局对局、以及公网重启恢复。临时 Cloudflare 隧道不作为稳定上线证据。此前直连探针曾返回 200；2026-10-16 最新复核时 ECS 的 SSH banner、`/api/health` 和 `/api/ready` 均超时，因此当前公网服务状态应标记为阻塞，不能沿用此前的 healthy 结论。若本机浏览器经代理访问 IP 返回 502，应使用直连探针或为该 IP 配置代理绕过；这不等同于应用健康检查失败。
 
 部署底座新增 `/api/ready` 数据库就绪探针，云端 Compose healthcheck 已改为检查该地址；当前只完成代码测试和本机生产构建验证，尚未替代腾讯云/Cloud Run 的真实公网验收。
 
@@ -107,9 +107,9 @@
 
 ### 2026-10-16 基线证据
 
-- 分支：`codex/cloud-deploy-20260927`，已同步到 GitHub 提交 `fc4e3c1`。
+- 分支：`codex/cloud-deploy-20260927`，本地最新提交 `fce5386`；GitHub 当前仍停留在 `53ca047`，本轮推送因连接重置失败。
 - `pnpm --dir app check`：通过。
-- `pnpm --dir app test -- --run`：45 个测试文件、361 个测试用例通过。
+- `pnpm --dir app test -- --run`：47 个测试文件、390 个测试用例通过。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。
-- 火山 ECS：应用与 MySQL 容器 healthy，Nginx `-t` 通过。
-- 公网直连：`http://69.5.21.20/`、`/agent-portal`、`/world`、`/api/health`、`/api/ready` 和 `/.well-known/tdg-world.json` 均返回 200。
+- World Node 纯运行时已加入：清单校验、协议/规则/内容包兼容性检查、公开贡献批次规范化与敏感字段拒绝；定向测试 11 个用例通过。
+- 最新公网复核：`http://69.5.21.20/api/health`、`/api/ready` 和 SSH 均超时；ECS 恢复前不能宣称公网服务健康。
