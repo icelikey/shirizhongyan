@@ -107,7 +107,7 @@
 
 ### 2026-10-16 基线证据
 
-- 分支：`codex/cloud-deploy-20260927`，本地最新提交 `fce5386`；GitHub 当前仍停留在 `53ca047`，本轮推送因连接重置失败。
+- 分支：`codex/cloud-deploy-20260927`，本地恢复手册提交 `e5ca4e5`；GitHub 已通过仓库 API 同步到 `58bc9ac`。
 - `pnpm --dir app check`：通过。
 - `pnpm --dir app test -- --run`：47 个测试文件、390 个测试用例通过。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。

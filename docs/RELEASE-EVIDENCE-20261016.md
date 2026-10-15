@@ -5,7 +5,7 @@
 ## 代码基线
 
 - 分支：`codex/cloud-deploy-20260927`
-- 提交：本地最新 `fce5386 feat: add world node runtime validation`；远程分支仍为 `53ca047`
+- 提交：本地最新 `e5ca4e5 docs: add ECS recovery runbook`；GitHub 分支已同步到 `58bc9ac`
 - GitHub：`https://github.com/icelikey/shirizhongyan/tree/codex/cloud-deploy-20260927`
 - 工作区：`git diff --check` 通过
 
