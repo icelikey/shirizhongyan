@@ -122,3 +122,141 @@ export interface GamePackageRegistryPort {
   listPublished(): readonly GamePackageManifest[];
   resolve(packageId: string, version?: string): GamePackageManifest | null;
 }
+
+/**
+ * 认证世界节点协议只承载公开的节点能力与可审计引用。
+ *
+ * 所有对象均为 strict，避免把私有身份、API key、房间内部状态或任意
+ * 未定义的扩展字段借由协议边界带入公共世界层。内容包版本按 packageId
+ * 建立显式映射，贡献内容只携带摘要，不携带原始房间或玩家数据。
+ */
+const nodeIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/);
+const worldIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/);
+const packageIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/);
+const publicVersionSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
+const packageVersionSchema = z
+  .string()
+  .trim()
+  .regex(/^v?[0-9]+\.[0-9]+\.[0-9]+$/);
+const publicKeySchema = z.string().trim().min(1).max(4096);
+const digestSchema = z.string().regex(/^[a-f0-9]{64}$/i);
+const auditModeSchema = z.enum(["full", "sampled", "hash-only"]);
+
+const contentPackageIdsSchema = z
+  .array(packageIdSchema)
+  .max(128)
+  .refine(
+    ids => new Set(ids).size === ids.length,
+    "contentPackageIds must be unique"
+  );
+
+const contentPackageVersionsSchema = z.record(
+  packageIdSchema,
+  packageVersionSchema
+);
+const supportedGamePackageIdsSchema = z
+  .array(packageIdSchema)
+  .max(128)
+  .refine(
+    ids => new Set(ids).size === ids.length,
+    "supportedGamePackageIds must be unique"
+  );
+const capabilitiesSchema = z
+  .array(z.string().trim().min(1).max(64))
+  .max(64)
+  .refine(
+    values => new Set(values).size === values.length,
+    "capabilities must be unique"
+  );
+
+const publicNodeFields = {
+  protocolVersion: protocolVersionSchema,
+  nodeId: nodeIdSchema,
+  worldId: worldIdSchema,
+  baseEpoch: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  ruleVersion: publicVersionSchema,
+  contentPackageIds: contentPackageIdsSchema,
+  contentPackageVersions: contentPackageVersionsSchema,
+  supportedGamePackageIds: supportedGamePackageIdsSchema,
+  publicKey: publicKeySchema,
+  capabilities: capabilitiesSchema,
+  auditMode: auditModeSchema,
+} satisfies z.ZodRawShape;
+
+const validateContentPackageVersions = (
+  value: {
+    contentPackageIds: readonly string[];
+    contentPackageVersions: Readonly<Record<string, string>>;
+  },
+  ctx: z.RefinementCtx
+) => {
+  const ids = [...value.contentPackageIds].sort();
+  const versionIds = Object.keys(value.contentPackageVersions).sort();
+
+  if (
+    ids.length !== versionIds.length ||
+    ids.some((id, index) => id !== versionIds[index])
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["contentPackageVersions"],
+      message:
+        "contentPackageVersions must contain exactly one version for every contentPackageId",
+    });
+  }
+};
+
+const contributionEntrySchema = z
+  .object({
+    contributionId: z.string().trim().min(1).max(128),
+    contentPackageId: packageIdSchema,
+    contentPackageVersion: packageVersionSchema,
+    digest: digestSchema,
+  })
+  .strict();
+
+const compatibilityEntrySchema = z
+  .object({
+    gamePackageId: packageIdSchema,
+    compatible: z.boolean(),
+    reason: z.string().trim().min(1).max(160).nullable(),
+  })
+  .strict();
+
+export const WorldNodeManifest = z
+  .object(publicNodeFields)
+  .strict()
+  .superRefine(validateContentPackageVersions);
+
+export const ContributionBatch = z
+  .object({
+    ...publicNodeFields,
+    batchId: z.string().trim().min(1).max(128),
+    contributions: z.array(contributionEntrySchema).min(1).max(256),
+  })
+  .strict()
+  .superRefine(validateContentPackageVersions);
+
+export const CompatibilityMatrix = z
+  .object({
+    ...publicNodeFields,
+    entries: z.array(compatibilityEntrySchema).min(1).max(128),
+  })
+  .strict()
+  .superRefine(validateContentPackageVersions);
+
+export type WorldNodeManifest = z.infer<typeof WorldNodeManifest>;
+export type ContributionBatch = z.infer<typeof ContributionBatch>;
+export type CompatibilityMatrix = z.infer<typeof CompatibilityMatrix>;

@@ -5,8 +5,17 @@ import { getDb } from "./connection";
 export type RunnerLeaseResult = { acquired: boolean; leaseUntil: Date; runnerId: string };
 
 function isDuplicate(error: unknown): boolean {
-  const candidate = error as { code?: string; errno?: number };
-  return candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062;
+  let candidate: unknown = error;
+  for (let depth = 0; depth < 4 && candidate; depth += 1) {
+    if (typeof candidate === "object" && candidate !== null) {
+      const record = candidate as { code?: string; errno?: number; cause?: unknown };
+      if (record.code === "ER_DUP_ENTRY" || record.errno === 1062) return true;
+      candidate = record.cause;
+      continue;
+    }
+    break;
+  }
+  return false;
 }
 
 function until(now: Date, ttlMs: number) {
