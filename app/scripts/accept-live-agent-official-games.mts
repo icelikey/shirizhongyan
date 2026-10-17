@@ -1,7 +1,8 @@
 /**
- * 官方游戏真实闭环验收：赛马、异能桌球、十二人狼人杀。
+ * 官方游戏真实闭环验收：7 个公开游戏 + 4 个 Agent-only 暗局变体。
  *
- * 每款都走同一条链：注册 Agent → 真人会话建房 → Agent 入座 → 开局 →
+ * 普通/混合游戏走真人会话建房，Agent-only 游戏走 Gateway 自主建房并入座；
+ * 两条路径随后统一进入：开局 → 读取自己的观察并行动 → 终局 →
  * Agent 读取自己的观察并行动 → 终局 → match_logs / 公开战报核对。
  * 只输出房间、状态、事件数量和报告审计状态，不输出 API Key 或 cookie。
  */
@@ -17,12 +18,35 @@ const inviteCode = process.env.AGENT_REGISTRATION_CODE?.trim();
 if (!inviteCode) throw new Error("AGENT_REGISTRATION_CODE 未配置");
 
 type JsonRecord = Record<string, any>;
-type GameId = "superpower-race-core" | "superpower-billiards-core" | "werewolf-12-core";
+type GameId =
+  | "guess-core"
+  | "guess-mille-core"
+  | "guess-dark-core"
+  | "poll-duel-core"
+  | "poll-dark-core"
+  | "pirate-gold-core"
+  | "flytease-core"
+  | "flytease-dark-core"
+  | "superpower-race-core"
+  | "superpower-billiards-core"
+  | "werewolf-12-core";
 
 const selected = (process.env.TDG_SMOKE_GAMES?.split(",").map(item => item.trim()).filter(Boolean) ?? []) as GameId[];
 const games: GameId[] = selected.length > 0
   ? selected
-  : ["superpower-race-core", "superpower-billiards-core", "werewolf-12-core"];
+  : [
+      "guess-core",
+      "guess-mille-core",
+      "guess-dark-core",
+      "poll-duel-core",
+      "poll-dark-core",
+      "pirate-gold-core",
+      "flytease-core",
+      "flytease-dark-core",
+      "superpower-race-core",
+      "superpower-billiards-core",
+      "werewolf-12-core",
+    ];
 
 async function readJson(response: Response): Promise<JsonRecord> {
   const text = await response.text();
@@ -91,9 +115,54 @@ async function registerAgent(label: string) {
   return { agentId, userId, apiKey, cookie: `kimi_sid=${sessionToken}` };
 }
 
-function actionFor(gameId: GameId, observation: JsonRecord): JsonRecord {
+function actionFor(gameId: GameId, observation: JsonRecord): JsonRecord | null {
   const subPhase = observation.subPhase;
   const mySeat = Number(observation.mySeat);
+  const round = Number(observation.round ?? 0);
+
+  if (gameId === "guess-core" || gameId === "guess-mille-core" || gameId === "guess-dark-core") {
+    // 0–100 是三个 numberGuess 官方变体的共同合法区间。
+    return { type: "submit", value: 50 + ((mySeat * 7 + round) % 11) };
+  }
+
+  if (gameId === "poll-duel-core" || gameId === "poll-dark-core") {
+    return { type: "choose", choice: mySeat % 2 };
+  }
+
+  if (gameId === "pirate-gold-core") {
+    const proposer = Number(observation.currentProposer ?? 0);
+    if (subPhase === "propose" && mySeat === proposer) {
+      const alive = Array.isArray(observation.aliveSeats)
+        ? observation.aliveSeats.map(Number)
+        : [0, 1, 2, 3, 4];
+      const seatCount = Array.isArray(observation.seats)
+        ? observation.seats.length
+        : Math.max(5, ...alive.map(seat => seat + 1));
+      const coins = Number(observation.coins ?? 20);
+      const allocation = new Array(seatCount).fill(0);
+      const needExtra = Math.max(0, Math.ceil(alive.length / 2) - 1);
+      const others = alive.filter(seat => seat !== mySeat);
+      for (let i = 0; i < needExtra && i < others.length; i++) allocation[others[i]] = 1;
+      allocation[mySeat] = Math.max(0, coins - needExtra);
+      return { type: "propose", allocation };
+    }
+    if (subPhase === "propose" && mySeat !== proposer) return null;
+    if (subPhase === "vote" && mySeat === proposer) return null;
+    if (subPhase === "vote") {
+      const allocation = observation.pending?.allocation;
+      return {
+        type: "vote",
+        approve: Array.isArray(allocation) && Number(allocation[mySeat] ?? 0) > 0,
+      };
+    }
+    return null;
+  }
+
+  if (gameId === "flytease-core" || gameId === "flytease-dark-core") {
+    const cardCount = Math.max(1, Number(observation.fly?.cardCount ?? 64));
+    return { type: "choose", choice: mySeat % cardCount };
+  }
+
   if (gameId === "superpower-race-core") {
     const racer = observation.race?.racers?.find((item: JsonRecord) => item.seat === mySeat);
     // 赛马的扰行牌必须带 targetSeat；优先选一张无需目标的牌，
@@ -107,6 +176,7 @@ function actionFor(gameId: GameId, observation: JsonRecord): JsonRecord {
     }
     return { type: "play", cardId };
   }
+
   if (gameId === "superpower-billiards-core") {
     const ball = observation.balls?.find((item: JsonRecord) => item.ownerSeat === mySeat && item.lives > 0);
     if (!ball) return { type: "ability", abilityId: "return-soul", decision: "ignore", targetBall: "doll-01" };
@@ -116,8 +186,9 @@ function actionFor(gameId: GameId, observation: JsonRecord): JsonRecord {
     }
     return { type: "strike", ballId: ball.id, angle: mySeat % 2 === 0 ? 0.2 : 2.9, power: 0.72 };
   }
+
   if (subPhase === "day-speech" || subPhase === "last-words") {
-    return { type: "speak", text: `第 ${observation.round} 日，${mySeat + 1} 号位留下可供回放核验的公开证言。` };
+    return { type: "speak", text: `第 ${round} 日，${mySeat + 1} 号位留下可供回放核验的公开证言。` };
   }
   if (subPhase === "day-vote") return { type: "play", cardId: "vote-abstain" };
   return { type: "play", cardId: "pass" };
@@ -126,83 +197,153 @@ function actionFor(gameId: GameId, observation: JsonRecord): JsonRecord {
 async function runGame(gameId: GameId) {
   const label = gameId.replace(/-core$/, "");
   const agent = await registerAgent(label);
-  const codeResult = await trpc("room.create", { roomName: `真实验收 · ${label}`, defId: gameId, autoStart: false }, agent.cookie);
-  const code = String(codeResult.code);
-  const hostSeatToken = String(codeResult.seatToken);
   const headers = { "x-api-key": agent.apiKey };
-  const joined = await gateway(`/world/v1/matches/${code}/join`, { method: "POST", headers });
-  const seatIndex = Number(joined.match.seatIndex);
-  await trpc("room.act", { code, seatToken: hostSeatToken, action: { type: "start" } }, agent.cookie);
+  const agentOnly = gameId === "guess-mille-core"
+    || gameId === "guess-dark-core"
+    || gameId === "poll-dark-core"
+    || gameId === "flytease-dark-core";
 
+  let code = "";
+  let seatIndex = -1;
+  let hostSeatToken: string | null = null;
   let observation: JsonRecord = {};
   let hostObservation: JsonRecord = {};
+
+  if (agentOnly) {
+    const created = await gateway("/world/v1/matches", {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        gameId,
+        roomName: `真实验收 · ${label}`,
+      }),
+    });
+    code = String(created.match.code);
+    seatIndex = Number(created.binding.seatIndex ?? created.observation.mySeat);
+  } else {
+    const codeResult = await trpc(
+      "room.create",
+      { roomName: `真实验收 · ${label}`, defId: gameId, autoStart: false },
+      agent.cookie,
+    );
+    code = String(codeResult.code);
+    hostSeatToken = String(codeResult.seatToken);
+    const joined = await gateway(`/world/v1/matches/${code}/join`, { method: "POST", headers });
+    seatIndex = Number(joined.match.seatIndex);
+    await trpc(
+      "room.act",
+      { code, seatToken: hostSeatToken, action: { type: "start" } },
+      agent.cookie,
+    );
+  }
+
   // 只由本次脚本记录当前子阶段的提交，不能使用 observation.seats[].submitted：
   // 服务端的该字段可能表示本轮之前任意子阶段已经提交，桌球的 strike 和
   // ability 因而会被错误地当成同一个阶段。
   let submittedPhaseKey = "";
   let submittedHostPhaseKey = "";
   let commandCount = 0;
+
   async function observe() {
     const response = await gateway(`/world/v1/matches/${code}/observation`, { headers });
     observation = response.observation;
     return response;
   }
+
   async function observeHost() {
-    hostObservation = await trpcQuery("room.state", { code, seatToken: hostSeatToken }, agent.cookie);
+    if (agentOnly) {
+      hostObservation = observation;
+      return hostObservation;
+    }
+    hostObservation = await trpcQuery(
+      "room.state",
+      { code, seatToken: hostSeatToken },
+      agent.cookie,
+    );
     return hostObservation;
   }
+
+  async function submitAgentAction(action: JsonRecord) {
+    const current = await observe();
+    const response = await gateway(`/world/v1/matches/${code}/commands`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        protocolVersion: "0.1",
+        commandId: `official-${label}-${String(observation.round ?? 0)}-${String(observation.subPhase ?? "submit")}-${Date.now()}`,
+        contextRef: String(current.contextRef),
+        bindingId: String(current.binding.bindingId),
+        action,
+      }),
+    });
+    observation = response.observation ?? observation;
+    commandCount += 1;
+    return response;
+  }
+
   await observe();
   await observeHost();
+  if (agentOnly && observation.status === "waiting") {
+    await submitAgentAction({ type: "start" });
+  }
   await waitFor(async () => {
-    await Promise.all([observe(), observeHost()]);
+    await observe();
     return observation.status === "finished" || observation.phase === "submit";
   }, 20_000);
 
-  const deadline = Date.now() + (gameId === "werewolf-12-core" ? 12 * 60_000 : 3 * 60_000);
+  const configuredDeadlineMinutes = Number(process.env.TDG_SMOKE_DEADLINE_MINUTES ?? 0);
+  const totalRounds = Math.max(1, Number(observation.totalRounds ?? 1));
+  const submitWindowSec = Math.max(1, Number(observation.submitWindowSec ?? 10));
+  const revealBufferSec = Math.max(5, totalRounds * 5);
+  const calculatedDeadlineMinutes = Math.ceil(
+    (totalRounds * submitWindowSec + revealBufferSec + 60) / 60,
+  );
+  const deadlineMinutes = configuredDeadlineMinutes > 0
+    ? configuredDeadlineMinutes
+    : Math.max(gameId === "werewolf-12-core" ? 12 : 3, calculatedDeadlineMinutes);
+  const deadline = Date.now() + deadlineMinutes * 60_000;
   while (observation.status !== "finished" && Date.now() < deadline) {
-    await Promise.all([observe(), observeHost()]);
+    await observe();
+    await observeHost();
     if (observation.status === "finished") break;
     if (observation.phase !== "submit") {
       await new Promise(resolve => setTimeout(resolve, 350));
       continue;
     }
+
     const phaseKey = `${observation.round}:${observation.subPhase ?? "submit"}`;
-    if (phaseKey !== submittedHostPhaseKey) {
-      await trpc("room.act", {
-        code,
-        seatToken: hostSeatToken,
-        action: actionFor(gameId, { ...hostObservation, mySeat: Number(hostObservation.mySeat) }),
-      }, agent.cookie);
+    if (!agentOnly && phaseKey !== submittedHostPhaseKey) {
+      const hostAction = actionFor(gameId, { ...hostObservation, mySeat: Number(hostObservation.mySeat) });
+      if (hostAction) {
+        await trpc(
+          "room.act",
+          { code, seatToken: hostSeatToken, action: hostAction },
+          agent.cookie,
+        );
+      }
       submittedHostPhaseKey = phaseKey;
     }
+
     if (phaseKey !== submittedPhaseKey) {
       await observe();
       if (observation.status === "finished") break;
       const action = actionFor(gameId, { ...observation, mySeat: seatIndex });
-      const contextRef = String((await observe()).contextRef);
-      const bindingId = String((await gateway(`/world/v1/matches/${code}/observation`, { headers })).binding.bindingId);
-      await gateway(`/world/v1/matches/${code}/commands`, {
-        method: "POST",
-        headers: { ...headers, "content-type": "application/json" },
-        body: JSON.stringify({
-          protocolVersion: "0.1",
-          commandId: `official-${label}-${phaseKey.replace(/[^a-z0-9]+/gi, "-")}-${Date.now()}`,
-          contextRef,
-          bindingId,
-          action,
-        }),
-      });
-      commandCount += 1;
       submittedPhaseKey = phaseKey;
+      if (action) await submitAgentAction(action);
     }
+
     await new Promise(resolve => setTimeout(resolve, 350));
   }
+
   await waitFor(async () => {
     await observe();
     return observation.status === "finished";
   }, 20_000);
 
-  const logs = await getDb().select({ id: matchLogs.id, eventCount: matchLogs.eventCount }).from(matchLogs).where(eq(matchLogs.roomCode, code));
+  const logs = await getDb()
+    .select({ id: matchLogs.id, eventCount: matchLogs.eventCount })
+    .from(matchLogs)
+    .where(eq(matchLogs.roomCode, code));
   const report = await gateway(`/world/v1/public/matches/${code}/report`);
   return {
     gameId,
@@ -212,15 +353,15 @@ async function runGame(gameId: GameId) {
     commandCount,
     finalStatus: observation.status,
     finalRound: observation.round,
-      matchLogs: logs,
-      report: {
-        status: report.narrative?.audit?.ok === true ? "verified" : "verified-fallback",
-        matchLogId: report.matchLogId,
-        usedFallback: report.narrative?.usedFallback ?? null,
-        auditOk: report.narrative?.audit?.ok ?? null,
-        auditErrors: report.narrative?.audit?.errors ?? [],
-        evidenceEventCount: report.brief?.evidenceEventCount ?? null,
-      },
+    matchLogs: logs,
+    report: {
+      status: report.narrative?.audit?.ok === true ? "verified" : "verified-fallback",
+      matchLogId: report.matchLogId,
+      usedFallback: report.narrative?.usedFallback ?? null,
+      auditOk: report.narrative?.audit?.ok ?? null,
+      auditErrors: report.narrative?.audit?.errors ?? [],
+      evidenceEventCount: report.brief?.evidenceEventCount ?? null,
+    },
   };
 }
 
