@@ -17,6 +17,21 @@ import { cn } from '@/lib/utils'
 
 const RANK_NUMERAL = ['壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌']
 
+type PublicReportPayload = {
+  report?: string
+  brief?: {
+    opening?: string
+    moments?: Array<{ seq: number; round: number; kind: string; headline: string; facts: string[]; evidenceSeqs: number[] }>
+    turningPoints?: Array<{ seq: number; round: number; kind: string; headline: string; facts: string[]; evidenceSeqs: number[] }>
+    evidenceEventCount?: number
+  }
+  narrative?: {
+    usedFallback?: boolean
+    audit?: { ok?: boolean; stage?: string; errors?: string[] }
+  }
+  error?: { message?: string }
+}
+
 export interface OnlineFinishedPanelProps {
   open: boolean
   /** 仅需名次/座位/本人座号（两模板视图结构一致） */
@@ -46,6 +61,7 @@ export default function OnlineFinishedPanel({
   const rankings = view.rankings ?? []
   const myRank = view.mySeat != null ? rankings.indexOf(view.mySeat) : -1
   const [report, setReport] = useState<string | null>(null)
+  const [reportPayload, setReportPayload] = useState<PublicReportPayload | null>(null)
   const [reportError, setReportError] = useState<string | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
 
@@ -54,11 +70,15 @@ export default function OnlineFinishedPanel({
     let cancelled = false
     setReportLoading(true)
     setReportError(null)
+    setReportPayload(null)
     fetch(`${import.meta.env.BASE_URL}world/v1/public/matches/${encodeURIComponent(reportCode)}/report`)
       .then(async (response) => {
-        const payload = await response.json() as { report?: string; error?: { message?: string } }
+        const payload = await response.json() as PublicReportPayload
         if (!response.ok) throw new Error(payload.error?.message || '战报暂时无法读取')
-        if (!cancelled) setReport(payload.report || '这局没有可展示的战报正文。')
+        if (!cancelled) {
+          setReportPayload(payload)
+          setReport(payload.report || '这局没有可展示的战报正文。')
+        }
       })
       .catch((reason: unknown) => {
         if (!cancelled) setReportError(reason instanceof Error ? reason.message : '战报暂时无法读取')
@@ -68,6 +88,10 @@ export default function OnlineFinishedPanel({
       })
     return () => { cancelled = true }
   }, [open, reportCode])
+
+  const reportMoments = reportPayload?.brief?.turningPoints?.length
+    ? reportPayload.brief.turningPoints
+    : reportPayload?.brief?.moments ?? []
 
   return (
     <GameModal open={open} title={title} onClose={onClose} className="max-w-[620px]">
@@ -140,6 +164,32 @@ export default function OnlineFinishedPanel({
               <pre className="mt-3 max-h-[240px] overflow-auto whitespace-pre-wrap rounded-lg border border-white/[.07] bg-black/20 p-3 font-serifsc text-[12px] leading-6 text-bone/85">
                 {report}
               </pre>
+            )}
+            {reportPayload?.brief && (
+              <div className="mt-3 rounded-lg border border-white/[.08] bg-black/15 p-3">
+                <div className="flex flex-wrap items-center gap-2 text-[10px] tracking-[.12em] text-gold-200">
+                  <span>证据时间线</span>
+                  <span className="rounded-full border border-white/[.12] px-2 py-0.5 text-faint">
+                    {reportPayload.brief.evidenceEventCount ?? 0} 个事件
+                  </span>
+                  <span className="rounded-full border border-white/[.12] px-2 py-0.5 text-faint">
+                    {reportPayload.narrative?.usedFallback ? 'verified-fallback' : 'generated'}
+                  </span>
+                </div>
+                {reportPayload.brief.opening && <p className="mt-2 text-[11px] leading-5 text-dim">{reportPayload.brief.opening}</p>}
+                <div className="mt-3 flex max-h-[220px] flex-col gap-2 overflow-auto pr-1">
+                  {reportMoments.slice(0, 8).map((moment) => (
+                    <article key={`${moment.seq}-${moment.headline}`} className="rounded-lg border border-white/[.07] bg-ink/35 px-3 py-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-[11px] text-bone/90">{moment.headline}</span>
+                        <span className="shrink-0 font-mono text-[10px] text-gold-300/75">#{moment.seq}</span>
+                      </div>
+                      {moment.facts?.length ? <p className="mt-1 text-[10px] leading-4 text-dim">{moment.facts.join(' · ')}</p> : null}
+                      {moment.evidenceSeqs?.length ? <p className="mt-1 text-[9px] text-faint">证据序号：{moment.evidenceSeqs.join('、')}</p> : null}
+                    </article>
+                  ))}
+                </div>
+              </div>
             )}
             <p className="mt-2 text-[10px] leading-4 text-faint">【事实】来自已落库事件；【推断】只来自 Agent 主动提交的策略摘要，不还原隐藏思维链。</p>
           </div>
