@@ -12,7 +12,7 @@
 - 官方内容契约测试已锁定 7 个公开游戏、4 个 Agent-only 变体及应用/文档 manifest 的唯一性。
 - 新目录验证结果：`pnpm check` 通过；全量测试 48 个文件、394 个用例通过；`pnpm build` 通过。
 - 构建仍有 Tailwind `duration-[...]` 歧义和首屏 JavaScript bundle 较大的非阻塞警告。
-- ECS 当前状态仍以最新探针为准：SSH、`/api/health` 和 `/api/ready` 不可达；历史 healthy/HTTP 200 只作为旧证据保存，不能视为当前公网完成。
+- ECS 当前状态以 2026-10-17 直连探针为准：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均返回 200；公网 Agent 注册仍因邀请码不匹配返回 403，Worker、HTTPS 和重启恢复尚未验收。
 
 ## 已经打通
 
@@ -84,7 +84,7 @@
 
 火山 ECS `69.5.21.20` 的公网 HTTP 基线已经通过直连探针：应用和 MySQL 容器为 healthy，Nginx 配置检查通过，80/443/8080 正在监听，以下入口返回 200：`/`、`/agent-portal`、`/world`、`/api/health`、`/api/ready` 和 `/.well-known/tdg-world.json`。MySQL 只在容器网络内暴露。
 
-当前仍未关闭的上线项是正式 HTTPS/域名、云端常驻 Agent Worker、自动备份恢复演练、完整公网 Agent 注册与整局对局、以及公网重启恢复。临时 Cloudflare 隧道不作为稳定上线证据。此前直连探针曾返回 200；2026-10-16 最新复核时 ECS 的 SSH banner、`/api/health` 和 `/api/ready` 均超时，因此当前公网服务状态应标记为阻塞，不能沿用此前的 healthy 结论。若本机浏览器经代理访问 IP 返回 502，应使用直连探针或为该 IP 配置代理绕过；这不等同于应用健康检查失败。
+当前仍未关闭的上线项是正式 HTTPS/域名、云端常驻 Agent Worker、备份恢复演练、完整公网 Agent 注册与整局对局、以及公网重启恢复。2026-10-17 直连探针已恢复通过；协议发现探针同时修正为检查 HTTP 成功而不是要求 `{ ok: true }`。临时 Cloudflare 隧道不作为稳定上线证据。若本机浏览器经代理访问 IP 返回 502，应使用直连探针或为该 IP 配置代理绕过；这不等同于应用健康检查失败。
 
 部署底座新增 `/api/ready` 数据库就绪探针，云端 Compose healthcheck 已改为检查该地址；当前只完成代码测试和本机生产构建验证，尚未替代腾讯云/Cloud Run 的真实公网验收。
 
@@ -119,8 +119,8 @@
 
 - 分支：`codex/cloud-deploy-20260927`，本地已包含 World Node 运行时、ECS 恢复手册和状态对齐；GitHub 已通过仓库 API 完成本轮同步。
 - `pnpm --dir app check`：通过。
-- `pnpm --dir app test -- --run`：47 个测试文件、390 个测试用例通过。
+- `pnpm --dir app test -- --run`：48 个测试文件、394 个测试用例通过。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。
 - World Node 纯运行时已加入：清单校验、协议/规则/内容包兼容性检查、公开贡献批次规范化与敏感字段拒绝；定向测试 11 个用例通过。
 - ECS 构建前资源预检已加入：磁盘、可用内存、Swap 和 Docker 可用性不足时直接阻止构建。
-- 最新公网复核：`http://69.5.21.20/api/health`、`/api/ready` 和 SSH 均超时；ECS 恢复前不能宣称公网服务健康。
+- 2026-10-17 最新公网复核：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均通过直连探针；使用当前默认邀请码注册 Agent 返回 403，因此公网业务闭环尚未完成。

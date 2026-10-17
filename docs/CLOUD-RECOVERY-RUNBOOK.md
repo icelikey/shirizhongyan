@@ -41,7 +41,25 @@ docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml logs --t
 docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d mysql
 ```
 
-只有 MySQL healthy 后才继续启动 App。仓库当前没有自动化 `mysqldump` 或恢复演练脚本；数据库备份、恢复点和回读证据需要在云平台或运维系统中单独留存。
+只有 MySQL healthy 后才继续启动 App。数据库备份脚本已纳入仓库；备份文件、恢复点和回读证据仍需要在云平台或运维系统中单独留存。
+
+### 3.1 备份与恢复
+
+恢复前先创建可回读的压缩备份。脚本从 Compose 中读取 MySQL 凭证，不把密码写入命令参数或日志：
+
+```bash
+./deploy/mysql-backup.sh
+```
+
+脚本会在 `backups/` 写入 `.sql.gz` 和对应的 `.sha256`。恢复是覆盖性操作，必须显式设置确认变量，并在应用停止或隔离后执行：
+
+```bash
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml stop app
+TDG_CONFIRM_RESTORE=YES ./deploy/mysql-restore.sh backups/ten-days-gambit-<timestamp>.sql.gz
+docker compose --env-file deploy/.env.cloud -f docker-compose.cloud.yml up -d app
+```
+
+恢复完成后必须执行 `/api/ready`、关键房间回读、回放、奖励和日报查询；只校验导入命令成功不能作为恢复验收。
 
 ### 4. 启动 App，优先复用已有镜像
 

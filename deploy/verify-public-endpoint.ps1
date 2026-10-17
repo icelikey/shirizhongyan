@@ -35,7 +35,8 @@ function Probe([string]$Path, [bool]$ExpectJson = $true) {
 $results = @(
   (Probe "/api/health"),
   (Probe "/api/ready"),
-  (Probe "/.well-known/tdg-world.json"),
+  # 协议发现返回 WorldNode 描述对象，不是 { ok: true } 健康对象；只检查 HTTP 成功。
+  (Probe "/.well-known/tdg-world.json" $false),
   (Probe "/" $false),
   (Probe "/agent-portal" $false),
   (Probe "/world" $false)
