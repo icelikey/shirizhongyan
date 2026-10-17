@@ -358,3 +358,4 @@ export function undeclaredContentFiles(registry: ContentRegistry, contentDir = r
   const declared = new Set(["manifest.json", ...registry.manifest.games.map(entry => entry.file)]);
   return readdirSync(contentDir).filter(file => file.endsWith(".json") && !declared.has(file));
 }
+

@@ -82,3 +82,4 @@ docker inspect "${COMPOSE_PROJECT_NAME:-ten-days-gambit}-app" --format '{{.Confi
 4. 重新执行健康检查；若迁移已经改变数据库结构，先确认迁移是否向后兼容，再决定是否恢复数据库备份。
 
 不要删除上一版镜像，直到新版本完成公网验收。此流程不会修改 `docker-compose.cloud.yml`，也不会操作 GitHub 或 ECS 资源。
+

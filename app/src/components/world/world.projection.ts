@@ -162,3 +162,4 @@ export function projectPublicWorldKnowledge(state: PublicWorldState | null): Wor
     clues: shards.map((item) => item.clue),
   }
 }
+

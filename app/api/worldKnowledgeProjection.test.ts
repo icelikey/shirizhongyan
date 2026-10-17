@@ -45,3 +45,4 @@ describe('projectPublicWorldKnowledge', () => {
     expect(projectPublicWorldKnowledge(null)).toEqual({ nodes: [], events: [], clues: [] })
   })
 })
+
