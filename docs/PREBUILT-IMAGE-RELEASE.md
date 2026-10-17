@@ -4,12 +4,14 @@
 
 ## 发布
 
-推送形如 `v2026.10.17` 的 tag：
+推荐推送形如 `v2026.10.17` 的 tag：
 
 ```bash
 git tag v2026.10.17
 git push origin v2026.10.17
 ```
+
+也可以在 GitHub Actions 中手动运行 `Container release`，用于对指定分支或提交生成 SHA 镜像；手动运行不会生成版本 tag 别名，生产环境应优先使用版本 tag。
 
 工作流使用 `GITHUB_TOKEN` 登录 GHCR，并发布两类不可混淆的 tag：
 
