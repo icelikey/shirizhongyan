@@ -9,7 +9,7 @@
 - 分支：`codex/cloud-deploy-20260927`
 - 远端：`https://github.com/icelikey/shirizhongyan.git`
 - `.spec-workflow`：已合并到新仓库
-- 当前工作区：M0 修复和内容契约测试待提交；没有将构建产物或 `node_modules` 纳入迁移提交
+- 当前工作区：干净，HEAD 为 `7aa8aea`；没有将构建产物或 `node_modules` 纳入迁移提交
 
 ## M0 验证
 
@@ -31,11 +31,33 @@ PASS · 2 files · 8 tests
 
 ## 当前公网判断
 
-2026-10-17 直连探针已通过：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均返回 200。公网 Agent 注册使用当前默认邀请码返回 403，因此仍未完成公网注册、整局、Worker 和重启恢复验收。协议发现探针已修正为检查 HTTP 成功，因为该端点返回的是 WorldNode 描述对象而不是 `{ ok: true }`。
+2026-10-17 直连探针已通过：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均返回 200。协议发现探针已修正为检查 HTTP 成功，因为该端点返回的是 WorldNode 描述对象而不是 `{ ok: true }`。
+
+公网 Agent 注册使用当前默认邀请码返回 403；因此公网注册、整局、Worker 和重启恢复仍未验收。安全探针结果如下：
+
+```text
+/api/health                    200 · ok=true
+/api/ready                     200 · ok=true · database=true
+/.well-known/tdg-world.json    200 · protocol=0.1
+/                              200
+/agent-portal                  200
+/world                         200
+registration                   403 · invite code rejected
+```
+
+临时 IP HTTP 200 不等于正式 HTTPS、域名证书、云端 Worker 或完整业务发布完成。
+
+## M1 代码侧收口
+
+- `deploy/mysql-backup.sh` 和 `deploy/mysql-restore.sh` 已加入，备份带 SHA-256 校验，恢复必须显式设置 `TDG_CONFIRM_RESTORE=YES`。
+- `agent-worker` 的 Compose 依赖已改为等待 `app` `service_healthy`。
+- Worker 真实 HTTP 409 租约冲突会稳定返回 `lease-busy`；其他错误继续失败。
+- 日报活动查询改为 `[start, end)`，日报写入使用 MySQL 原子 upsert；每日 Worker FakeGateway 已覆盖租约 acquire/heartbeat/release。
+- 定向验证：CLI Worker 6/6、每日 Worker 验收 3/3；全量验证仍为 48 个文件、394 个用例通过，生产构建通过。
 
 ## M0 出口
 
 - 新目录可以独立安装依赖、检查、测试和生产构建。
 - 章节投影的稳定键幂等和数据库错误边界有回归覆盖。
 - 7 个公开游戏和 4 个暗局变体的内容绑定有契约测试。
-- M1 仍需完成正确邀请码、公网整局、云端 Worker、HTTPS/域名和重启恢复；本记录不把健康探针通过宣告为首发完成。
+- M1 仍需完成正确邀请码、公网整局、云端 Worker、HTTPS/域名和重启恢复；本记录不把健康探针通过宣告为首发完成。当前代码已提交并同步 GitHub。
