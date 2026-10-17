@@ -49,6 +49,8 @@ export interface JevJudgeResult {
   /** 论据强度 0–2 */
   strength: number | null;
   model: string | null;
+  /** 结果来源，供上层明确区分模型生成与本地兜底。 */
+  source: "jev" | "fallback";
 }
 
 /** 构造裁判用的三个问题 */
@@ -100,6 +102,7 @@ export async function jevVote(params: {
     support: null,
     strength: null,
     model: null,
+    source: "fallback",
   });
 
   if (!clause || !jevEnabled()) return fallback();
@@ -119,6 +122,14 @@ export async function jevVote(params: {
     const support = asNoul(res.answers.supported);
     const strength = asScore(res.answers.strength);
     const verdict = asChoice(res.answers.verdict);
+
+    // 结构化客户端只负责解析类型；范围和允许值仍由裁判边界负责。
+    // 任一字段不可信时，整席回到确定性的启发式结果，不能留下
+    // `byJev=true` 的半有效选票。
+    const validSupport = support !== null && Number.isFinite(support) && support >= 0 && support <= 1;
+    const validStrength = strength !== null && Number.isFinite(strength.score) && strength.score >= 0 && strength.score <= 2;
+    const validVerdict = verdict !== null && ["uphold", "reject", "partial"].includes(verdict.choice);
+    if (!validSupport || !validStrength || !validVerdict) return fallback();
 
     // 采纳需两个条件同时满足：选了 uphold 且支持度过阈值。
     // 单看 choice 会让「勉强采纳」也计入，判例就不值钱了。
@@ -140,6 +151,7 @@ export async function jevVote(params: {
       support,
       strength: strength?.score ?? null,
       model: res.model,
+      source: "jev",
     };
   } catch (e) {
     if (e instanceof JevUnavailableError) return fallback();
