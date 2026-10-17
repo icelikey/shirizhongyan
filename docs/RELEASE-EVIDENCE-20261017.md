@@ -9,15 +9,14 @@
 - 分支：`codex/cloud-deploy-20260927`
 - 远端：`https://github.com/icelikey/shirizhongyan.git`
 - `.spec-workflow`：已合并到新仓库
-- 当前工作区：干净，HEAD 为 `7aa8aea`；没有将构建产物或 `node_modules` 纳入迁移提交
+- 当前工作区：干净，HEAD 为 `171a7b1`；没有将构建产物或 `node_modules` 纳入迁移提交
 
 ## M0 验证
 
 ```text
-pnpm check                         PASS
-pnpm test -- --run                 PASS · 48 files · 394 tests
-pnpm build                         PASS
-git diff --check                   PASS
+pnpm check                         PASS · current HEAD
+pnpm build                         PASS · current HEAD
+git diff --check                   PASS · current HEAD
 ```
 
 定向契约验证：
@@ -27,11 +26,22 @@ textWorldChapters + gameContentRegistry contract
 PASS · 2 files · 8 tests
 ```
 
+内容运行时追加验证（`171a7b1`）：
+
+```text
+pnpm exec vitest run api/content/runtime.test.ts
+PASS · 1 file · 8 tests
+```
+
+历史全量测试的 `48 files / 394 tests` 仍作为迁移基线保留；内容运行时追加后，完整测试需在稳定的本地数据库配置下重新跑完，不能把历史数字当作当前 HEAD 的全量证据。
+
 生产构建保留以下非阻塞警告：Tailwind `duration-[1200ms]`/`duration-[8000ms]` 类名歧义、部分动态导入无法拆分，以及首屏 JavaScript bundle 较大。这些问题进入性能修缮队列，不改变规则内核和事件事实链。
 
 ## 当前公网判断
 
-2026-10-17 直连探针已通过：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均返回 200。协议发现探针已修正为检查 HTTP 成功，因为该端点返回的是 WorldNode 描述对象而不是 `{ ok: true }`。
+历史直连探针曾通过：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均返回 200。该结果不能覆盖当前实例状态。
+
+本次最新复核通过 `curl.exe --noproxy "*" --max-time 20` 访问 `http://69.5.21.20/api/health` 和 `/api/ready` 均为 `HTTP 000 / timeout`。因此当前 ECS、公网入口和应用容器状态均标为未验证，不能沿用历史 200 结论。
 
 公网 Agent 注册使用当前默认邀请码返回 403；因此公网注册、整局、Worker 和重启恢复仍未验收。安全探针结果如下：
 
@@ -53,11 +63,11 @@ registration                   403 · invite code rejected
 - `agent-worker` 的 Compose 依赖已改为等待 `app` `service_healthy`。
 - Worker 真实 HTTP 409 租约冲突会稳定返回 `lease-busy`；其他错误继续失败。
 - 日报活动查询改为 `[start, end)`，日报写入使用 MySQL 原子 upsert；每日 Worker FakeGateway 已覆盖租约 acquire/heartbeat/release。
-- 定向验证：CLI Worker 6/6、每日 Worker 验收 3/3；全量验证仍为 48 个文件、394 个用例通过，生产构建通过。
+- 定向验证：CLI Worker 6/6、每日 Worker 验收 3/3；这些是历史本地验收证据。当前 HEAD 已重新验证内容运行时 8/8、TypeScript 检查和生产构建；公网 Worker 与 ECS 常驻仍未验收。
 
 ## M0 出口
 
 - 新目录可以独立安装依赖、检查、测试和生产构建。
 - 章节投影的稳定键幂等和数据库错误边界有回归覆盖。
 - 7 个公开游戏和 4 个暗局变体的内容绑定有契约测试。
-- M1 仍需完成正确邀请码、公网整局、云端 Worker、HTTPS/域名和重启恢复；本记录不把健康探针通过宣告为首发完成。当前代码已提交并同步 GitHub。
+- M1 仍需完成正确邀请码、公网整局、云端 Worker、HTTPS/域名和重启恢复；本记录不把历史健康探针宣告为首发完成。当前代码已提交到本地 `171a7b1`；本地分支相对已知远端仍领先，GitHub 推送和 GHCR 构建需单独完成并回读。
