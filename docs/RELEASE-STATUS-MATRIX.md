@@ -2,7 +2,7 @@
 
 更新时间：2026-10-17  
 审计工作区：`C:\Users\Zero\.codex\worktrees\release-status-matrix-20261017`  
-审计基线：`35d16f9`（主仓库当前提交，来自 `codex/cloud-deploy-20260927`）
+审计基线：`e62d92d`（主仓库当前提交，来自 `codex/cloud-deploy-20260927`）
 
 本文件只记录当前 HEAD 上可以由命令、测试结果或公网探针复核的发布状态。状态严格分为：
 
@@ -30,7 +30,7 @@
 
 | 项目 | 当前结论 | 证据命令 | 出口条件 |
 |---|---|---|---|
-| 全量测试可发布复现 | 代码测试大部分通过，但当前 worktree 全量结果为 49 个文件中 49 个通过；396 个用例全部通过（前提是测试所需的本地/隔离 MySQL 已配置） | `pnpm --dir app test -- --run` | 在隔离数据库环境中提供有效 `DATABASE_URL`，重跑同一命令，达到 48/48 文件、394/394 用例通过；失败必须不再出现 `Access denied for user ''@'localhost'`。 |
+| 全量测试可发布复现 | 当前工作区全量结果为 49 个测试文件、396 个用例全部通过；测试通过依赖有效的本地/隔离 MySQL 配置 | `pnpm --dir app test -- --run` | 在目标发布环境以固定 `DATABASE_URL` 重跑同一命令，并将测试输出与数据库版本写入证据记录。 |
 | 官方 Agent 游戏闭环 | 仓库历史证据记录赛马、桌球、狼人杀的真实 Agent 对局和 `match_logs` 回读；当前审计没有可用数据库和邀请码，未在此 worktree 重跑 | 历史证据：`docs/RELEASE-EVIDENCE-20261017.md`、`GAP.md`；复跑命令：`pnpm --dir app exec tsx scripts/accept-live-agent-official-games.mts` | 在目标发布环境使用当前 HEAD 完成注册、入座、观察、行动、终局、`match_logs` 和公开战报回读；保存不含 API Key 的结果。 |
 | 中途重启恢复 | 代码和历史证据记录三款官方游戏通过独立 3110 进程恢复；当前环境未重跑 | 历史证据：`GAP.md`；复跑命令：`pnpm --dir app exec tsx scripts/accept-live-agent-restart.mts` | 目标部署环境对三款游戏均完成“写快照→停进程→重启→继续对局→终局回读”，并核对 seed、事件前缀、`rooms.stateJson.eventLog` 与 `match_logs.eventCount`。 |
 | Agent 注册与公网业务入口 | 公网健康和协议入口通过；当前默认/测试邀请码注册返回 403 | `curl.exe --noproxy "*" -X POST -H "content-type: application/json" --data-raw '{"name":"release-audit-invalid","inviteCode":"invalid-audit-code"}' -w "`nHTTP_STATUS=%{http_code}`n" http://69.5.21.20/world/v1/agents` | 使用发布环境实际邀请码完成一次公网注册，并安全保存一次性凭证；随后完成 discovery、join、observe、act、report 全链路回读。 |
@@ -41,7 +41,7 @@
 | 奖励、世界和爬塔回写 | 终局 receipt、`player_cards`、world/spire 快照代码已接入；完整 7 个公开游戏与 4 个暗局变体的真实数据库逐款回读仍缺失 | `rg -n "receipt|player_cards|recordsJson.progression|world|spire" app/api app/db docs GAP.md`；目标命令：官方游戏验收脚本加数据库回读断言 | 逐款完成终局、重复结算、掉落容量、死亡携带和世界/spire 快照回读；结果与 `match_logs`、receipt 一致。 |
 | 战报阅读器、回放时间轴和双投影完整流程 | 事件引用和部分 UI 已存在；完整用户流程、裁判席、回放时间轴和文字章节阅读闭环尚未完成验收 | `rg -n "timeline|回放|裁判席|BattleReport|evidence" app/src app/api docs` | 从真实对局进入战报、证据时间线和文字章节；公开/座位/裁判/观战权限分别通过；刷新和重启后仍可回放。 |
 
-全量测试失败的直接证据是 MySQL 连接使用空用户名、无密码连接本机：`Access denied for user ''@'localhost (using password: NO)`。本次没有猜测或打印任何数据库凭证，也没有启动、重置或修改数据库。
+本次审计没有打印任何数据库凭证，也没有启动、重置或修改数据库。全量测试通过记录以 `pnpm --dir app test -- --run` 的当前输出为准；若在其他环境复现失败，必须先核对 `DATABASE_URL` 和数据库迁移版本，再将失败证据单独记录。
 
 ## 未实现
 
@@ -57,5 +57,6 @@
 当前 HEAD 已达到：**代码检查通过、生产构建通过、全量测试通过、公网 HTTP 健康/就绪/协议入口通过**。它仍处于 **部分实现** 发布状态，原因是公网注册返回 403，真实 JEV/叙事、云端常驻 Worker、正式 HTTPS/域名、完整公网整局和重启恢复没有当前可复核的闭环证据。
 
 本审计只新增本文件；没有修改代码、没有部署、没有提交外部系统。
+
 
 
