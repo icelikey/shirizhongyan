@@ -16,7 +16,7 @@ import ContinentDetail from '@/components/meta/world/ContinentDetail'
 import JournalModal from '@/components/meta/world/JournalModal'
 import WorldEmergenceCard from '@/components/meta/world/WorldEmergenceCard'
 import type { ContinentMeta } from '@/components/meta/world/continents'
-import { WORLD_KNOWLEDGE_EXAMPLE, WorldKnowledgeBoard } from '@/components/world'
+import { WorldKnowledgeBoard, projectPublicWorldKnowledge, type PublicWorldState } from '@/components/world'
 
 type DrawerKind = 'continent' | 'agent' | 'knowledge' | null
 
@@ -31,6 +31,8 @@ export default function World() {
   const [selected, setSelected] = useState<Suit | null>(null)
   const [drawer, setDrawer] = useState<DrawerKind>(null)
   const [journalOpen, setJournalOpen] = useState(false)
+  const [publicWorld, setPublicWorld] = useState<PublicWorldState | null>(null)
+  const knowledge = projectPublicWorldKnowledge(publicWorld)
 
   const closeDrawer = () => {
     setDrawer(null)
@@ -41,6 +43,26 @@ export default function World() {
     setSelected(null)
     setDrawer(kind)
   }
+
+  useEffect(() => {
+    let active = true
+    const loadWorldKnowledge = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL}world/v1/world/state`, { headers: { accept: 'application/json' } })
+        if (!response.ok) throw new Error('world state unavailable')
+        const payload = await response.json() as { world?: PublicWorldState }
+        if (active && payload.world) setPublicWorld(payload.world)
+      } catch {
+        // 世界知识抽屉保持空态；地图和其他抽屉仍然可用。
+      }
+    }
+    void loadWorldKnowledge()
+    const timer = window.setInterval(loadWorldKnowledge, 15_000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     if (!drawer) return
@@ -171,9 +193,9 @@ export default function World() {
                   <div className="flex flex-col gap-4">
                     <WorldEmergenceCard />
                     <WorldKnowledgeBoard
-                      nodes={WORLD_KNOWLEDGE_EXAMPLE.nodes}
-                      events={WORLD_KNOWLEDGE_EXAMPLE.events}
-                      clues={WORLD_KNOWLEDGE_EXAMPLE.clues}
+                      nodes={knowledge.nodes}
+                      events={knowledge.events}
+                      clues={knowledge.clues}
                       onClueOpen={(clue) => toast(`线索 ${clue.label}`, { description: clue.title })}
                       className="rounded-2xl"
                     />
