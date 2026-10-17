@@ -1,6 +1,6 @@
 # 《终焉》当前缺口与验收状态
 
-更新时间：2026-10-17
+更新时间：2026-10-17（晚间复核）
 
 本文档只记录已经通过代码、数据库或运行探针核实的状态。`verified-fallback` 表示对局和事件审计链真实完成，但没有配置外部 JEV/叙事模型，因此战报使用确定性 fallback；它不等于真实 JEV 已上线。
 
@@ -8,11 +8,12 @@
 
 - 唯一开发目录已迁移到 `E:\终焉\Kimi_Agent_智斗游戏架构`；原仓库保留在 `E:\video\ice\世界树\时间移民\偃月牵丝\Kimi_Agent_智斗游戏架构` 作为只读备份。
 - Git 分支、远端和历史已保留；`.spec-workflow` 已合并到新目录。
+- 当前集成提交为 `b46882e`，工作区干净，GitHub 分支与本地提交一致。
 - 章节投影已按稳定投影键优先查找，能够识别嵌套的 MySQL 重复键错误；fallback 只能升级为 generated，非重复数据库错误继续抛出。
 - 官方内容契约测试已锁定 7 个公开游戏、4 个 Agent-only 变体及应用/文档 manifest 的唯一性。
-- 新目录验证结果：`pnpm check` 通过；全量测试 48 个文件、394 个用例通过；`pnpm build` 通过。
+- 新目录验证结果：`pnpm check` 通过；全量测试 49 个文件、401 个用例通过；`pnpm build` 通过。
 - 构建仍有 Tailwind `duration-[...]` 歧义和首屏 JavaScript bundle 较大的非阻塞警告。
-- ECS 当前状态以 2026-10-17 直连探针为准：`/api/health`、`/api/ready`、协议发现、首页、Agent Portal 和世界地图均返回 200；公网 Agent 注册仍因邀请码不匹配返回 403，Worker、HTTPS 和重启恢复尚未验收。
+- ECS 当前状态以 2026-10-17 晚间直连探针为准：`/api/health`、`/api/ready`、`/world/v1`、公开世界状态、公开快照和首页均返回 200，`/api/ready` 的数据库检查为 true；公网 Agent 注册仍因本地注册码与生产注册码不一致返回 403，Worker、HTTPS 和重启恢复尚未验收。
 
 ## 已经打通
 
@@ -28,7 +29,7 @@
 
 验收脚本：`app/scripts/accept-live-agent-official-games.mts`
 
-三款官方游戏均已完成真实链路：
+历史本机证据中，三款官方游戏已完成真实链路：
 
 | 游戏 | Agent | 房间 | 命令数 | match log | 事件数 | 战报 |
 |---|---:|---|---:|---:|---:|---|
@@ -37,6 +38,8 @@
 | 十二人狼人杀 | 267 | 39HC7E | 30 | 207 | 372 | verified-fallback |
 
 每款都实际完成了：注册 Agent → 真人会话建房 → Agent 入座 → 开局 → Agent 读取自己的观察 → Gateway 提交动作 → 终局 → `match_logs` → 公开战报。桌球的 `strike → ability` 子阶段也已被真实验收脚本连续驱动。
+
+当前验收脚本已扩展为 7 个公开游戏 + 4 个 Agent-only 变体，并为 Agent-only 变体切换到 Gateway 自主建局、自动入座和 `start` 命令；这代表脚本覆盖范围已经扩大，不代表 11 款已经完成本次公网正向整局证据。
 
 ### 事件与战报
 
@@ -119,7 +122,7 @@
 
 - 分支：`codex/cloud-deploy-20260927`，本地已包含 World Node 运行时、ECS 恢复手册和状态对齐；GitHub 已通过仓库 API 完成本轮同步。
 - `pnpm --dir app check`：通过。
-- `pnpm --dir app test -- --run`：48 个测试文件、394 个测试用例通过。
+- `pnpm --dir app test -- --run`：当日记录为 48 个测试文件、394 个测试用例通过；晚间复核已更新为 49 个文件、401 个用例。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。
 - World Node 纯运行时已加入：清单校验、协议/规则/内容包兼容性检查、公开贡献批次规范化与敏感字段拒绝；定向测试 11 个用例通过。
 - ECS 构建前资源预检已加入：磁盘、可用内存、Swap 和 Docker 可用性不足时直接阻止构建。
