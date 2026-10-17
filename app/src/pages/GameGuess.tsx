@@ -281,6 +281,9 @@ export default function GameGuess() {
 
   return (
     <div className="relative z-[55] -mt-16 h-[100dvh] overflow-hidden bg-abyss flex flex-col">
+      <div className="pointer-events-none absolute left-4 top-[4.5rem] z-[90] rounded-full border border-gold-500/30 bg-ink/70 px-3 py-1 text-[10px] tracking-[.18em] text-gold-300 backdrop-blur-sm">
+        本地演示 · 浏览器内引擎 · 不写入 Gateway 事实链
+      </div>
       {/* 背景：青野算庭 */}
       <div
         className="absolute inset-0 bg-cover bg-center"
