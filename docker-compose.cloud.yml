@@ -62,7 +62,7 @@ services:
     profiles: ["agent-worker"]
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
     environment:
       TDG_BASE_URL: http://app:8080
       TDG_AGENT_CONFIG: /data/agent.json
