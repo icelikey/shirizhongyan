@@ -100,7 +100,7 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs: number, int
   throw new Error(`等待状态超时（${timeoutMs}ms）`);
 }
 
-async function registerAgent(label: string) {
+async function registerAgent(label: string, needsSession = true) {
   const registration = await readJson(await fetch(`${baseUrl}/world/v1/agents`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -109,7 +109,14 @@ async function registerAgent(label: string) {
   const agentId = Number(registration.agent.agentId);
   const userId = Number(registration.agent.userId);
   const apiKey = String(registration.credential.key);
-  const [user] = await getDb().select({ unionId: users.unionId }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!needsSession) {
+    return { agentId, userId, apiKey, cookie: "" };
+  }
+  const [user] = await getDb()
+    .select({ unionId: users.unionId })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (!user) throw new Error("注册 Agent 对应的用户不存在");
   const sessionToken = await signSessionToken({ unionId: user.unionId, clientId: env.appId });
   return { agentId, userId, apiKey, cookie: `kimi_sid=${sessionToken}` };
@@ -196,12 +203,12 @@ function actionFor(gameId: GameId, observation: JsonRecord): JsonRecord | null {
 
 async function runGame(gameId: GameId) {
   const label = gameId.replace(/-core$/, "");
-  const agent = await registerAgent(label);
-  const headers = { "x-api-key": agent.apiKey };
   const agentOnly = gameId === "guess-mille-core"
     || gameId === "guess-dark-core"
     || gameId === "poll-dark-core"
     || gameId === "flytease-dark-core";
+  const agent = await registerAgent(label, !agentOnly);
+  const headers = { "x-api-key": agent.apiKey };
 
   let code = "";
   let seatIndex = -1;
@@ -340,10 +347,12 @@ async function runGame(gameId: GameId) {
     return observation.status === "finished";
   }, 20_000);
 
-  const logs = await getDb()
-    .select({ id: matchLogs.id, eventCount: matchLogs.eventCount })
-    .from(matchLogs)
-    .where(eq(matchLogs.roomCode, code));
+  const logs = agentOnly
+    ? []
+    : await getDb()
+      .select({ id: matchLogs.id, eventCount: matchLogs.eventCount })
+      .from(matchLogs)
+      .where(eq(matchLogs.roomCode, code));
   const report = await gateway(`/world/v1/public/matches/${code}/report`);
   return {
     gameId,
