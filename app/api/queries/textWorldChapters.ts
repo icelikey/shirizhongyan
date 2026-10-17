@@ -17,8 +17,16 @@ export interface PersistTextWorldChapterInput {
 }
 
 function isDuplicate(error: unknown): boolean {
-  const candidate = error as { code?: string; errno?: number };
-  return candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062;
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    if (typeof current !== "object") break;
+    const candidate = current as { code?: unknown; errno?: unknown; cause?: unknown };
+    if (candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062) return true;
+    current = candidate.cause;
+  }
+  return false;
 }
 
 function cursorMatches(row: TextWorldChapterRow, input: PersistTextWorldChapterInput): boolean {
@@ -34,21 +42,25 @@ function shouldUpgrade(row: TextWorldChapterRow, input: PersistTextWorldChapterI
 
 async function findExistingChapter(input: PersistTextWorldChapterInput): Promise<TextWorldChapterRow | undefined> {
   const db = getDb();
-  const byChapterId = await db.query.textWorldChapters.findFirst({
-    where: eq(textWorldChapters.chapterId, input.chapterId),
-  });
-  if (byChapterId && !cursorMatches(byChapterId, input)) {
-    throw new Error(`章节 ID 已绑定到不同事件：${input.chapterId}`);
-  }
-  if (byChapterId) return byChapterId;
-  return db.query.textWorldChapters.findFirst({
+  const projection = input.projection ?? "text";
+  const byCursor = await db.query.textWorldChapters.findFirst({
     where: and(
       eq(textWorldChapters.worldId, input.worldId),
       eq(textWorldChapters.matchId, input.matchId),
-      eq(textWorldChapters.projection, input.projection ?? "text"),
+      eq(textWorldChapters.projection, projection),
       eq(textWorldChapters.eventSeq, input.anchor.eventSeq),
     ),
   });
+  const byChapterId = await db.query.textWorldChapters.findFirst({
+    where: eq(textWorldChapters.chapterId, input.chapterId),
+  });
+  if (byCursor && byChapterId && byCursor.id !== byChapterId.id) {
+    throw new Error(`章节投影键与章节 ID 分别绑定到不同记录：${input.chapterId}`);
+  }
+  if (byChapterId && !cursorMatches(byChapterId, input)) {
+    throw new Error(`章节 ID 已绑定到不同事件：${input.chapterId}`);
+  }
+  return byCursor ?? byChapterId;
 }
 
 async function upgradeChapter(row: TextWorldChapterRow, input: PersistTextWorldChapterInput): Promise<void> {

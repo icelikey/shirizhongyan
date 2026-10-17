@@ -142,6 +142,41 @@ export function assertContentCoverage(registry: ContentRegistry, gameIds: readon
   }
 }
 
+
+export type OfficialGameContentDefinition = {
+  id: string;
+  seatPolicy?: string;
+};
+
+/**
+ * 将注册表中的公开游戏和 Agent-only 暗局绑定到内容包。
+ * 暗局必须显式声明基座别名，避免出现“能创建房间但没有世界内容”的孤儿定义。
+ */
+export function assertOfficialGameContentCoverage(
+  registry: ContentRegistry,
+  definitions: readonly OfficialGameContentDefinition[],
+): void {
+  const ids = new Set<string>();
+  const publicDefinitions = definitions.filter(definition => definition.seatPolicy !== "agent-only");
+  for (const definition of definitions) {
+    if (ids.has(definition.id)) throw new Error(`官方游戏定义重复：${definition.id}`);
+    ids.add(definition.id);
+
+    const contentId = CONTENT_GAME_ALIASES[definition.id] ?? definition.id;
+    if (!registry.packages.has(contentId)) {
+      throw new Error(`官方游戏缺少内容包绑定：${definition.id} → ${contentId}`);
+    }
+    if (definition.seatPolicy === "agent-only" && !CONTENT_GAME_ALIASES[definition.id]) {
+      throw new Error(`Agent-only 游戏必须声明公开基座：${definition.id}`);
+    }
+  }
+
+  const publicIds = new Set(publicDefinitions.map(definition => definition.id));
+  for (const gameId of PUBLIC_CONTENT_GAME_IDS) {
+    if (!publicIds.has(gameId)) throw new Error(`注册表缺少公开游戏：${gameId}`);
+  }
+}
+
 export function loadOfficialContentPackages(contentDir = resolve(process.cwd(), "content")): ContentRegistry {
   const registry = loadContentPackages(contentDir);
   assertContentCoverage(registry, PUBLIC_CONTENT_GAME_IDS);

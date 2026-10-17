@@ -48,7 +48,7 @@ function makeRow(values: Record<string, unknown> = {}) {
   };
 }
 
-function setupDb(options: { existing?: Record<string, unknown>; duplicateOnInsert?: boolean } = {}) {
+function setupDb(options: { existing?: Record<string, unknown>; duplicateOnInsert?: boolean; insertError?: Error } = {}) {
   let row = options.existing ? makeRow(options.existing) : undefined;
   const findFirst = vi.fn(async () => row);
   const updateWhere = vi.fn(async () => undefined);
@@ -59,9 +59,10 @@ function setupDb(options: { existing?: Record<string, unknown>; duplicateOnInser
     }),
   }));
   const insertValues = vi.fn(async (values: Record<string, unknown>) => {
+    if (options.insertError) throw options.insertError;
     if (options.duplicateOnInsert) {
-      const error = Object.assign(new Error("duplicate"), { code: "ER_DUP_ENTRY", errno: 1062 });
-      throw error;
+      const driverError = Object.assign(new Error("duplicate"), { errno: 1062 });
+      throw Object.assign(new Error("query failed"), { cause: driverError });
     }
     row = makeRow(values);
   });
@@ -113,6 +114,14 @@ describe("文字世界章节投影幂等性", () => {
     const preserved = await insertTextWorldChapter(input({ body: "旧 fallback" }));
     expect(preserved?.body).toBe("已发布战报");
     expect(generatedDb.updateSet).not.toHaveBeenCalled();
+  });
+
+  it("非重复键数据库错误会原样抛出", async () => {
+    const failure = new Error("database unavailable");
+    const db = setupDb({ insertError: failure });
+
+    await expect(insertTextWorldChapter(input())).rejects.toBe(failure);
+    expect(db.insertValues).toHaveBeenCalledTimes(1);
   });
 
   it("并发插入发生游标唯一键冲突时重新定位已有章节", async () => {
