@@ -23,7 +23,7 @@ function response(status, payload) {
   });
 }
 
-function gatewayMock({ webhookUrl = "http://127.0.0.1:9/webhook", leaseAcquired = true } = {}) {
+function gatewayMock({ webhookUrl = "http://127.0.0.1:9/webhook", leaseAcquired = true, leaseStatus = 200 } = {}) {
   const requests = [];
   let observationReads = 0;
   const fetchImpl = async (input, init = {}) => {
@@ -70,7 +70,7 @@ function gatewayMock({ webhookUrl = "http://127.0.0.1:9/webhook", leaseAcquired 
       return response(201, { ok: true });
     }
     if (url.endsWith("/agents/agent-1/runner-lease") && method === "POST") {
-      return response(200, { acquired: leaseAcquired, ok: leaseAcquired, runnerId: body.runnerId, leaseUntil: new Date(Date.now() + 30000).toISOString() });
+      return response(leaseStatus, { acquired: leaseAcquired, ok: leaseAcquired, runnerId: body.runnerId, leaseUntil: new Date(Date.now() + 30000).toISOString() });
     }
     if (url.endsWith("/agents/agent-1/report")) {
       return response(200, { report: { summary: "mock daily", stats: {} } });
@@ -151,6 +151,17 @@ test("Worker with a competing lease does not advance a match or publish a daily 
   const runOnce = requireWorkerBoundary(t);
   if (!runOnce) return;
   const mock = gatewayMock({ leaseAcquired: false });
+  const result = await runOnce({ config: { ...baseConfig }, args: { once: true, create_match: true, persist: false }, fetchImpl: mock.fetchImpl });
+  assert.equal(result.status, "lease-busy");
+  assert.equal(mock.requests.some((request) => request.url.endsWith("/matches") && request.method === "POST"), false);
+  assert.equal(mock.requests.some((request) => request.url.endsWith("/report")), false);
+});
+
+
+test("Worker treats an HTTP 409 lease conflict as lease-busy", async (t) => {
+  const runOnce = requireWorkerBoundary(t);
+  if (!runOnce) return;
+  const mock = gatewayMock({ leaseAcquired: false, leaseStatus: 409 });
   const result = await runOnce({ config: { ...baseConfig }, args: { once: true, create_match: true, persist: false }, fetchImpl: mock.fetchImpl });
   assert.equal(result.status, "lease-busy");
   assert.equal(mock.requests.some((request) => request.url.endsWith("/matches") && request.method === "POST"), false);

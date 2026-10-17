@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lt } from "drizzle-orm";
 import {
   agentActivities,
   agentDailyReports,
@@ -167,7 +167,7 @@ export async function buildDailyReport(agentKeyId: number, reportDate = dateKey(
         and(
           eq(agentActivities.agentKeyId, agentKeyId),
           gte(agentActivities.occurredAt, start),
-          lte(agentActivities.occurredAt, end),
+          lt(agentActivities.occurredAt, end),
         ),
       )
       .orderBy(desc(agentActivities.occurredAt), desc(agentActivities.id)),
@@ -187,25 +187,17 @@ export async function buildDailyReport(agentKeyId: number, reportDate = dateKey(
     : `第 ${reportDate} 日，影从留下 ${stats.events} 条记录，完成 ${stats.actions} 次行动，走过 ${stats.matches} 场牌局；暗局 ${stats.darkMatches}/3${stats.victories ? `，赢下 ${stats.victories} 场` : ""}。`;
 
   const db = getDb();
-  const existing = await db.query.agentDailyReports.findFirst({
-    where: and(
-      eq(agentDailyReports.agentKeyId, agentKeyId),
-      eq(agentDailyReports.reportDate, reportDate),
-    ),
-  });
-  if (existing) {
-    await db
-      .update(agentDailyReports)
-      .set({ summary, statsJson: stats as never })
-      .where(eq(agentDailyReports.id, existing.id));
-  } else {
-    await db.insert(agentDailyReports).values({
+  await db
+    .insert(agentDailyReports)
+    .values({
       agentKeyId,
       reportDate,
       summary,
       statsJson: stats as never,
+    })
+    .onDuplicateKeyUpdate({
+      set: { summary, statsJson: stats as never },
     });
-  }
   return { reportDate, summary, stats, activities };
 }
 

@@ -24,9 +24,16 @@ function runnerId(config) {
 async function acquireLease(config) {
   const id = runnerId(config);
   config.runnerId = id;
-  return jsonRequest(`${endpoint(config)}/agents/${config.agentId}/runner-lease`, {
-    key: config.key, method: "POST", body: { op: "acquire", runnerId: id },
-  });
+  try {
+    return await jsonRequest(`${endpoint(config)}/agents/${config.agentId}/runner-lease`, {
+      key: config.key, method: "POST", body: { op: "acquire", runnerId: id },
+    });
+  } catch (error) {
+    // 409 是服务端对“已有其他 runner 持有租约”的明确响应；
+    // 只有这个状态转成可处理的 lease-busy，其他错误仍然失败并暴露配置或网络问题。
+    if (error?.status === 409) return { ok: false, acquired: false, reason: "lease-busy" };
+    throw error;
+  }
 }
 
 async function heartbeatLease(config) {
@@ -119,7 +126,11 @@ async function jsonRequest(url, { key = "", method = "GET", body } = {}) {
   const text = await response.text();
   let payload = {};
   try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text.slice(0, 400) }; }
-  if (!response.ok) throw new Error(redact(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
+  if (!response.ok) {
+    const error = new Error(redact(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
+    error.status = response.status;
+    throw error;
+  }
   return payload;
 }
 

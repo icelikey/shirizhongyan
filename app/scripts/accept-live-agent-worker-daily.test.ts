@@ -52,6 +52,12 @@ class FakeGateway {
       this.activities.push(body);
       return response({ protocolVersion: "0.1", ok: true });
     }
+    if (url.pathname === `/world/v1/agents/${AGENT_ID}/runner-lease` && method === "POST") {
+      if (body.op === "acquire") return response({ protocolVersion: "0.1", ok: true, acquired: true, runnerId: body.runnerId });
+      if (body.op === "heartbeat") return response({ protocolVersion: "0.1", ok: true, runnerId: body.runnerId });
+      if (body.op === "release") return response({ protocolVersion: "0.1", ok: true, released: true });
+      return response({ error: { message: "unsupported lease operation" } }, 400);
+    }
     if (url.pathname === `/world/v1/agents/${AGENT_ID}/report` && method === "GET") {
       return response(this.reportPayload());
     }
