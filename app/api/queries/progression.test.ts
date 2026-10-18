@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { applyProgressionRecords, selectContentDrop, stableDropPool } from "./progression";
+import { describe, expect, it, vi } from "vitest";
+import { applyProgressionRecords, findProgressionByUserId, selectContentDrop, stableDropPool } from "./progression";
+import { findCardsByUser } from "./playerCards";
+import { findProfileByUserId } from "./profiles";
+
+vi.mock("./playerCards", () => ({ findCardsByUser: vi.fn() }));
+vi.mock("./profiles", () => ({ findProfileByUserId: vi.fn() }));
 import { createWorldState } from "@contracts/worldCycle";
 import { createSpireRuntime, resolveSpireDeathCarry, settleSpireFloor } from "@contracts/spireRuntime";
 
@@ -52,3 +57,60 @@ describe("content progression settlement", () => {
     expect(tooMany.reason).toBe("capacity-exceeded");
   });
 });
+
+describe("progression readback", () => {
+  it("merges progression records and owned cards into one user snapshot", async () => {
+    vi.mocked(findProfileByUserId).mockResolvedValue({
+      recordsJson: {
+        progression: {
+          settlements: {
+            "event-1": {
+              eventId: "event-1",
+              matchLogId: 11,
+              gameId: "guess-core",
+              result: "win",
+              dropId: "memory.a",
+              dropType: "memory",
+              cardGranted: true,
+              settledAt: 100,
+            },
+          },
+          lastReceipt: {
+            eventId: "event-1",
+            matchLogId: 11,
+            gameId: "guess-core",
+            result: "win",
+            dropId: "memory.a",
+            dropType: "memory",
+            cardGranted: true,
+            settledAt: 100,
+          },
+          longTermMemoryIds: ["memory.a"],
+          pendingDeathSelection: ["memory.a"],
+        },
+        world: {
+          memoryArchiveIds: ["memory.a"],
+          mapFragments: ["map.old"],
+        },
+      },
+    } as never);
+    vi.mocked(findCardsByUser).mockResolvedValue([
+      {
+        cardId: "memory.a",
+        kind: "relic",
+        count: 1,
+        source: "victory",
+        acquiredAt: new Date("2026-10-17T00:00:00.000Z"),
+      },
+    ] as never);
+
+    const snapshot = await findProgressionByUserId(7);
+
+    expect(snapshot?.progression.longTermMemoryIds).toEqual(["memory.a"]);
+    expect(snapshot?.progression.pendingDeathSelection).toEqual(["memory.a"]);
+    expect(snapshot?.world.mapFragments).toEqual(["map.old"]);
+    expect(snapshot?.cards).toHaveLength(1);
+    expect(snapshot?.cards[0]?.cardId).toBe("memory.a");
+  });
+});
+

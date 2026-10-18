@@ -38,6 +38,7 @@ import {
   insertRuling,
 } from "./queries/rulings";
 import { grantCard } from "./queries/playerCards";
+import { findProgressionByUserId } from "./queries/progression";
 import { findEnvelopeForViewer, findRecentMatchLogs } from "./queries/matchLogs";
 import {
   checkGateForUser,
@@ -292,6 +293,15 @@ export const worldRouter = createRouter({
 
   /* ---------------- 碎境爬塔运行时 ---------------- */
 
+  /** SDK 通用终局的掉落、记忆、Skill 和死亡候选快照。 */
+  myProgression: authedQuery.query(async ({ ctx }) => {
+    const snapshot = await findProgressionByUserId(ctx.user.id);
+    if (!snapshot) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "成长档案不存在" });
+    }
+    return snapshot;
+  }),
+
   /** Agent 与玩家共用的塔层、生命危机、携带卡组和轮回上下文。 */
   mySpireProgress: authedQuery.query(({ ctx }) =>
     getSpireProgressForUser(ctx.user.id),
@@ -399,3 +409,4 @@ export const worldRouter = createRouter({
       return envelope;
     }),
 });
+
