@@ -9,7 +9,7 @@
 - 分支：`codex/cloud-deploy-20260927`
 - 远端：`https://github.com/icelikey/shirizhongyan.git`
 - `.spec-workflow`：已合并到新仓库
-- 当前工作区：干净，本地 HEAD 为 `6cbcd0b`；GitHub 分支已通过仓库 API 同步到等价提交 `d0d95d9`；没有将构建产物或 `node_modules` 纳入迁移提交
+- 当前工作区：干净；本地分支已包含成长回读、生产配置护栏、Worker 心跳、CLI 兼容和 UI 参考图；GitHub 已同步到回放参考图提交，最新 CLI/UI 提交仍待网络恢复后同步；没有将构建产物或 `node_modules` 纳入迁移提交
 
 ## M0 验证
 
@@ -64,7 +64,7 @@ registration                   403 · invite code rejected
 - `agent-worker` 的 Compose 依赖已改为等待 `app` `service_healthy`。
 - Worker 真实 HTTP 409 租约冲突会稳定返回 `lease-busy`；其他错误继续失败。
 - 日报活动查询改为 `[start, end)`，日报写入使用 MySQL 原子 upsert；每日 Worker FakeGateway 已覆盖租约 acquire/heartbeat/release。
-- 定向验证：CLI Worker 6/6、每日 Worker 验收 3/3；当前 HEAD 还通过生产环境契约 4/4、内容运行时 8/8、TypeScript 检查和生产构建；公网 Worker 与 ECS 常驻仍未验收。
+- 定向验证：CLI Worker/CLI 回归 8/8、每日 Worker 验收 3/3；当前 HEAD 还通过生产环境契约 4/4、内容运行时 8/8、TypeScript 检查和生产构建；公网 Worker 与 ECS 常驻仍未验收。
 
 ## M0 出口
 

@@ -8,7 +8,7 @@
 
 - 唯一开发目录已迁移到 `E:\终焉\Kimi_Agent_智斗游戏架构`；原仓库保留在 `E:\video\ice\世界树\时间移民\偃月牵丝\Kimi_Agent_智斗游戏架构` 作为只读备份。
 - Git 分支、远端和历史已保留；`.spec-workflow` 已合并到新目录。
-- 当前本地提交为 `6cbcd0b`，工作区干净；GitHub 分支已通过仓库 API 同步到等价提交 `d0d95d9`，文件树包含本地成长回读改动。
+- 当前本地分支已包含成长回读、生产配置护栏、Worker 心跳、CLI 兼容和 UI 设计交付，工作区干净；GitHub 分支已同步到回放参考图提交，最后两次推送因连接重置暂未包含最新 CLI/UI 提交。
 - 章节投影已按稳定投影键优先查找，能够识别嵌套的 MySQL 重复键错误；fallback 只能升级为 generated，非重复数据库错误继续抛出。
 - 官方内容契约测试已锁定 7 个公开游戏、4 个 Agent-only 变体及应用/文档 manifest 的唯一性。
 - 新目录验证结果：`pnpm check` 通过；全量测试 51 个文件、410 个用例通过；`pnpm build` 通过。
@@ -64,6 +64,7 @@
 - Agent 结算已把同一事实写入 `world` 与 `spire` 快照，生命归零会生成死亡携带候选，轮回由 `spireRuntime` 负责。
 - 云端 Worker 与本地 Worker 已有 `runnerId / leaseUntil / heartbeat / release` 租约接口，测试覆盖竞争租约不推进对局。
 - Worker 容器现在写入 `TDG_HEARTBEAT_FILE` 并由 Compose healthcheck 检查最近两分钟内的心跳；生产启动会拒绝示例 `APP_SECRET` 或示例注册码。
+- CLI 旧 tRPC `request` 入口已恢复兼容，并通过 8/8 CLI Worker/CLI 回归测试；这只补兼容入口，不扩大 Agent 权限。
 - 同一用户同时占真人席与影从席时，奖励、世界、爬塔和掉落写回按用户串行，已通过真实 MySQL 猜平均数冒烟。
 
 ## 仍未完成
