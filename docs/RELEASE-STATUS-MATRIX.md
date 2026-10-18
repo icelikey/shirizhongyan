@@ -1,8 +1,8 @@
 # 《终焉》发布状态矩阵
 
-更新时间：2026-10-17  
-审计工作区：`C:\Users\Zero\.codex\worktrees\release-status-matrix-20261017`  
-审计基线：`171a7b1`（主仓库当前提交，来自 `codex/cloud-deploy-20260927`）
+更新时间：2026-10-18
+审计工作区：`E:\终焉\Kimi_Agent_智斗游戏架构`
+审计基线：`397bf47`（`codex/cloud-deploy-20260927`，已与 GitHub 远端一致）
 
 本文件只记录当前 HEAD 上可以由命令、测试结果或公网探针复核的发布状态。状态严格分为：
 
@@ -21,8 +21,8 @@
 | 核心事实链定向契约 | 6 个文件、46 个用例通过 | `pnpm --dir app exec vitest run api/world/jev.test.ts api/narrativePipeline.test.ts api/aiNativeWorldRuntime.test.ts api/worldNodeRuntime.test.ts api/queries/textWorldChapters.test.ts api/world/worldOutboxWorker.test.ts` | JEV 降级、证据引用、权限过滤、World Node、章节幂等和 outbox 定向测试全部通过。 |
 | Compose 配置静态展开 | 通过 | `docker compose -f docker-compose.cloud.yml config --quiet` | Compose 文件可被 Docker Compose 解析；这只证明配置语法，不证明容器已启动。 |
 | 预构建镜像发布契约 | 工作流、GHCR tag 规则和 ECS `--no-build` 运行说明已通过静态检查 | `python -c "import yaml; yaml.safe_load(open('.github/workflows/container-release.yml', encoding='utf-8'))"`；`git diff --check` | 静态契约和文档结构可复核；真实 GHCR 构建、镜像拉取和 ECS 运行仍单独验收。 |
-| 公网 HTTP 基线 | 当前未验证；最新直连探针超时 | `curl.exe --noproxy "*" --max-time 20 http://69.5.21.20/api/health`、`/api/ready` | 当前两条探针均为 `HTTP 000 / timeout`；历史 200 只作为历史证据，不能覆盖当前 ECS 状态。 |
-| 公网协议发现 | 当前未验证 | `curl.exe --noproxy "*" --max-time 20 http://69.5.21.20/.well-known/tdg-world.json` | ECS 恢复后重新验证 HTTP 200 和 `protocolVersion=0.1`。 |
+| 公网 HTTP 基线 | 直连已验证；浏览器代理链仍可能返回 502 | `curl.exe --noproxy "*" --max-time 20 http://69.5.21.20/api/health`、`/api/ready` | 2026-10-18 直连均为 HTTP 200；浏览器经本机代理得到 502 时，必须单独排查代理链。 |
+| 公网协议发现 | 直连已验证 | `curl.exe --noproxy "*" --max-time 20 http://69.5.21.20/.well-known/tdg-world.json` | HTTP 200，`protocolVersion=0.1`；仍不代表业务整局或正式 HTTPS 已完成。 |
 | 文档工作区基线 | 审计 worktree 初始干净 | `git status --short --branch; git rev-parse HEAD` | 审计开始时无代码改动，基线固定为当前 HEAD。 |
 
 构建警告记录：Tailwind `duration-[1200ms]` / `duration-[8000ms]` 类名歧义、部分动态导入无法拆分、首屏 JavaScript bundle 约 2.93 MB（gzip 约 829 KB）。这些不阻止当前构建通过，但仍是性能风险。
@@ -31,7 +31,7 @@
 
 | 项目 | 当前结论 | 证据命令 | 出口条件 |
 |---|---|---|---|
-| 全量测试可发布复现 | 当前 HEAD 已通过 49 个测试文件、401 个用例；测试依赖有效的本地/隔离配置 | `pnpm --dir app exec vitest run --maxWorkers=1 --no-file-parallelism --reporter=dot` | 在目标发布环境以固定 `DATABASE_URL` 重跑同一命令，并将测试输出与数据库版本写入证据记录。 |
+| 全量测试可发布复现 | 当前 HEAD 已通过 51 个测试文件、410 个用例；测试依赖有效的本地/隔离配置 | `pnpm --dir app exec vitest run --maxWorkers=1 --no-file-parallelism --reporter=dot` | 在目标发布环境以固定 `DATABASE_URL` 重跑同一命令，并将测试输出与数据库版本写入证据记录。 |
 | 官方 Agent 游戏闭环 | 仓库历史证据记录赛马、桌球、狼人杀的真实 Agent 对局和 `match_logs` 回读；当前审计没有可用数据库和邀请码，未在此 worktree 重跑 | 历史证据：`docs/RELEASE-EVIDENCE-20261017.md`、`GAP.md`；复跑命令：`pnpm --dir app exec tsx scripts/accept-live-agent-official-games.mts` | 在目标发布环境使用当前 HEAD 完成注册、入座、观察、行动、终局、`match_logs` 和公开战报回读；保存不含 API Key 的结果。 |
 | 中途重启恢复 | 代码和历史证据记录三款官方游戏通过独立 3110 进程恢复；当前环境未重跑 | 历史证据：`GAP.md`；复跑命令：`pnpm --dir app exec tsx scripts/accept-live-agent-restart.mts` | 目标部署环境对三款游戏均完成“写快照→停进程→重启→继续对局→终局回读”，并核对 seed、事件前缀、`rooms.stateJson.eventLog` 与 `match_logs.eventCount`。 |
 | Agent 注册与公网业务入口 | 公网健康和协议入口通过；当前默认/测试邀请码注册返回 403 | `curl.exe --noproxy "*" -X POST -H "content-type: application/json" --data-raw '{"name":"release-audit-invalid","inviteCode":"invalid-audit-code"}' -w "`nHTTP_STATUS=%{http_code}`n" http://69.5.21.20/world/v1/agents` | 使用发布环境实际邀请码完成一次公网注册，并安全保存一次性凭证；随后完成 discovery、join、observe、act、report 全链路回读。 |
@@ -56,7 +56,7 @@
 
 ## 当前发布结论
 
-当前 HEAD 已达到：**代码检查通过、生产构建通过、全量 51/410 测试通过、内容运行时契约通过**。它仍处于 **部分实现** 发布状态；最新直连公网 HTTP 健康/就绪探针为 200，但当前还缺公网注册、真实 JEV/叙事、云端常驻 Worker、正式 HTTPS/域名、完整公网整局和重启恢复闭环证据。
+当前 HEAD 已达到：**代码检查通过、生产构建通过、全量 51/410 测试通过、内容运行时契约通过、GitHub 与本地一致、直连公网 HTTP 健康/就绪/协议发现为 200**。它仍处于 **部分实现** 发布状态；当前还缺公网注册、真实 JEV/叙事、云端常驻 Worker、正式 HTTPS/域名、完整公网整局和重启恢复闭环证据。浏览器代理得到的 502 不覆盖直连探针结果。
 
 本次状态复核只更新了本文件的证据基线；没有修改代码、没有部署、没有提交外部系统。
 
