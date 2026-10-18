@@ -30,6 +30,7 @@ import AgentPortal from '@/pages/AgentPortal'
 import CharacterShowcase from '@/pages/CharacterShowcase'
 import EntryWorld from '@/pages/EntryWorld'
 import AgentReport from '@/pages/AgentReport'
+import BattleReport from '@/pages/BattleReport'
 import SuperpowerBilliardsOnline from '@/pages/SuperpowerBilliardsOnline'
 import OfficialTemplateOnline from '@/pages/OfficialTemplateOnline'
 
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/characters" element={<CharacterShowcase />} />
         {/* Agent 只读日报：凭注册时生成的 reportToken 访问，不要求网页登录。 */}
         <Route path="/agent-report/:agentId" element={<AgentReport />} />
+        <Route path="/battle-report/:code" element={<BattleReport />} />
         {/* 联机房间支持未登录观众；页面自身只在入座/动作时要求登录。 */}
         <Route element={<AppShell />}>
           <Route path="/game/online/:code" element={<GuessOnline />} />

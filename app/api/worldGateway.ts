@@ -947,6 +947,17 @@ worldGateway.get("/world/v1/public/matches/:code/report", async (c) => {
     });
     const mode = projection.mode;
     const brief = buildBattleReportBrief({ events: envelope.events, mode, matchId: state.matchLogId });
+    let chapters: Awaited<ReturnType<typeof listTextWorldChapters>> = [];
+    try {
+      chapters = await listTextWorldChapters({
+        worldId: getWorldId(),
+        matchId: String(state.matchLogId),
+        projection: "text",
+      });
+    } catch (error) {
+      // 战报正文仍可公开读取；旧数据库未完成章节迁移时，阅读器显示单章战报。
+      console.error("[public-report] chapters unavailable", error);
+    }
     return c.json({
       protocolVersion: PROTOCOL_VERSION,
       public: true,
@@ -954,6 +965,7 @@ worldGateway.get("/world/v1/public/matches/:code/report", async (c) => {
       mode,
       report: projection.narrative.text,
       brief,
+      chapters,
       prompt: buildBattleReportPrompt(brief),
       narrative: {
         usedFallback: projection.narrative.usedFallback,
