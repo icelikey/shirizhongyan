@@ -41,7 +41,7 @@
 | HTTPS、域名与证书 | Caddy/80/443 配置已存在，但当前只验证了 IP HTTP；未验证正式域名、证书和 HTTPS | `Get-Content deploy/Caddyfile; rg -n "TDG_DOMAIN|HTTPS_PORT|ACME_EMAIL|https://" docker-compose.cloud.yml DEPLOY.md deploy`；目标命令：`.\deploy\verify-public-endpoint.ps1 -BaseUrl https://<正式域名> -RequireReady` | DNS A 记录、安全组、Caddy edge profile 和证书均在目标环境就绪；正式域名 HTTPS 的 health、ready、discovery 和业务入口通过。 |
 | 备份恢复 | 备份/恢复脚本和确认门槛已存在；本次未执行真实数据库恢复演练 | `Get-Content deploy/mysql-backup.sh; Get-Content deploy/mysql-restore.sh`；目标命令：`TDG_CONFIRM_RESTORE=YES ./deploy/mysql-restore.sh <backup>` | 在隔离数据库上完成备份、SHA-256 校验、恢复和关键表回读；不得用生产数据破坏性演练替代验证。 |
 | 奖励、世界和爬塔回写 | 终局 receipt、`player_cards`、world/spire 快照代码已接入；完整 7 个公开游戏与 4 个暗局变体的真实数据库逐款回读仍缺失 | `rg -n "receipt|player_cards|recordsJson.progression|world|spire" app/api app/db docs GAP.md`；目标命令：官方游戏验收脚本加数据库回读断言 | 逐款完成终局、重复结算、掉落容量、死亡携带和世界/spire 快照回读；结果与 `match_logs`、receipt 一致。 |
-| 战报阅读器、回放时间轴和双投影完整流程 | 事件引用和部分 UI 已存在；完整用户流程、裁判席、回放时间轴和文字章节阅读闭环尚未完成验收 | `rg -n "timeline|回放|裁判席|BattleReport|evidence" app/src app/api docs` | 从真实对局进入战报、证据时间线和文字章节；公开/座位/裁判/观战权限分别通过；刷新和重启后仍可回放。 |
+| 战报阅读器、回放时间轴和双投影完整流程 | 公开终局战报已新增章节阅读器和章节投影；统一事件时间线、裁判席、进行中观战和 ECS 浏览器验收仍缺 | `app/src/pages/BattleReport.tsx`、`app/api/worldGateway.ts`、`pnpm --dir app build` | 从真实对局进入战报、证据时间线和文字章节；公开/座位/裁判/观战权限分别通过；刷新和重启后仍可回放。 |
 
 本次审计没有打印任何数据库凭证，也没有启动、重置或修改数据库。当前 HEAD 的本地全量测试已通过；若在其他环境复现失败，必须先核对 `DATABASE_URL` 和数据库迁移版本，再将失败证据单独记录。
 
