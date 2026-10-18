@@ -2,6 +2,8 @@ import { eq, sql } from "drizzle-orm";
 import { playerCards, travelerProfiles } from "@db/schema";
 import type { CardKind, CardSource } from "@contracts/cards";
 import { getDb } from "./connection";
+import { findCardsByUser } from "./playerCards";
+import { findProfileByUserId } from "./profiles";
 
 export type ContentDrop = { id: string; type: "memory" | "skill" | "map"; rarity: string; effect?: string };
 export type ProgressionResult = "win" | "loss" | "draw";
@@ -85,6 +87,76 @@ export function applyProgressionRecords(recordsJson: unknown, input: {
   }
   records.progression = progression;
   return { records, duplicate: false };
+}
+
+export interface ProgressionSnapshot {
+  progression: {
+    settlements: Record<string, SettlementReceipt>;
+    lastReceipt: SettlementReceipt | null;
+    longTermMemoryIds: string[];
+    pendingDeathSelection: string[];
+  };
+  world: {
+    memoryArchiveIds: string[];
+    mapFragments: string[];
+  };
+  cards: Array<{
+    cardId: string;
+    kind: CardKind;
+    count: number;
+    source: CardSource;
+    acquiredAt: Date;
+  }>;
+}
+
+/** 读取 SDK 通用终局结算写入的成长事实，供 Agent 与前端统一回读。 */
+export async function findProgressionByUserId(userId: number): Promise<ProgressionSnapshot | null> {
+  const [profile, cards] = await Promise.all([
+    findProfileByUserId(userId),
+    findCardsByUser(userId),
+  ]);
+  if (!profile) return null;
+
+  const records = parseRecords(profile.recordsJson);
+  const rawProgression = records.progression;
+  const progression = typeof rawProgression === "object" && rawProgression && !Array.isArray(rawProgression)
+    ? rawProgression as Record<string, unknown>
+    : {};
+  const rawWorld = records.world;
+  const world = typeof rawWorld === "object" && rawWorld && !Array.isArray(rawWorld)
+    ? rawWorld as Record<string, unknown>
+    : {};
+  const asStringList = (value: unknown) =>
+    Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+
+  const settlements = typeof progression.settlements === "object"
+    && progression.settlements
+    && !Array.isArray(progression.settlements)
+    ? progression.settlements as Record<string, SettlementReceipt>
+    : {};
+  const lastReceipt = progression.lastReceipt && typeof progression.lastReceipt === "object"
+    ? progression.lastReceipt as SettlementReceipt
+    : null;
+
+  return {
+    progression: {
+      settlements,
+      lastReceipt,
+      longTermMemoryIds: asStringList(progression.longTermMemoryIds),
+      pendingDeathSelection: asStringList(progression.pendingDeathSelection),
+    },
+    world: {
+      memoryArchiveIds: asStringList(world.memoryArchiveIds),
+      mapFragments: asStringList(world.mapFragments),
+    },
+    cards: cards.map(card => ({
+      cardId: card.cardId,
+      kind: card.kind as CardKind,
+      count: card.count,
+      source: card.source as CardSource,
+      acquiredAt: card.acquiredAt,
+    })),
+  };
 }
 
 export async function settleContentProgression(input: {
