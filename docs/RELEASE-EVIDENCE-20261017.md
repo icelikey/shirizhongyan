@@ -15,7 +15,7 @@
 
 ```text
 pnpm check                         PASS · current HEAD
-pnpm test -- --run                 PASS · 50 files · 406 tests · serial workers
+pnpm test -- --run                 PASS · 51 files · 410 tests · serial workers
 pnpm build                         PASS · current HEAD
 git diff --check                   PASS · current HEAD
 ```
@@ -34,7 +34,7 @@ pnpm exec vitest run api/content/runtime.test.ts
 PASS · 1 file · 8 tests
 ```
 
-历史全量测试的 `48 files / 394 tests` 仍作为迁移基线保留；当前 HEAD 已在稳定的本地配置下重新完成 `50 files / 406 tests`。
+历史全量测试的 `48 files / 394 tests` 仍作为迁移基线保留；当前 HEAD 已在稳定的本地配置下重新完成 `51 files / 410 tests`。
 
 生产构建保留以下非阻塞警告：Tailwind `duration-[1200ms]`/`duration-[8000ms]` 类名歧义、部分动态导入无法拆分，以及首屏 JavaScript bundle 较大。这些问题进入性能修缮队列，不改变规则内核和事件事实链。
 
@@ -64,7 +64,7 @@ registration                   403 · invite code rejected
 - `agent-worker` 的 Compose 依赖已改为等待 `app` `service_healthy`。
 - Worker 真实 HTTP 409 租约冲突会稳定返回 `lease-busy`；其他错误继续失败。
 - 日报活动查询改为 `[start, end)`，日报写入使用 MySQL 原子 upsert；每日 Worker FakeGateway 已覆盖租约 acquire/heartbeat/release。
-- 定向验证：CLI Worker 6/6、每日 Worker 验收 3/3；这些是历史本地验收证据。当前 HEAD 已重新验证内容运行时 8/8、全量 49/401、TypeScript 检查和生产构建；公网 Worker 与 ECS 常驻仍未验收。
+- 定向验证：CLI Worker 6/6、每日 Worker 验收 3/3；当前 HEAD 还通过生产环境契约 4/4、内容运行时 8/8、TypeScript 检查和生产构建；公网 Worker 与 ECS 常驻仍未验收。
 
 ## M0 出口
 

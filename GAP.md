@@ -11,7 +11,7 @@
 - 当前本地提交为 `6cbcd0b`，工作区干净；GitHub 分支已通过仓库 API 同步到等价提交 `d0d95d9`，文件树包含本地成长回读改动。
 - 章节投影已按稳定投影键优先查找，能够识别嵌套的 MySQL 重复键错误；fallback 只能升级为 generated，非重复数据库错误继续抛出。
 - 官方内容契约测试已锁定 7 个公开游戏、4 个 Agent-only 变体及应用/文档 manifest 的唯一性。
-- 新目录验证结果：`pnpm check` 通过；全量测试 50 个文件、406 个用例通过；`pnpm build` 通过。
+- 新目录验证结果：`pnpm check` 通过；全量测试 51 个文件、410 个用例通过；`pnpm build` 通过。
 - 构建仍有 Tailwind `duration-[...]` 歧义和首屏 JavaScript bundle 较大的非阻塞警告。
 - ECS 当前状态以 2026-10-17 晚间直连探针为准：`/api/health`、`/api/ready`、`/world/v1`、公开世界状态、公开快照和首页均返回 200，`/api/ready` 的数据库检查为 true；公网 Agent 注册仍因本地注册码与生产注册码不一致返回 403，Worker、HTTPS 和重启恢复尚未验收。
 
@@ -123,7 +123,7 @@
 
 - 分支：`codex/cloud-deploy-20260927`，本地已包含 World Node 运行时、ECS 恢复手册和状态对齐；GitHub 已通过仓库 API 完成本轮同步。
 - `pnpm --dir app check`：通过。
-- `pnpm --dir app test -- --run`：当日记录为 48 个测试文件、394 个测试用例通过；晚间复核已更新为 50 个文件、406 个用例。
+- `pnpm --dir app test -- --run`：当日记录为 48 个测试文件、394 个测试用例通过；最新复核为 51 个文件、410 个用例。
 - `pnpm --dir app build`：通过；仍有 Tailwind 动画类歧义和首屏 bundle 较大的性能警告。
 - World Node 纯运行时已加入：清单校验、协议/规则/内容包兼容性检查、公开贡献批次规范化与敏感字段拒绝；定向测试 11 个用例通过。
 - ECS 构建前资源预检已加入：磁盘、可用内存、Swap 和 Docker 可用性不足时直接阻止构建。
