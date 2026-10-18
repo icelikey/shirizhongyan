@@ -171,6 +171,41 @@ async function gatewayRequest(baseUrl, path, options = {}) {
   return requestJson(`${baseUrl}${path}`, options);
 }
 
+/**
+ * Compatibility client for the legacy tRPC-shaped request command.
+ *
+ * The public Agent protocol is the /world/v1 gateway above, but older
+ * integrations still call `request agent.gatewayRooms`.  Keep that path
+ * working without pulling the server-side superjson dependency into the
+ * standalone CLI: primitive JSON values use the same `{ json: ... }` wire
+ * envelope that tRPC's superjson transformer emits.
+ */
+async function callProcedure(baseUrl, procedure, input = {}, { key = "", method = "GET" } = {}) {
+  const path = `/api/trpc/${procedure}`;
+  const headers = { accept: "application/json" };
+  if (key) headers["x-api-key"] = key;
+  const request = { method, headers };
+  if (method === "GET") {
+    const url = new URL(`${originUrl(baseUrl)}${path}`);
+    url.searchParams.set("input", JSON.stringify({ json: input }));
+    request.url = url.toString();
+  } else {
+    headers["content-type"] = "application/json";
+    request.url = `${originUrl(baseUrl)}${path}`;
+    request.body = JSON.stringify({ json: input });
+  }
+  const response = await fetch(request.url, request);
+  const payload = await readResponse(response);
+  if (!response.ok || payload?.error) {
+    const errorData = payload?.error?.json ?? payload?.error;
+    throw new Error(redactMessage(errorData?.message || payload?.message || "tRPC 请求失败"));
+  }
+  const data = payload?.result?.data;
+  // tRPC + superjson wraps the result in `{ json: value }`; accepting a
+  // direct result as well keeps this client compatible with older adapters.
+  return data && Object.prototype.hasOwnProperty.call(data, "json") ? data.json : data;
+}
+
 async function observe(baseUrl, key, code) {
   const payload = await gatewayRequest(
     baseUrl,

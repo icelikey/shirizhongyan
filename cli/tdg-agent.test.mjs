@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -172,4 +172,29 @@ test("CLI completes the TDG-WP discovery/register/observe/command loop", async (
   assert.ok(observationReads >= 2);
   assert.ok(requests.some((request) => request.path === "/world/v1/agents"));
   assert.ok(requests.every((request) => !request.path.includes("/api/trpc")));
+});
+
+test("legacy request command still reaches the tRPC compatibility endpoint", async () => {
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, "http://127.0.0.1");
+    assert.equal(req.method, "GET");
+    assert.equal(url.pathname, "/api/trpc/agent.gatewayRooms");
+    assert.equal(req.headers["x-api-key"], "tdg_test_key");
+    const input = JSON.parse(url.searchParams.get("input"));
+    assert.deepEqual(input, { json: {} });
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ result: { data: { json: { matches: [{ code: "ABC123" }] } } } }));
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  servers.push(server);
+  const tempDir = await mkdtemp(join(tmpdir(), "tdg-agent-trpc-test-"));
+  tempDirs.push(tempDir);
+  const config = join(tempDir, "agent.json");
+  await writeFile(
+    config,
+    JSON.stringify({ baseUrl: `http://127.0.0.1:${server.address().port}/world/v1`, key: "tdg_test_key" }),
+  );
+  const result = await runCli(["request", "agent.gatewayRooms", "--config", config, "--json"], {});
+  assert.deepEqual(result.data, { matches: [{ code: "ABC123" }] });
 });
