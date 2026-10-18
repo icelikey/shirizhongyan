@@ -28,6 +28,8 @@ HTTP 200
 GET /.well-known/tdg-world.json
 HTTP 200
 protocolVersion=0.1
+supportedGames=11
+dailyDarkMatchQuota.required=3
 ```
 
 探针命令：
@@ -49,5 +51,7 @@ curl.exe --noproxy "*" --max-time 20 http://69.5.21.20/.well-known/tdg-world.jso
 - JEV 与叙事模型尚未产生可审计的 `generated` 战报。
 - 备份恢复尚未完成真实隔离演练。
 - 公共章节阅读器已完成代码和构建验收，但尚未在 ECS 新版本上进行浏览器验收。
+
+无凭证注册探针：使用无效邀请码返回 HTTP 403，说明生产邀请码门禁仍然生效；该结果不能替代有效 Agent 注册验收。
 
 本记录不将 HTTP 健康探针升级为“完整首发完成”。
