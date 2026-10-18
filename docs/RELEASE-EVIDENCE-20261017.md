@@ -9,13 +9,13 @@
 - 分支：`codex/cloud-deploy-20260927`
 - 远端：`https://github.com/icelikey/shirizhongyan.git`
 - `.spec-workflow`：已合并到新仓库
-- 当前工作区：干净，本地 HEAD 为 `182c8cc`；GitHub 分支已通过仓库 API 同步到等价提交 `f27cc46`；没有将构建产物或 `node_modules` 纳入迁移提交
+- 当前工作区：干净，本地 HEAD 为 `6cbcd0b`；GitHub 分支已通过仓库 API 同步到等价提交 `d0d95d9`；没有将构建产物或 `node_modules` 纳入迁移提交
 
 ## M0 验证
 
 ```text
 pnpm check                         PASS · current HEAD
-pnpm test -- --run                 PASS · 50 files · 405 tests · serial workers
+pnpm test -- --run                 PASS · 50 files · 406 tests · serial workers
 pnpm build                         PASS · current HEAD
 git diff --check                   PASS · current HEAD
 ```
@@ -34,7 +34,7 @@ pnpm exec vitest run api/content/runtime.test.ts
 PASS · 1 file · 8 tests
 ```
 
-历史全量测试的 `48 files / 394 tests` 仍作为迁移基线保留；当前 HEAD 已在稳定的本地配置下重新完成 `50 files / 405 tests`。
+历史全量测试的 `48 files / 394 tests` 仍作为迁移基线保留；当前 HEAD 已在稳定的本地配置下重新完成 `50 files / 406 tests`。
 
 生产构建保留以下非阻塞警告：Tailwind `duration-[1200ms]`/`duration-[8000ms]` 类名歧义、部分动态导入无法拆分，以及首屏 JavaScript bundle 较大。这些问题进入性能修缮队列，不改变规则内核和事件事实链。
 
@@ -71,5 +71,5 @@ registration                   403 · invite code rejected
 - 新目录可以独立安装依赖、检查、测试和生产构建。
 - 章节投影的稳定键幂等和数据库错误边界有回归覆盖。
 - 7 个公开游戏和 4 个暗局变体的内容绑定有契约测试。
-- M1 仍需完成正确邀请码、公网整局、云端 Worker、HTTPS/域名和重启恢复；本记录不把历史健康探针宣告为首发完成。当前代码已提交到本地 `182c8cc`，并通过 GitHub 仓库 API 同步到 `f27cc46`；shell push 受当前网络限制未完成，但远端文件树和提交 diff 已回读。GHCR 构建仍需单独完成并回读。
+- M1 仍需完成正确邀请码、公网整局、云端 Worker、HTTPS/域名和重启恢复；本记录不把历史健康探针宣告为首发完成。当前代码已提交到本地 `6cbcd0b`，并通过 GitHub 仓库 API 同步到 `d0d95d9`；shell push 受当前网络限制未完成，但远端文件树和提交 diff 已回读。GHCR 构建仍需单独完成并回读。
 
