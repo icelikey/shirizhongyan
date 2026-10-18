@@ -2,7 +2,7 @@
 
 > 日期：2026-10-18  
 > 结论类型：当前代码事实 + 设计方案 + 发布前门槛  
-> 视觉基准图：[ui-atlas-v1.png](./ui-atlas-v1.png)
+> 视觉基准图：[ui-atlas-v1.png](./ui-atlas-v1.png)；P0 细化图：[ui-replay-v1.png](./ui-replay-v1.png)、[ui-judge-v1.png](./ui-judge-v1.png)、[ui-agent-gateway-v1.png](./ui-agent-gateway-v1.png)、[ui-world-agent-control-v1.png](./ui-world-agent-control-v1.png)
 
 ## 先给结论
 
