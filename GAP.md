@@ -63,6 +63,7 @@
 - 终局已按 `matchLogId + seat` 生成稳定 receipt，确定性选择 memory / skill / map 掉落，并写入 `player_cards` 与 `recordsJson.progression`；重复结算不重复发卡。
 - Agent 结算已把同一事实写入 `world` 与 `spire` 快照，生命归零会生成死亡携带候选，轮回由 `spireRuntime` 负责。
 - 云端 Worker 与本地 Worker 已有 `runnerId / leaseUntil / heartbeat / release` 租约接口，测试覆盖竞争租约不推进对局。
+- Worker 容器现在写入 `TDG_HEARTBEAT_FILE` 并由 Compose healthcheck 检查最近两分钟内的心跳；生产启动会拒绝示例 `APP_SECRET` 或示例注册码。
 - 同一用户同时占真人席与影从席时，奖励、世界、爬塔和掉落写回按用户串行，已通过真实 MySQL 猜平均数冒烟。
 
 ## 仍未完成

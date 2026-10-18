@@ -17,6 +17,18 @@ import { MemoryStore } from "../pi-tdg-agent/src/memory.mjs";
 const DEFAULT_INTERVAL_MS = 5000;
 const VERSION = "0.1.0";
 
+function heartbeatPath() {
+  const path = process.env.TDG_HEARTBEAT_FILE?.trim();
+  return path || null;
+}
+
+function markHeartbeat() {
+  const path = heartbeatPath();
+  if (!path) return;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${Date.now()}\n`, "utf8");
+}
+
 function runnerId(config) {
   return config.runnerId || `runner-${randomUUID()}`;
 }
@@ -545,6 +557,7 @@ export async function runOnce({ config, args = {}, fetchImpl = globalThis.fetch,
       path: args.memory || process.env.TDG_AGENT_MEMORY || null,
     });
     const result = await runCycle(config, args, store);
+    markHeartbeat();
     if (result.status !== "lease-busy") await sendDailyReport(config, store);
     return result;
   } finally {
@@ -578,6 +591,7 @@ async function main() {
   do {
     try {
       const result = await runCycle(config, args, memory);
+      markHeartbeat();
       console.log(`探索 ${result.status}${result.code ? ` · ${result.code}` : ""}${result.action ? ` · ${result.action}` : ""}`);
       const reportDate = new Date().toISOString().slice(0, 10);
       if (reportDate !== lastReportDate) {
@@ -587,6 +601,7 @@ async function main() {
         saveCredential(args, config);
       }
     } catch (error) {
+      markHeartbeat();
       console.error(`Worker 本轮暂停：${redact(error)}`);
     }
     if (args.once || stopped) break;

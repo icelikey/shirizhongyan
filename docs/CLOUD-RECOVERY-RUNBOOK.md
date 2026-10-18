@@ -118,6 +118,7 @@ docker compose \
 ```
 
 Worker 不能仅凭容器处于 running 就判定可用；必须验证租约、自动探索、三场暗局、日报幂等和 API Key 脱敏。
+启用最新 Compose 后，还应确认 `agent-worker` 的 health 状态为 `healthy`；该状态由 `/data/worker-heartbeat` 最近两分钟内是否更新决定，不能替代三场暗局和日报回读。
 
 ## 禁止的应急捷径
 
